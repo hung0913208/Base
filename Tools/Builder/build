@@ -1,0 +1,151 @@
+#!/bin/bash
+# - File: build
+# - Description: wrapping script around build.py or build2
+
+PIPELINE="$(dirname "$0" )"
+SCRIPT="$(basename "$0")"
+
+# @NOTE: print log info
+info(){
+	if [ $# -eq 2 ]; then
+		echo "[   INFO  ]: $1 line ${SCRIPT}:$2"
+	else
+		echo "[   INFO  ]: $1"
+	fi
+}
+
+# @NOTE: print log warning
+warning(){
+	if [ $# -eq 2 ]; then
+		echo "[ WARNING ]: $1 line ${SCRIPT}:$2"
+	else
+		echo "[ WARNING ]: $1"
+	fi
+}
+
+# @NOTE: print log error and exit immediatedly
+error(){
+	if [ $# -gt 1 ]; then
+		echo "[  ERROR  ]: $1 line ${SCRIPT}:$2"
+	else
+		echo "[  ERROR  ]: $1 script ${SCRIPT}"
+	fi
+	exit -1
+}
+
+unameOut="$(uname -s)"
+case "${unameOut}" in
+	Linux*)     machine=Linux;;
+	Darwin*)    machine=Mac;;
+	CYGWIN*)    machine=Cygwin;;
+	MINGW*)     machine=MinGw;;
+	FreeBSD*)   machine=FreeBSD;;
+	*)          machine="UNKNOWN:${unameOut}"
+esac
+
+if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
+	SU=""
+	REMOVE=""
+	CLEAR=""
+
+	# @NOTE: check root if we didn"t have root permission
+	if [ $(whoami) != "root" ]; then
+		if [ ! $(which sudo) ]; then
+			error "Sudo is needed but you aren"t on root and can"t access to root"
+		fi
+
+		if sudo -S -p "" echo -n < /dev/null 2> /dev/null ; then
+			info "I found sudo can run on account $(whoami)"
+			SU="sudo"
+		else
+			error "Sudo is not enabled"
+		fi
+	fi
+
+	# @NOTE: check and set INSTALL tool
+	if [ $(which apt-get) ]; then
+		info "I found this distro maybe Ubuntu/Debian"
+		INSTALL="apt install -y"
+	elif [ $(which apt) ]; then
+		info "I found this distro maybe Ubuntu/Debian"
+		INSTALL="apt install -y"
+	elif [ $(which yum) ]; then
+		info "I found this distro maybe Ubuntu/Debian"
+		INSTALL="yum install -y"
+	elif [ $(which zypper) ]; then
+		info "I found this distro maybe SUSE/OpenSuse"
+		INSTALL="zypper install -y"
+	elif [ $(which pkg) ]; then
+		info "I found this distro maybe FreeBSD"
+		INSTALL="pkg"
+	else
+		echo ""
+		echo "I dont known your distribution, please inform me if you need to support"
+		echo "You can send me an email to hung0913208@gmail.com"
+		echo "Thanks"
+		echo "Hung"
+		echo ""
+		exit -1
+	fi
+elif [ "$machine" == "Mac" ]; then
+	info "I found this CI running on OSX"
+	SU=""
+	INSTALL="brew install"
+else
+	error "Don't support this machine ${machine}"
+fi
+
+if [ $(which git) ]; then
+	# @NOTE: get actual branch of this commit, since some CI use git checkout
+	# and it will create a new branch from the remote branch so we must find
+	# the way to get which remote branch has actually contained this commit
+	commit_sha256=$(git rev-parse HEAD)
+	remote_branch="$(git branch -r --contains ${commit_sha256})"
+	branch=(${remote_branch//origin\/})
+
+	# @NOTE: jump to branch's test suite and perform build.py
+	ROOT="$(git rev-parse --show-toplevel)"
+	CURRENT=$(pwd)
+	PROJECT="$(basename `git config  --get remote.origin.url`)"
+
+	mkdir -p "$ROOT/build"
+	if [ $? != 0 ]; then
+		error "cannot create $ROOT/build"
+	fi
+	cd "$ROOT/build"
+	if [ $? != 0 ]; then
+		error "cannot jump to $ROOT/build"
+	fi
+
+	if [ $# != 0 ] || [ ! -f "$ROOT/CMakeLists.txt" ]; then
+		if [ -f $ROOT/Tools/Builder/build2 ]; then
+			$ROOT/Tools/Builder/build2 --config $ROOT/Tools/Builder --watcher local $@
+		else
+			$ROOT/Tools/Builder/build.py $@
+		fi
+	else
+		# @NOTE: use tool reinstall to perform build this repo since the repo's build
+		# scripts always define on $ROOT, we will use this trick to build everything
+		# with cmake first
+		$ROOT/Tools/Utilities/reinstall.sh Debug $ROOT
+		if [ $? != 0 ]; then
+			error "cannot build Debug"
+		fi
+
+		$ROOT/Tools/Utilities/reinstall.sh Release $ROOT
+		if [ $? != 0 ]; then
+			error "cannot build Release"
+		fi
+		$ROOT/Tools/Utilities/reinstall.sh Coverage $ROOT
+		if [ $? != 0 ]; then
+			error "cannot jump to Coverage"
+		fi
+
+		cd $CURRENT
+		if [ $? != 0 ]; then
+			error "cannot jump to $CURRENT"
+		fi
+	fi
+else
+	exit -1
+fi
