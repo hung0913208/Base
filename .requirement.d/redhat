@@ -1,5 +1,6 @@
 clang
 lcov
+gdb
 gcc
 gcc-c++
 make

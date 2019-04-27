@@ -21,9 +21,17 @@ if [ $(which git) ]; then
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'LibBase.git' ]]; then
 		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'base' ]]; then
+		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'base.git' ]]; then
+		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'Eevee' ]]; then
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'Eevee.git' ]]; then
+		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'Eden' ]]; then
+		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'Eden.git' ]]; then
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ -d "${ROOT}/Base" ]]; then
 		BUILDER="${ROOT}/Base/Tools/Builder/build"

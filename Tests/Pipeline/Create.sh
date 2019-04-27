@@ -45,7 +45,7 @@ probe_linux_machine(){
 		install_package "facter"
 
 		# @NOTE: show information of this machine
-		if [ $(which docker) ]; thens
+		if [ $(which docker) ]; then
 			info "The information of this machine:"
 			$SU dmidecode -t system | grep 'Manufacturer\|Product'
 		fi
@@ -149,7 +149,7 @@ case "${METHOD}" in
 	*)       ;;
 esac
 
-if [ -e "$PIPELINE/targets/$CMD" ]; then
+if [ -e "$PIPELINE/Environments/$CMD" ]; then
 	info "after checking i select script  $CMD to create a new enviroment"
 
 	# @NOTE: show result of probing test to help to explain why i choose
@@ -165,5 +165,5 @@ if [ -e "$PIPELINE/targets/$CMD" ]; then
 
 	"$PIPELINE/Environments/$CMD" $PIPELINE $REPO
 else
-	error "Broken pipeline, not found $PIPELINE/targets/$CMD"
+	error "Broken pipeline, not found $PIPELINE/Environemts/$CMD"
 fi

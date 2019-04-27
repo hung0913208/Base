@@ -170,8 +170,8 @@ fi
 
 # @NOTE: new Tools/Builder may require preinstall some libraries from Eevee. To do
 # that, i will use CMake as a convenient tool to build these libraries
-if [ -f $ROOT/Tools/Builder/Install.sh ]; then
-	$ROOT/Tools/Builder/Install.sh
+if [ -f $ROOT/Tools/Builder/install.sh ]; then
+	$ROOT/Tools/Builder/install.sh
 
 	if [ $? != 0 ]; then
 		error "Error when run script $ROOT/Tools/Builder/Install.sh"
@@ -185,6 +185,18 @@ if [[ $PROJECT == "LibBase" ]]; then
 	info "Congratulation, you have passed ${SCRIPT}"
 	exit 0
 elif [[ $PROJECT == "LibBase.git" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
+elif [[ $PROJECT == "Eden" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
+elif [[ $PROJECT == "Eden.git" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
+elif [[ $PROJECT == "base" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
+elif [[ $PROJECT == "base.git" ]]; then
 	info "Congratulation, you have passed ${SCRIPT}"
 	exit 0
 elif [[ $PROJECT == "Eevee" ]]; then
