@@ -1,0 +1,7 @@
+clang
+lcov
+gcc
+gcc-c++
+make
+cmake
+valgrind
