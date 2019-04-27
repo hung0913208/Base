@@ -1,0 +1,12 @@
+cc_library(
+    name = "base",
+    srcs = glob(["Source/*.cc", "Source/Internal/*.cc"]),
+    hdrs = glob(["*.h", "Type/*.h"]),
+    copts = ["-std=c++11", "-g"]
+)
+
+d_library(
+    name = "base-d",
+    deps = [":base"],
+    srcs = glob(["*.d"])
+)
