@@ -1,0 +1,7 @@
+cc_library(
+    name = "data",
+    deps = ["//Libraries/Base:base"],
+    srcs = glob(["Source/*.cc"]),
+    hdrs = glob(["*.h"]),
+    copts = ["-std=c++11", "-g"]
+)
