@@ -1,0 +1,115 @@
+
+stages:
+  - test
+  - composer
+  - reproduce
+  - coverage
+  - deploy
+
+test_with_ubuntu:
+  image: ubuntu
+  stage: test
+  script:
+    - mkdir -p Coredumps
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
+    - ./Tests/Pipeline/Prepare.sh
+    - ./Tests/Pipeline/Build.sh
+  artifacts:
+    when: on_failure
+    paths:
+      - Coredumps
+    expire_in: 2 days
+
+test_with_centos:
+  image: centos
+  stage: test
+  script:
+    - mkdir -p Coredumps
+    - yum update -y >& /dev/null
+    - yum install -y git curl python3 openssh sudo binutils which >& /dev/null
+    - ./Tests/Pipeline/Prepare.sh
+    - ./Tests/Pipeline/Build.sh
+  artifacts:
+    when: on_failure
+    paths:
+      - Coredumps
+    expire_in: 2 days
+
+test_with_opensuse:
+  image: opensuse
+  stage: test
+  script:
+    - mkdir -p Coredumps
+    - zypper update -y >& /dev/null
+    - zypper install -y  git curl python3 openssh sudo which binutils >& /dev/null
+    - ./Tests/Pipeline/Prepare.sh
+    - ./Tests/Pipeline/Build.sh
+  artifacts:
+    when: on_failure
+    paths:
+      - Coredumps
+    expire_in: 2 days
+
+test_with_gaia:
+  image: ubuntu
+  stage: test
+  script:
+    - echo "On developing"
+  allow_failure: true
+  artifacts:
+    when: on_failure
+    paths:
+      - Coredumps
+    expire_in: 2 days
+
+perform_reproduce_issues:
+  image: ubuntu
+  stage: reproduce
+  script:
+    - mkdir -p Coredumps
+    - mkdir -p Log
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
+    - if [ -n "${JOBS}" ]; then./Tests/Pipeline/Reproduce.sh ${JOBS}; fi
+  allow_failure: true
+  artifacts:
+    when: on_failure
+    paths:
+      - Coredumps
+      - Log
+    expire_in: 2 days
+  when: manual
+
+save_code_coverage:
+  image: ubuntu
+  stage: coverage
+  script:
+    - mkdir -p Coverages
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
+    - if [ -n "${JOBS}" ]; then ./Tests/Pipeline/Coverage.sh ${JOBS}; fi
+  allow_failure: true
+  artifacts:
+    paths:
+      - Coverages
+    expire_in: 30 mins
+  when: manual
+
+pages:
+  stage: deploy
+  dependencies:
+    - save_code_coverage
+    - perform_reproduce_issues
+  script:
+    - mkdir -p public
+    - if [ -d ./Coverages ]; then cp -a ./Coverages public; fi
+    - if [ -d ./Logs ]; then cp -a ./Logs public; fi
+    - if [ -n "$(find public -maxdepth 0 -type d -empty 2>/dev/null)" ]; then touch public/.lock; fi
+  artifacts:
+    paths:
+      - public
+    expire_in: 2 days
