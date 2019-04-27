@@ -1,0 +1,15 @@
+cc_test(
+	name = "Memmap",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest", "//Libraries/Data:data"],
+	srcs = ["Memmap.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Json",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest", "//Libraries/Data:data"],
+	srcs = ["Json.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
