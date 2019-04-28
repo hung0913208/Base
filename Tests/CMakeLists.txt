@@ -10,6 +10,7 @@ if(COMMAND cmake_policy)
 	cmake_policy(SET CMP0003 NEW)
 endif()
 
+find_package(Git)
 find_package(Threads)
 find_package(PythonLibs)
 
@@ -21,6 +22,15 @@ if (PYTHONLIBS_FOUND)
 	# @NOTE: since we will use variable LANGUAGE_LIBRAIRES as the collector to collect
 	# libraries from upper languages
 	set(LANGUAGE_LIBRARIES ${LANGUAGE_LIBRARIES} ${PYTHON_LIBRARIES})
+endif()
+
+if (Git_FOUND)
+	execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --show-toplevel
+			WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+			RESULT_VARIABLE ERROR_CODE
+			OUTPUT_VARIABLE ROOT
+			OUTPUT_STRIP_TRAILING_WHITESPACE)
+	file(COPY "${ROOT}/Samples/Memmap/blank.map" DESTINATION ${CMAKE_BINARY_DIR})
 endif()
 
 # @NOTE: define test cases from Base
