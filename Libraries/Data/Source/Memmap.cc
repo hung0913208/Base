@@ -33,7 +33,7 @@ ULong Size(Int fd) {
 Memmap::Memmap(String file, UInt flags, UInt offset, UInt length) {
   auto page_size = Pagesize();
   auto aligned_offset = (offset / page_size) * page_size;
-  
+
   _Size = offset - aligned_offset + length;
 
 #if WINDOWS
@@ -89,7 +89,69 @@ Memmap::Memmap(String file, UInt flags, UInt offset, UInt length) {
   }
 
   if (fd < 0) {
-    throw Except(EBadAccess, file);
+    switch(errno) {
+    case EACCES:
+      throw Except(EBadAccess, Format{"permision deny {}"}.Apply(file));
+
+    case EEXIST:
+      throw Except(EBadLogic, Format{"{} exists"}.Apply(file));
+
+    case EINTR:
+      throw Except(EInterrupted, Format{"open {} while a signal "
+                                        "happens"}.Apply(file));
+
+    case EINVAL:
+      throw Except(ENoSupport, Format{"don\'t support synchronized "
+                                      "I/O {}"}.Apply(file));
+
+    case EIO:
+      throw Except(EWatchErrno, Format{"open {} hangup or error"}.Apply(file));
+
+    case EISDIR:
+      throw Except(EBadLogic, Format{"{} is dir"}.Apply(file));
+
+    case ELOOP:
+      throw Except(EBadLogic, Format{"loop symbolic link {}"}.Apply(file));
+
+    case EMFILE:
+      throw Except(EBadAccess, Format{"file {} is open in the calling "
+                                      "process"}.Apply(file));
+
+    case ENAMETOOLONG:
+      throw Except(EBadLogic, Format{"name file {} too long"}.Apply(file));
+
+    case ENFILE:
+      throw Except(EOutOfRange, "reach maximum number files to be opened");
+
+    case ENOENT:
+      throw Except(EBadAccess, "open a non-exist file without");
+
+    case ENOSR:
+      throw Except(EBadAccess, Format{"can\'t allocate stream {}"}.Apply(file));
+
+    case ENOSPC:
+      throw Except(EBadAccess, Format{"can\'t expand to create {}"}.Apply(file));
+
+    case ENOTDIR:
+      throw Except(EBadAccess, "A component of the path prefix is not "
+                               "a directory");
+
+    case ENXIO:
+      throw Except(EWatchErrno, "O_NONBLOCK is set, the named file is a FIFO, "
+                                "O_WRONLY is set, and no process has the file "
+                                "open for reading");
+
+    case EOVERFLOW:
+      throw Except(EBadLogic, "The named file is a regular file and the size "
+                              "of the file cannot be represented correctly in"
+                              " an object of type off_t");
+
+    case EROFS:
+      throw Except(EBadAccess, "The named file resides on a read-only file "
+                               "system and either O_WRONLY, O_RDWR, O_CREAT "
+                               "(if the file does not exist), or O_TRUNC is "
+                               "set in the oflag argument.");
+    }
   }
 
   /* @NOTE: create file mapping */
