@@ -225,6 +225,8 @@ def parse():
     parser.add_argument('--on_serving', type=int, default=0,
                         help='use Builder on serving mode when they receive '
                              'tasks from afar')
+    parser.add_argument('--mode', type=int, default=0,
+                        help='select mode of this process if on_serving is on')
     return parser.parse_args()
 
 if __name__ == '__main__':
