@@ -93,6 +93,9 @@ int main(int argc, const char* argv[]) {
     return Build::Main(parser, parser(argc, argv))();
   } catch (Exception& error) {
     return FAIL_BY_SYSTEM;
+  } catch (std::exception& error) {
+    ERROR << error.what();
+    return FAIL_BY_SYSTEM;
   }
 }
 
