@@ -31,6 +31,7 @@ test_with_centos:
     - yum install -y git curl python3 openssh sudo binutils which >& /dev/null
     - ./Tests/Pipeline/Prepare.sh
     - ./Tests/Pipeline/Build.sh
+  allow_failure: true
   artifacts:
     when: on_failure
     paths:
