@@ -9,9 +9,14 @@ source $PIPELINE/Libraries/Package.sh
 
 SCRIPT="$(basename "$0")"
 
+if [[ $# -gt 0 ]]; then
+	MODE=$1
+else
+	MODE=0
+fi
+
 info "You have run on machine ${machine} script ${SCRIPT}"
 info "Your current dir now is $(pwd)"
-
 if [ $(which git) ]; then
 	# @NOTE: jump to branch's test suite and perform build
 	ROOT="$(git rev-parse --show-toplevel)"
@@ -55,7 +60,7 @@ if [ $(which git) ]; then
 	fi
 
 	# @NOTE: build and test everything with single command only
-	$BUILDER --root $ROOT --debug 1 --rebuild 0 --mode $1
+	$BUILDER --root $ROOT --debug 1 --rebuild 0 --mode $MODE
 	if [ $? != 0 ]; then
 		exit -1
 	fi
