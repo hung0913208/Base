@@ -10,11 +10,18 @@ source $PIPELINE/Libraries/Package.sh
 SCRIPT="$(basename "$0")"
 REPO=$2
 
-# @NOTE: fetch the list project we would like to build from remote server
-if [ ! -f './repo.list' ]; then
-	curl -k --insecure $REPO -o './repo.list' >> /dev/null
-	if [ $? != 0 ]; then
-		error "Can't fetch list of project from $REPO"
+if [[ $# -gt 2 ]]; then
+	BRANCH=$3
+	info "import '$REPO $BRANCH' >> ./repo.list"
+
+	echo "$REPO $BRANCH" >> ./repo.list
+else
+	# @NOTE: fetch the list project we would like to build from remote server
+	if [ ! -f './repo.list' ]; then
+		curl -k --insecure $REPO -o './repo.list' >> /dev/null
+		if [ $? != 0 ]; then
+			error "Can't fetch list of project from $REPO"
+		fi
 	fi
 fi
 

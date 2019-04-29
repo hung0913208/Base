@@ -163,7 +163,11 @@ if [ -e "$PIPELINE/Environments/$CMD" ]; then
 		*)		;;
 	esac
 
-	"$PIPELINE/Environments/$CMD" $PIPELINE $REPO
+	if [[ $# -gt 1 ]]; then
+		"$PIPELINE/Environments/$CMD" $PIPELINE $REPO $2
+	else
+		"$PIPELINE/Environments/$CMD" $PIPELINE $REPO $2
+	fi
 else
 	error "Broken pipeline, not found $PIPELINE/Environemts/$CMD"
 fi
