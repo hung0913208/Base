@@ -9,7 +9,16 @@ source $PIPELINE/Libraries/Logcat.sh
 source $PIPELINE/Libraries/Package.sh
 
 SCRIPT="$(basename "$0")"
-REPO=$1
+
+if [ "$1" == "reproduce" ] || [ "$1" == "build" ]; then
+	METHOD=$1
+	BRANCH=$3
+	REPO=$2
+else
+	METHOD="build"
+	BRANCH=$2
+	REPO=$1
+fi
 
 probe_osx_machine() {
 	# @NOTE: check if we are running inside a container
@@ -163,11 +172,7 @@ if [ -e "$PIPELINE/Environments/$CMD" ]; then
 		*)		;;
 	esac
 
-	if [[ $# -gt 1 ]]; then
-		"$PIPELINE/Environments/$CMD" $PIPELINE $REPO $2
-	else
-		"$PIPELINE/Environments/$CMD" $PIPELINE $REPO $2
-	fi
+	"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $REPO $BRANCH
 else
 	error "Broken pipeline, not found $PIPELINE/Environemts/$CMD"
 fi

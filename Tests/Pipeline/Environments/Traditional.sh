@@ -3,15 +3,20 @@
 # - Description: since we are working on traditional way we must prepare our
 # system according to the list of project we would like to build now
 
-PIPELINE=$1
+METHOD=$1
+PIPELINE=$2
+REPO=$3
+
 source $PIPELINE/Libraries/Logcat.sh
 source $PIPELINE/Libraries/Package.sh
 
 SCRIPT="$(basename "$0")"
-REPO=$2
 
-if [[ $# -gt 2 ]]; then
-	BRANCH=$3
+if [ "$METHOD" == "reproduce" ]; then
+	$PIPELINE/Reproduce.sh $REPO
+	exit $?
+elif [[ $# -gt 3 ]]; then
+	BRANCH=$4
 	info "import '$REPO $BRANCH' >> ./repo.list"
 
 	echo "$REPO $BRANCH" >> ./repo.list
