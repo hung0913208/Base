@@ -34,7 +34,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 		ISSUE=${SPLITED[0]}
 		REPO=${SPLITED[2]}
 
-		"$PIPELINE/Libraries/Reproduce.sh" prepare "$ISSUE" "$REPO"
+		"$PIPELINE/Libraries/Reproduce.sh" clone "$ISSUE" "$REPO"
 		if [ $? != 0 ]; then
 			continue
 		elif [ -d "$ROOT/.reproduce.d/$ISSUE" ]; then

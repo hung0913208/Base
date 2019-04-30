@@ -4,8 +4,8 @@
 # reproduce any issue from scratch
 
 PIPELINE="$(dirname "$0" )"
-source $PIPELINE/Libraries/Logcat.sh
-source $PIPELINE/Libraries/Package.sh
+source $PIPELINE/Logcat.sh
+source $PIPELINE/Package.sh
 
 SCRIPT="$(basename "$0")"
 
@@ -20,10 +20,16 @@ if [[ "$1" == "clone" ]]; then
 	git clone "$ROOT" "$ROOT/.reproduce.d/$ISSUE"
 	if [ $? != 0 ]; then
 		error "fail to clone $ISSUE"
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/create.sh" ]; then
+		"$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/create.sh" "reproduce" "$ROOT/.reproduce.d/$ISSUE"
+
+		if [ $? != 0 ]; then
+			error "can't perform script create.sh to generate reproducing scripts"
+		fi
 	fi
 elif [[ "$1" == "prepare" ]]; then
-	if [ -d "$ROOT/.reproduce.d/$ISSUE/recompile.d" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/recompile.d/$SYS" | while read REPO; do
+	if [ -d "$ROOT/.reproduce.d/$ISSUE/.recompile.d" ]; then
+		cat "$ROOT/.reproduce.d/$ISSUE/.recompile.d/$SYS" | while read REPO; do
 			$PIPELINE/Libraries/Install.sh $REPO
 
 			if [ $? != 0 ]; then
@@ -32,8 +38,8 @@ elif [[ "$1" == "prepare" ]]; then
 		done
 	fi
 
-	if [ -f "$ROOT/.reproduce.d/$ISSUE/recompile" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/recompile" | while read REPO; do
+	if [ -f "$ROOT/.reproduce.d/$ISSUE/.recompile" ]; then
+		cat "$ROOT/.reproduce.d/$ISSUE/.recompile" | while read REPO; do
 			$PIPELINE/Libraries/Install.sh $REPO
 
 			if [ $? != 0 ]; then
@@ -42,8 +48,8 @@ elif [[ "$1" == "prepare" ]]; then
 		done
 	fi
 
-	if [ -d "$ROOT/.reproduce.d/$ISSUE/requirement.d" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/requirement.d/$SYS" | while read REPO; do
+	if [ -d "$ROOT/.reproduce.d/$ISSUE/.requirement.d" ]; then
+		cat "$ROOT/.reproduce.d/$ISSUE/.requirement.d/$SYS" | while read REPO; do
 			sudo $INSTALL $PACKAGE
 
 			if [ $? != 0 ]; then
@@ -52,8 +58,8 @@ elif [[ "$1" == "prepare" ]]; then
 		done
 	fi
 
-	if [ -f "$ROOT/.reproduce.d/$ISSUE/requirement" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/requirement" | while read PACKAGE; do
+	if [ -f "$ROOT/.reproduce.d/$ISSUE/.requirement" ]; then
+		cat "$ROOT/.reproduce.d/$ISSUE/.requirement" | while read PACKAGE; do
 			sudo $INSTALL $PACKAGE
 
 			if [ $? != 0 ]; then
