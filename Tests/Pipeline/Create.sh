@@ -130,10 +130,7 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	fi
 
 	if [ $PASSED != 0 ]; then
-		info """  welcome to the world of qemu system, since we have reonfigure your network, it may impact the whole
-		network of your CI system. Thue, it will turn wild a litte bit. Sorry for any inconvenient"""
-
-		METHOD=1 # @TODO: after we finish everything, we should switch to 3
+		METHOD=2 
 	fi
 fi
 
