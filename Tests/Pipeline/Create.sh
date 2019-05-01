@@ -11,11 +11,13 @@ source $PIPELINE/Libraries/Package.sh
 SCRIPT="$(basename "$0")"
 
 if [ "$1" == "reproduce" ] || [ "$1" == "build" ]; then
+	PACKAGES=$4
 	METHOD=$1
 	BRANCH=$3
 	REPO=$2
 else
 	METHOD="build"
+	PACKAGES=$3
 	BRANCH=$2
 	REPO=$1
 fi
@@ -87,6 +89,10 @@ for CMD in $CMDS; do
 	fi
 done
 
+if [[ ${#PACKAGES} -gt 0 ]]; then
+	install_package "$PACKAGES"
+fi
+
 # @NOTE: build a CI system with a qemu image
 if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	CMDS=("bridge-utils" "iptables" "expect" "iproute2")
@@ -130,7 +136,7 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	fi
 
 	if [ $PASSED != 0 ]; then
-		METHOD=2 
+		METHOD=4
 	fi
 fi
 
