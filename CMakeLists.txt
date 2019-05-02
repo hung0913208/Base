@@ -129,7 +129,10 @@ if (BUILD_TESTS)
 	add_test(NAME vertex COMMAND Tests/vertex)
 	add_test(NAME memmap COMMAND Tests/memmap)
 	add_test(NAME json COMMAND Tests/json)
-	add_test(NAME function COMMAND Tests/function)
+
+	if (NOT BUILD_STATIC_EXEC)
+		add_test(NAME function COMMAND Tests/function)
+	endif()
 
 	# add_test(NAME string_dbg COMMAND ${CMAKE_SOURCE_DIR}/Tools/Utilities/valgrind.sh Tests/string)
 	# add_test(NAME auto_dbg COMMAND ${CMAKE_SOURCE_DIR}/Tools/Utilities/valgrind.sh Tests/auto)
