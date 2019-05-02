@@ -61,7 +61,9 @@ add_executable(json ${CMAKE_CURRENT_SOURCE_DIR}/Data/Json.cc)
 target_link_libraries(memmap base data unittest)
 target_link_libraries(json base data unittest)
 
-# @NOTE: define test cases from Wrapping
-add_executable(function ${CMAKE_CURRENT_SOURCE_DIR}/Wrapping/Function.cc)
+if (NOT BUILD_STATIC_EXEC)
+	# @NOTE: define test cases from Wrapping
+	add_executable(function ${CMAKE_CURRENT_SOURCE_DIR}/Wrapping/Function.cc)
 
-target_link_libraries(function base data unittest wrapping ${LANGUAGE_LIBRARIES})
+	target_link_libraries(function base data unittest wrapping ${LANGUAGE_LIBRARIES})
+endif()

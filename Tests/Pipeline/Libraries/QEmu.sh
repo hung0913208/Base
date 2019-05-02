@@ -50,10 +50,10 @@ function show_all_network_interface() {
 }
 
 function get_new_bridge() {
-	ID=0
+	ID=-1
 
 	for IF_PATH in /sys/class/net/*; do
-		echo $IF_PATH | grep "^$1" >& /dev/null
+		echo $(basename $IF_PATH) | grep "^$1" >& /dev/null
 
 		if [ $? != 0 ]; then
 			continue
@@ -63,6 +63,26 @@ function get_new_bridge() {
 	done
 
 	echo "$1$(($ID + 1))"
+}
+
+function get_latest_bridge() {
+	ID=-1
+
+	for IF_PATH in /sys/class/net/*; do
+		echo $(basename $IF_PATH) | grep "^$1" >& /dev/null
+
+		if [ $? != 0 ]; then
+			continue
+		else
+			ID=$(echo $(basename $IF_PATH) | sed 's/[^0-9]*//g')
+		fi
+	done
+
+	if [[ $ID -gt -1 ]]; then
+		echo "$1$(($ID))"
+	else
+		echo ""
+	fi
 }
 
 function get_internet_interface() {
@@ -82,6 +102,22 @@ function get_internet_interface() {
 			break
 		fi
 	done
+}
+
+function create_tuntap() {
+	# @NOTE: add a new tuntap
+	$SU tunctl -u $USER -t $1 >& /dev/null
+
+	if [ $? != 0 ]; then
+		return 1
+	fi
+
+	$SU ip link set dev $1 up
+	if [ $? != 0 ]; then
+		return 1
+	fi
+
+	return 0
 }
 
 function create_bridge() {

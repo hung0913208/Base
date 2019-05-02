@@ -101,7 +101,10 @@ add_definitions(-DUSE_STD_STRING=0)
 add_subdirectory(Libraries/Base)
 add_subdirectory(Libraries/Data)
 add_subdirectory(Libraries/Unittest)
-add_subdirectory(Libraries/Wrapping)
+
+if (NOT BUILD_STATIC_EXEC)
+	add_subdirectory(Libraries/Wrapping)
+endif()
 
 if (BUILD_TESTS)
 	add_subdirectory(Tests)
