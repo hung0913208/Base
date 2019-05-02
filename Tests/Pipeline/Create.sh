@@ -95,14 +95,13 @@ fi
 
 # @NOTE: build a CI system with a qemu image
 if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
-	set -x
 	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities")
 	PASSED=1
 
 	source $PIPELINE/Libraries/QEmu.sh
 
 	# @NOTE: install specific packages to support qemu
-	for CMD in $CMDS; do
+	for CMD in "${CMDS[@]}"; do
 		if [ $(install_package $CMD) ]; then
 			PASSED=0
 		fi
