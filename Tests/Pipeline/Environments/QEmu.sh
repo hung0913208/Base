@@ -312,7 +312,8 @@ cat './repo.list' | while read DEFINE; do
 			if [ $? != 0 ]; then
 				warning "Fail repo $REPO/$BRANCH"
 			else
-				$BASE/Tests/Pipeline/Build.sh 1
+				$WORKSPACE/Tests/Pipeline/Build.sh 1
+
 				if [ $? != 0 ]; then
 					warning "Fail repo $REPO/$BRANCH"
 				else
