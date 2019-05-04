@@ -135,6 +135,8 @@ EOF
 }
 
 function generate_initrd() {
+	local COUNT=0
+
 	cd "$INIT_DIR/$BBOX_DIRNAME/"
 	cp -rf _install/ initramfs/ >& /dev/null
 	cp -fR examples/bootfloppy/etc initramfs >& /dev/null
@@ -157,25 +159,30 @@ function generate_initrd() {
 			ldd $FILE >& /dev/null
 
 			if [ $? != 0 ]; then
+				COUNT=$(($COUNT + 1))
+
 				cp $FILE initramfs/tests
 				echo "chroot . ./tests/$(basename $FILE)" >> initramfs/init
 			fi
 		fi
 	done
 
-	# @NOTE: add footer of the initscript
-	echo "sleep 80" >> initramfs/init
-	echo "poweroff -f" >> initramfs/init
+	if [ $COUNT != 0  ]; then
+		# @NOTE: add footer of the initscript
+		echo "sleep 80" >> initramfs/init
+		echo "poweroff -f" >> initramfs/init
 
-	# @NOTE: okey, everything is done from host machine, from now we should
-	# pack everything into a initramfs.cpio.gz. We will use it to deploy a
-	# simple VM with qemu and the kernel we have done building
-	exec 2>&-
-	cd $INIT_DIR/$BBOX_DIRNAME/initramfs
+		# @NOTE: okey, everything is done from host machine, from now we should
+		# pack everything into a initramfs.cpio.gz. We will use it to deploy a
+		# simple VM with qemu and the kernel we have done building
+		exec 2>&-
+		cd $INIT_DIR/$BBOX_DIRNAME/initramfs
 
-	find . -print0 | cpio --null -ov --format=newc | gzip -9 > "${RAM_FILENAME}"
-	cd $INIT_DIR
-	exec 2>&1
+		find . -print0 | cpio --null -ov --format=newc | gzip -9 > "${RAM_FILENAME}"
+		cd $INIT_DIR
+		exec 2>&1
+	fi
+
 	cd "${INIT_DIR}/${BBOX_DIRNAME}/initramfs/"
 	cd "$INIT_DIR"
 }
@@ -186,8 +193,13 @@ function compile_linux_kernel() {
 
 	# @NOTE: by default, we should use linux as convention kernel to deploy
 	# a minimal system
-	git clone --branch $KERNEL_BRANCH $KERNEL_URL
-	cd "$INIT_DIR/$KERNEL_DIRNAME"
+	if [ -d "$INIT_DIR/$KERNEL_DIRNAME" ]; then
+		cd "$INIT_DIR/$KERNEL_DIRNAME"
+		git pull origin $KERNEL_BRANCH
+	else
+		git clone --branch $KERNEL_BRANCH $KERNEL_URL
+		cd "$INIT_DIR/$KERNEL_DIRNAME"
+	fi
 
 	# @NOTE: by default we will use default config of linux kernel but we
 	# will use the specify if it's configured
@@ -209,6 +221,22 @@ function compile_linux_kernel() {
 		*)          make -j16;;
 	esac
 
+	if [[ ! -e ${KER_FILENAME} ]]; then
+		error "can't create ${KER_FILENAME}"
+	elif [[ ${#FTP} -gt 0 ]]; then
+		tar -czf $ROOT/$KERNEL_NAME.tar.gz -C "$INIT_DIR/$KERNEL_DIRNAME" .
+
+		if [ $? != 0 ]; then
+			error "can't compress $KERNEL_NAME.tar.gz"
+		fi
+
+		wput -p -B  $ROOT/$KERNEL_NAME.tar.gz "$FTP"
+		if [ $? != 0 ]; then
+			warning "wput fail to upload to $FTP"
+		fi
+
+		rm -fr $ROOT/$KERNEL_NAME.tar.gz
+	fi
 	cd "$INIT_DIR"
 }
 
@@ -265,6 +293,20 @@ else
 fi
 
 compile_busybox
+
+if [[ ${#FTP} -gt 0 ]]; then
+	wget "$FTP" -o $KERNEL_NAME.tar.gz
+
+	info "fetch kernel from $FTP"
+	if [ $? = 0 ]; then
+		tar xf "$KERNEL_NAME.tar.gz" -C "$INIT_DIR/$KERNEL_DIRNAME"
+
+		if [ $? = 0 ]; then
+			rm -fr "$KERNEL_NAME.tar.gz"
+		fi
+	fi
+fi
+
 compile_linux_kernel
 
 mkdir -p "$ROOT/content"
