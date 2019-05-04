@@ -49,13 +49,13 @@ BUILD_TYPE=$1
 shift
 
 if [ -f ../../CMakeLists.txt ]; then
-	if [ $# -ne 0 ]; then
+	if [ $# -gt 1 ]; then
 		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" ../..
 	else
 		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} ../..
 	fi
 elif [ -f ../CMakeLists.txt ]; then
-	if [ $# -ne 0 ]; then
+	if [ $# -gt 1 ]; then
 		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" ../.
 	else
 		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} ../.
@@ -63,7 +63,7 @@ elif [ -f ../CMakeLists.txt ]; then
 else
 	CMAKELIST=$2
 	shift
-	if [ $# -ne 0 ]; then
+	if [ $# -gt 0 ]; then
 		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" ${CMAKELIST}
 	else
 		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} ${CMAKELIST}
