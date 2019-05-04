@@ -33,6 +33,24 @@ error(){
 	exit -1
 }
 
+function detect_libbase() {
+	PROJECT=$1
+
+	if [[ -d "${PROJECT}/Eden" ]]; then
+		echo "${PROJECT}/Eden"
+	elif [[ -d "${PROJECT}/Base" ]]; then
+		echo "${PROJECT}/Base"
+	elif [[ -d "${PROJECT}/base" ]]; then
+		echo "${PROJECT}/base"
+	elif [[ -d "${PROJECT}/LibBase" ]]; then
+		echo "${PROJECT}/LibBase"
+	elif [[ -d "${PROJECT}/Eevee" ]]; then
+		echo "${PROJECT}/Eevee"
+	else
+		echo "$PROJECT"
+	fi
+}
+
 unameOut="$(uname -s)"
 case "${unameOut}" in
 	Linux*)     machine=Linux;;
@@ -105,6 +123,7 @@ if [ $(which git) ]; then
 
 	# @NOTE: jump to branch's test suite and perform build.py
 	ROOT="$(git rev-parse --show-toplevel)"
+	BASE="$(detect_libbase $ROOT)"
 	CURRENT=$(pwd)
 	PROJECT="$(basename `git config  --get remote.origin.url`)"
 
@@ -118,10 +137,10 @@ if [ $(which git) ]; then
 	fi
 
 	if [ $# != 0 ] || [ ! -f "$ROOT/CMakeLists.txt" ]; then
-		if [ -f $ROOT/Tools/Builder/build2 ]; then
-			$ROOT/Tools/Builder/build2 --config $ROOT/Tools/Builder --watcher local $@
+		if [ -f $BASE/Tools/Builder/build2 ]; then
+			$BASE/Tools/Builder/build2 --config $ROOT/Tools/Builder --watcher local $@
 		else
-			$ROOT/Tools/Builder/build.py $@
+			$BASE/Tools/Builder/build.py $@
 		fi
 	else
 		# @NOTE: use tool reinstall to perform build this repo since the repo's build
