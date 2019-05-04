@@ -149,6 +149,10 @@ function generate_initrd() {
 
 	# @NOTE: copy only execuators that don't support dynamic link
 	for FILE in $(find $1 -executable); do
+		if [ -d "$FILE" ]; then
+			continue
+		fi
+
 		if [ -x "$FILE" ]; then
 			ldd $FILE >& /dev/null
 
@@ -161,7 +165,7 @@ function generate_initrd() {
 
 	# @NOTE: add footer of the initscript
 	echo "sleep 80" >> initramfs/init
-	echo "poweroff" >> initramfs/init
+	echo "poweroff -f" >> initramfs/init
 
 	# @NOTE: okey, everything is done from host machine, from now we should
 	# pack everything into a initramfs.cpio.gz. We will use it to deploy a
