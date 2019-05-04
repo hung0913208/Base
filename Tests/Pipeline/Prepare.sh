@@ -273,9 +273,10 @@ else
 
 		info "moving $BASE/Tests/Pipeline/*.sh -> $ROOT/Tests/Pipeline"
 
-		# @NOTE: migrate build script and test script
-		mv "$BASE/Tests/Pipeline/Build.sh" "$ROOT/Tests/Pipeline"
-		mv "$BASE/Tests/Pipeline/Test.sh" "$ROOT/Tests/Pipeline"
+		# @NOTE: migrate build script if it needs
+		if [ ! -f "$ROOT/Tests/Pipeline/Build.sh" ]; then
+			mv "$BASE/Tests/Pipeline/Build.sh" "$ROOT/Tests/Pipeline"
+		fi
 	fi
 fi
 
