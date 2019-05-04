@@ -131,31 +131,36 @@ if [ $(which git) ]; then
 	if [ $? != 0 ]; then
 		error "cannot create $ROOT/build"
 	fi
+
 	cd "$ROOT/build"
 	if [ $? != 0 ]; then
 		error "cannot jump to $ROOT/build"
 	fi
 
-	if [ $# != 0 ] || [ ! -f "$ROOT/CMakeLists.txt" ]; then
-		if [ -f $BASE/Tools/Builder/build2 ]; then
-			$BASE/Tools/Builder/build2 --config $ROOT/Tools/Builder --watcher local $@
-		else
-			$BASE/Tools/Builder/build.py $@
+	if [ -f $ROOT/.workspace ]; then
+		if [ $# != 0 ] || [ ! -f "$ROOT/CMakeLists.txt" ]; then
+			if [ -f $BASE/Tools/Builder/build2 ]; then
+				$BASE/Tools/Builder/build2 --config $ROOT/Tools/Builder --watcher local $@
+			else
+				$BASE/Tools/Builder/build.py $@
+			fi
 		fi
 	else
 		# @NOTE: use tool reinstall to perform build this repo since the repo's build
 		# scripts always define on $ROOT, we will use this trick to build everything
 		# with cmake first
-		$ROOT/Tools/Utilities/reinstall.sh Debug $ROOT
+
+		$BASE/Tools/Utilities/reinstall.sh Debug $ROOT
 		if [ $? != 0 ]; then
 			error "cannot build Debug"
 		fi
 
-		$ROOT/Tools/Utilities/reinstall.sh Release $ROOT
+		$BASE/Tools/Utilities/reinstall.sh Release $ROOT
 		if [ $? != 0 ]; then
 			error "cannot build Release"
 		fi
-		$ROOT/Tools/Utilities/reinstall.sh Coverage $ROOT
+
+		$BASE/Tools/Utilities/reinstall.sh Coverage $ROOT
 		if [ $? != 0 ]; then
 			error "cannot jump to Coverage"
 		fi
