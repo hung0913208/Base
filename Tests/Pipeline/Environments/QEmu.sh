@@ -75,6 +75,9 @@ function generate_initscript(){
 mount -t proc none /proc
 mount -t sysfs none /sys
 
+# @NOTE: increase maximum fd per process
+ulimit -n 65536
+
 # @NOTE: config loopback interface
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
@@ -105,6 +108,9 @@ EOF
 #!/bin/busybox sh
 mount -t proc none /proc
 mount -t sysfs none /sys
+
+# @NOTE: increase maximum fd per process
+ulimit -n 65536
 
 # @NOTE: config loopback interface
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
