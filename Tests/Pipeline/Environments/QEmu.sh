@@ -75,6 +75,9 @@ function generate_initscript(){
 mount -t proc none /proc
 mount -t sysfs none /sys
 
+echo "The virtual machine's memory usage:"
+free -m
+
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
@@ -108,6 +111,9 @@ EOF
 #!/bin/busybox sh
 mount -t proc none /proc
 mount -t sysfs none /sys
+
+echo "The virtual machine's memory usage:"
+free -m
 
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
@@ -385,6 +391,7 @@ cat './repo.list' | while read DEFINE; do
 		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 	\
 				-initrd "${RAM_FILENAME}"		\
 				-nographic 				\
+				-smp $(nproc) -m 1G			\
 				-net nic -net tap,ifname=$TAP,script=no	\
 				-append "console=ttyS0 loglevel=8"
 	fi
