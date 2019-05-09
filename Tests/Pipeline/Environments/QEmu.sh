@@ -6,7 +6,7 @@ BRANCH=$4
 PIPELINE=$2
 
 if [ -z "$KERNEL_URL" ]; then
-	KERNEL_URL="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
+	KERNEL_URL="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux"
 fi
 
 if [ -z "$KERNEL_BRANCH" ]; then
@@ -27,9 +27,6 @@ BBOX_DIRNAME=$(basename $BBOX_FILENAME ".tar.bz2")
 
 KERNEL_NAME=$(basename $KERNEL_URL)
 KERNEL_DIRNAME=$(basename $KERNEL_NAME ",git")
-
-KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
-RAM_FILENAME="$INIT_DIR/initramfs.cpio.gz"
 
 git branch | egrep 'Pipeline/QEmu$' >& /dev/null
 if [ $? != 0 ]; then
@@ -200,7 +197,21 @@ function generate_initrd() {
 }
 
 function compile_linux_kernel() {
-	info "build a specific kernel"
+	if [[ ${#FTP} -gt 0 ]]; then
+		wget "$FTP" -o $KERNEL_NAME.tar.gz
+
+		info "fetch kernel from $FTP"
+		if [ $? = 0 ]; then
+			tar xf "$KERNEL_NAME.tar.gz" -C "$INIT_DIR/$KERNEL_DIRNAME"
+
+			if [ $? = 0 ]; then
+				rm -fr "$KERNEL_NAME.tar.gz"
+			fi
+		fi
+	else
+		info "build a specific kernel"
+	fi
+
 	cd "$INIT_DIR"
 
 	# @NOTE: by default, we should use linux as convention kernel to deploy
@@ -220,7 +231,7 @@ function compile_linux_kernel() {
 	elif [ -f $ROOT/.config ]; then
 		cp $ROOT/.config ./.config
 	else
-		make defconfig >& /dev/null
+		make defconfig
 	fi
 
 	unameOut="$(uname -s)"
@@ -281,7 +292,7 @@ if [ $? != 0 ]; then
 else
 	$SU ip addr add 172.20.0.1/16 dev $BRD
 	$SU ip link set $BRD up
-	dnsmasq --interface=br0 --bind-interfaces --dhcp-range=172.20.0.2,172.20.255.254
+	$SU dnsmasq --interface=br0 --bind-interfaces --dhcp-range=172.20.0.2,172.20.255.254
 
 	if [[ ! -d /etc/qemu ]]; then
 		$SU mkdir /etc/qemu
@@ -303,23 +314,6 @@ else
 	$SU iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 	$SU iptables -A FORWARD -i $TAP -o $ETH -j ACCEPT
 fi
-
-compile_busybox
-
-if [[ ${#FTP} -gt 0 ]]; then
-	wget "$FTP" -o $KERNEL_NAME.tar.gz
-
-	info "fetch kernel from $FTP"
-	if [ $? = 0 ]; then
-		tar xf "$KERNEL_NAME.tar.gz" -C "$INIT_DIR/$KERNEL_DIRNAME"
-
-		if [ $? = 0 ]; then
-			rm -fr "$KERNEL_NAME.tar.gz"
-		fi
-	fi
-fi
-
-compile_linux_kernel
 
 mkdir -p "$ROOT/content"
 cd "$ROOT/content"
@@ -365,7 +359,22 @@ cat './repo.list' | while read DEFINE; do
 		# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
 		# that we are using Eevee as the tool to deploy this Repo
 		if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
+			KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
+			RAM_FILENAME="$INIT_DIR/initramfs.cpio.gz"
+
 			$BASE/Tests/Pipeline/Prepare.sh
+
+			if [ -f $WORKSPACE/.environment ]; then
+				source $WORKSPACE.environment
+			fi
+
+			if [ ! -f $KER_FILENAME ]; then
+				compile_linux_kernel
+			fi
+
+			if [ ! -f $RAM_FILENAME ]; then
+				compile_busybox
+			fi
 
 			if [ $? != 0 ]; then
 				warning "Fail repo $REPO/$BRANCH"
