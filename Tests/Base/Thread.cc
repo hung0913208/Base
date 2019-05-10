@@ -4,7 +4,7 @@
 #include <Utils.h>
 #include <Vertex.h>
 
-#define NUM_OF_THREAD 10
+#define NUM_OF_THREAD 400
 
 namespace Base{
 namespace Internal{
@@ -31,7 +31,7 @@ TEST(Thread, Error) {
 
   Base::Vertex<void> escaping{[](){ Base::Log::Disable(EError, -1); },
                               [](){ Base::Log::Enable(EError, -1); }};
-  TIMEOUT(50, {
+  TIMEOUT(500, {
     Base::Thread threads[NUM_OF_THREAD];
 
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
@@ -49,10 +49,10 @@ TEST(Thread, Exception) {
   Base::Vertex<void> escaping{[](){ Base::Log::Disable(EError, -1); },
                               [](){ Base::Log::Enable(EError, -1); }};
 
-  TIMEOUT(50, {
-    Base::Thread threads[NUM_OF_THREAD];
+  TIMEOUT(500, {
+    Base::Thread threads[NUM_OF_THREAD/2];
 
-    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+    for (auto i = 0; i < NUM_OF_THREAD/2; ++i) {
       threads[i].Start([&]() {
         try {
           Except(EBadAccess,
