@@ -5,7 +5,24 @@
 
 namespace Base {
 namespace Internal {
-Vector<Fork*> Forks;
+static Vector<Fork*> Forks;
+
+Bool IsPipeAlive(Int pipe) {
+  Bool result = False;
+
+  Configs::Locks::Global.Safe([&]() {
+    for (auto& fork: Forks) {
+      if ((fork->Input() != pipe) && (fork->Output() != pipe) &&
+          (fork->Error() != pipe)) {
+        continue;
+      }
+
+      result = True;
+      break;
+    }
+  });
+  return result;
+}
 } // namespace Internal
 
 Fork::Fork(Function<Int()> redirect): _PID{-1}, _Input{-1}, _Output{-1},
@@ -41,7 +58,7 @@ Fork::Fork(Function<Int()> redirect): _PID{-1}, _Input{-1}, _Output{-1},
     Internal::Forks.push_back(this);
   }
 }
- 
+
 Fork::~Fork() {
   /* @NOTE: close pipeline from here, we don't need them and we should notify
    * monitors too about this event */
@@ -80,7 +97,7 @@ Fork::StatusE Fork::Status() {
   if (waitpid(_PID, &status, WNOHANG) < 0) {
     return Fork::EBug;
   }
-  
+
   /* @NOTE: check if we catch a signal continue from children */
   if (WIFCONTINUED(status)) {
     return Fork::EContSigned;
@@ -108,7 +125,7 @@ Fork::StatusE Fork::Status() {
   if (WIFEXITED(status)) {
     _ECode = WEXITSTATUS(status);
     return Fork::EExited;
-  } 
+  }
 
   return Fork::ERunning;
 }

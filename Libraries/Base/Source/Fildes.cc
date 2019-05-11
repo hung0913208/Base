@@ -46,6 +46,7 @@ Run Select(Pool* pool);
 
 namespace Base {
 namespace Internal {
+Bool IsPipeAlive(Int pipe);
 ULong GetUniqueId();
 
 namespace Fildes {
@@ -107,6 +108,12 @@ class Fildes: public Monitor {
       _Pool.ll = dynamic_cast<Fildes*>(Monitor::Head(type))->_Pool.ll;
       _Run = dynamic_cast<Fildes*>(Monitor::Head(type))->_Run;
     }
+
+    if (type == Monitor::EPipe) {
+      _Fallbacks.push_back([&](Auto fd) -> ErrorCodeE {
+        return Internal::IsPipeAlive(fd.Get<Int>())? ENoError: EBadAccess;
+      });
+    }
   }
 
  protected:
@@ -115,7 +122,53 @@ class Fildes: public Monitor {
   friend Int Internal::Fildes::Remove(Void* ptr, Int fd);
 
   /* @NOTE: this function is used to register a triggering base on the event */
-  ErrorCodeE _Trigger(Auto UNUSED(event), Monitor::Perform UNUSED(perform)) {
+  ErrorCodeE _Trigger(Auto event, Monitor::Perform perform) {
+    ErrorCodeE error;
+
+    if (_Type == Monitor::EPipe) {
+      /* @NOTE: if we are monitoring pipeline we should expect that event must
+       * be Base::Fork or Int. In the case of Base::Fork, we must register
+       * fallback to check if the child process is running or not in order to
+       * manage our pipelines better */
+
+      if (event.Type() == typeid(Fork)) {
+        auto fork = event.Get<Fork>();
+
+        if (fork.Status() != Fork::EBug) {
+          if ((error =_Append(Auto::As(fork.Error()), EWaiting))) {
+            return error;
+          }
+
+          if ((error = _Append(Auto::As(fork.Output()), EWaiting))) {
+            return error;
+          }
+
+          return ENoError;
+        } else {
+          return BadAccess("fork can\'t create process as expected").code();
+        }
+      } else if (event.Type() == typeid(Int)) {
+        if ((error = _Append(event, EWaiting))) {
+          return error;
+        }
+
+        return ENoError;
+      }
+    } else if (_Type == Monitor::EIOSync) {
+      /* @NOTE: if we are monitoring socket, we don't need to register anything
+       * more to help to watch our sockets because the polling system should
+       * detect when a socket is closed or not */
+
+      if (event.Type() == typeid(Int)) {
+        if ((error = _Append(event, EWaiting))) {
+          return error;
+        }
+
+        return ENoError;
+      } else if (event.Type() == typeid(Stream)) {
+      }
+    }
+
     return ENoSupport;
   }
 
