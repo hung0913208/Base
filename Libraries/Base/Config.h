@@ -5,7 +5,7 @@
 namespace Base {
 namespace Configs {
 namespace Locks {
-static Base::Lock Global{};
+extern Base::Lock Global;
 } // namespace Locks
 } // namespace Config
 

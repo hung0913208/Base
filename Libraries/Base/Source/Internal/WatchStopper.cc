@@ -528,7 +528,7 @@ class Watch {
       Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
                             [&](){ if (!safed) UnlockMutex(0); }};
 
-      if (_Stoppers.find(name) == _Stoppers.end()) {
+      if (_Stoppers.size() == 0 || _Stoppers.find(name) == _Stoppers.end()) {
         _Stoppers[name] = Context{};
       }
 
@@ -594,7 +594,9 @@ class Watch {
                             [&](){ if(!safed) UnlockMutex(0); }};
       UInt name = TypeId<Type>();
 
-      if (_Stoppers.find(name) == _Stoppers.end()) {
+      if (_Stoppers.size() == 0) {
+        return False;
+      } else if (_Stoppers.find(name) == _Stoppers.end()) {
         return False;
       } else {
         return _Stoppers[name].find(id) != _Stoppers[name].end();
@@ -1004,6 +1006,7 @@ class Watch {
 namespace Base {
 namespace Internal {
 static Watch Watcher{};
+
 ULong GetUniqueId() { return Watcher.GetThreadId(); }
 
 Bool Stopper::LockedBy(UInt name, ULong id){
