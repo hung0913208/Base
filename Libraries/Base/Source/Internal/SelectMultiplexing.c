@@ -65,14 +65,16 @@ Int SelectRelease(void* ptr, Int socket){
   Pool* pool = (struct Pool*)(ptr);
 
   if (socket >= 0) {
-    if (pool->Remove(pool, socket)) {
-      enum ErrorCodeE error;
+    Int error;
 
+    if (!(error = pool->Remove(pool, socket))) {
       if ((error = SelectModify(pool->ll.Poll, socket, EReleasing))) {
         return error;
       } else {
         close(socket);
       }
+    } else {
+      return error;
     }
   }
 

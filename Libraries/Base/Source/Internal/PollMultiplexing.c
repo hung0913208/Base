@@ -179,8 +179,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
       Int ev = context->events[fidx].revents;
 
       if (!(ev & (POLLOUT | POLLIN))) {
-        printf("fd=%d, ev=%d\n", fd, ev);
-        pool->Remove(pool, fd);
+        pool->ll.Release(pool, fd);
       }
 
       do {
@@ -220,7 +219,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
       } while (ev & (POLLIN | POLLOUT));
 
       if ((error = pool->Heartbeat(pool, fd))) {
-        pool->Remove(pool, fd);
+        pool->ll.Release(pool, fd);
       }
     }
 
@@ -231,7 +230,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         Int fd = context->events[cidx].fd;
 
         if ((error = pool->Heartbeat(pool, fd))) {
-          pool->Remove(pool, fd);
+          pool->ll.Release(pool, fd);
         }
       }
     }

@@ -165,7 +165,7 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
       Int ev = poll->events[idx].events;
 
       if (ev & (EPOLLERR | EPOLLHUP | ~(EPOLLOUT | EPOLLIN))) {
-        pool->Remove(pool, fd);
+        pool->ll.Release(pool, fd);
       }
 
       do {
