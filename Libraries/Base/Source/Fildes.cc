@@ -4,6 +4,12 @@
 #include <Logcat.h>
 #include <Vertex.h>
 
+#define INIT 0
+#define IDLE 1
+#define RUNNING 2
+#define INTERRUPTED 3
+#define RELEASING 4
+
 extern "C" {
 typedef struct Pool {
   Void* Pool;
@@ -304,6 +310,13 @@ class Fildes: public Monitor {
       Fildes* fildes = dynamic_cast<Fildes*>(child);
 
       if (fildes) {
+        if (fildes->_Pool.Status == RELEASING) {
+          return EDoNothing;
+        } else if (timeout < 0) {
+          fildes->_Pool.Status = RUNNING;
+        } else if (fildes->_Pool.Status != INTERRUPTED) {
+          fildes->_Pool.Status = INTERRUPTED;
+        }
         return (ErrorCodeE) _Run(&fildes->_Pool, timeout, backlog);
       } else {
         return BadLogic("child should be Fildes").code();
