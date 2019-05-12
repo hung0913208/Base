@@ -63,7 +63,7 @@ class Fildes: public Monitor {
 #else
   explicit Fildes(String name, Monitor::TypeE type, Int system) :
 #endif
-      Monitor(name, type) {
+      Monitor(name, type), _Tid{-1} {
     _Pool.Heartbeat = Base::Internal::Fildes::Heartbeat;
     _Pool.Trigger = Base::Internal::Fildes::Trigger;
     _Pool.Remove = Base::Internal::Fildes::Remove;
