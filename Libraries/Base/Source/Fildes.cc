@@ -332,6 +332,13 @@ class Fildes: public Monitor {
         } else if (fildes->_Pool.Status != INTERRUPTED) {
           fildes->_Pool.Status = INTERRUPTED;
         }
+
+        if (fildes->_Pool.Status == INTERRUPTED) {
+          if (_Entries.size() == 0) {
+            fildes->_Pool.Status = IDLE;
+          }
+        }
+
         return (ErrorCodeE) _Run(&fildes->_Pool, timeout, backlog);
       } else {
         return BadLogic("child should be Fildes").code();

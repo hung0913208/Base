@@ -104,6 +104,10 @@ Int SelectRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
     context = (FdSet*)pool->ll.Poll;
   }
 
+  if (pool->Status == IDLE) {
+    return EDoNothing;
+  }
+
   if (INIT < pool->Status && pool->Status < RELEASING) {
     Bool is_interrupted = pool->Status == INTERRUPTED;
     struct timeval tw;
@@ -161,6 +165,7 @@ checking:
   if (pool->Status != INTERRUPTED && pool->Status != INIT) {
     Int fd = 0;
 
+    pool->Status = RELEASING;
     for (; fd < FD_SETSIZE; ++fd) {
       if (FD_ISSET (fd, context)) {
         if ((error = pool->ll.Release(pool, fd))) {

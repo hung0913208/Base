@@ -157,6 +157,10 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
     poll = (Context*)pool->ll.Poll;
   }
 
+  if (pool->Status == IDLE) {
+    return EDoNothing;
+  }
+
   do {
     Int error = 0, idx = 0, nevent = 0;
 
@@ -218,6 +222,9 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
   } while (pool->Status < RELEASING && pool->Status != INTERRUPTED);
 
   if (pool->Status != INTERRUPTED && pool->Status != INIT) {
+    pool->Status = RELEASING;
+
+    memset(&pool->ll, 0, sizeof(pool->ll));
     close(poll->fd);
     free(poll->events);
     free(poll);

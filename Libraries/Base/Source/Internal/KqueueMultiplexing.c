@@ -148,6 +148,10 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
     poll = (Context*)pool->ll.Poll;
   }
 
+  if (pool->Status == IDLE) {
+    return EDoNothing;
+  }
+
   if (INIT < pool->Status && pool->Status < RELEASE) {
     Bool is_interrupted = pool->Status == INTERRUPT;
 
@@ -255,6 +259,8 @@ checking:
 
   /* @NOTE: release the epoll's fd */
   if (pool->Status != INTERRUPTED && pool->Status != INIT) {
+    pool->Status = RELEASING;
+
     memset(&pool->ll, 0, sizeof(pool->ll));
     close(poll->fd);
     free(poll->events);

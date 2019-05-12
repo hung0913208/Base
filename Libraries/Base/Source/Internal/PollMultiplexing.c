@@ -171,6 +171,10 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
     context = (Context*)pool->ll.Poll;
   }
 
+  if (pool->Status == IDLE && context->nevents == 0) {
+    return EDoNothing;
+  }
+
   do {
     Int fidx = 0, nevent = 0;
 
@@ -251,10 +255,13 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
   } while (pool->Status < RELEASING && pool->Status != INTERRUPTED);
 
   if (pool->Status != INTERRUPTED && pool->Status != INIT) {
+    pool->Status = RELEASING;
+
     for (UInt i = 0; i < context->nevents; ++i) {
       close(context->events[i].fd);
     }
 
+    memset(&pool->ll, 0, sizeof(pool->ll));
     free(context->events);
     free(context);
   }
