@@ -84,9 +84,11 @@ Int PollAppend(void* ptr, Int socket, Int mode){
   poll->events[index].fd = socket;
 
   if (mode == EWaiting) {
-    poll->events[index].events = POLLIN;
+    poll->events[index].events = POLLIN | POLLPRI | POLLHUP;
+    poll->events[index].revents = 0;
   } else if (mode == ELooping) {
-    poll->events[index].events = POLLOUT;
+    poll->events[index].events = POLLOUT | POLLHUP;
+    poll->events[index].revents = 0;
   }
   return 0;
 }
@@ -177,6 +179,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
       Int ev = context->events[fidx].revents;
 
       if (!(ev & (POLLOUT | POLLIN))) {
+        printf("fd=%d, ev=%d\n", fd, ev);
         pool->Remove(pool, fd);
       }
 

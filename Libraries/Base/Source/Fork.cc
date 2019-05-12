@@ -54,8 +54,12 @@ Fork::Fork(Function<Int()> redirect): _PID{-1}, _Input{-1}, _Output{-1},
     exit(redirect());
   } else {
     _Input = input[1];
-    _Output = output[0];
     _Error = error[0];
+    _Output = output[0];
+
+    close(input[0]);
+    close(error[1]);
+    close(output[1]);
     Internal::Forks.push_back(this);
   }
 }
@@ -63,6 +67,8 @@ Fork::Fork(Function<Int()> redirect): _PID{-1}, _Input{-1}, _Output{-1},
 Fork::~Fork() {
   /* @NOTE: close pipeline from here, we don't need them and we should notify
    * monitors too about this event */
+
+  DEBUG("Close pipelines at ~Fork()");
 
   close(_Input);
   close(_Output);
