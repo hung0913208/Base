@@ -65,15 +65,6 @@ Fork::Fork(Function<Int()> redirect): _PID{-1}, _Input{-1}, _Output{-1},
 }
 
 Fork::~Fork() {
-  /* @NOTE: close pipeline from here, we don't need them and we should notify
-   * monitors too about this event */
-
-  DEBUG("Close pipelines at ~Fork()");
-
-  close(_Input);
-  close(_Output);
-  close(_Error);
-
   /* @NOTE: just to make sure everything is safe from a single process POV, i
    * need to secure the cleaning process here with the highest lock */
 
@@ -84,6 +75,12 @@ Fork::~Fork() {
 
       if (Internal::Forks[i] == this) {
         Internal::Forks.erase(Internal::Forks.begin() + i);
+
+        /* @NOTE: close pipeline from here, we don't need them and we should
+         * notify monitors too about this event */
+        close(_Input);
+        close(_Output);
+        close(_Error);
         break;
       }
     }
