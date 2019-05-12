@@ -130,6 +130,7 @@ Int SelectRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
           error = pool->ll.Release(pool, fd);
 
         case ENoError:
+        case EBadAccess:
         case EKeepContinue:
           break;
         }

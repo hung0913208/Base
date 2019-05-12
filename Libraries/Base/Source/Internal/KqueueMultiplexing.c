@@ -191,10 +191,12 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
             default:
               pool->ll.Release(pool, fd, error);
 
+            case EBadAccess:
             case ENoError:
+            case EKeepContinue:
               events &= ~EVFILT_READ;
 
-            case EKeepContinue:
+            case EDoAgain:
               break;
             }
           }
@@ -206,10 +208,12 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
             default:
               pool->ll.Release(pool, fd, error);
 
+            case EBadAccess:
             case ENoError:
+            case EKeepContinue:
               events &= ~EVFILT_WRITE;
 
-            case EKeepContinue:
+            case EDoAgain:
               break;
             }
           }
@@ -244,5 +248,11 @@ checking:
   return ENoError;
 }
 
-Run KQueue(){ return (Run)KqueueRun; }
+Run KQueue(Pool* pool){
+  if (pool) {
+    if (!(pool->ll.Poll =  KqueueBuild(pool))) {
+      return None;
+    }
+  }
+  return (Run)KqueueRun; }
 #endif

@@ -114,6 +114,10 @@ class Fildes: public Monitor {
         return Internal::IsPipeAlive(fd.Get<Int>())? ENoError: EBadAccess;
       });
     }
+
+    /* @NOTE: we should register our own Monitor to the polling system, since
+     * the polling system only care about the HEAD */
+    _Pool.Pool = this;
   }
 
  protected:

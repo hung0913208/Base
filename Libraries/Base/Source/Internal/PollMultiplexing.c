@@ -187,6 +187,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
             pool->ll.Release(pool, fd);
 
           case ENoError:
+          case EBadAccess:
           case EKeepContinue:
             ev &= ~POLLIN;
             break;
@@ -204,6 +205,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
           case ENoError:
             pool->ll.Modify(pool, fd, EWaiting);
 
+          case EBadAccess:
           case EKeepContinue:
             ev &= ~POLLOUT;
             break;
