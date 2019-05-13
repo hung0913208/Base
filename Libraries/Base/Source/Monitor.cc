@@ -42,7 +42,7 @@ Monitor::~Monitor() {
     /* @NOTE: we should detect the child and remove it, if not, throw an
      * exception because this is a bug */
     if (index < 0) {
-      throw Except(EBadLogic, Format{"Not found {} from its parent"} << _Name);
+      Bug(EBadLogic, Format{"Not found {} from its parent"} << _Name);
     } else {
       Head(_Type)->_Children.erase(Head(_Type)->_Children.end() + index);
     }

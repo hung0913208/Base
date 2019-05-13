@@ -18,7 +18,21 @@
         << Base::EOL;               \
   ABI::KillMe();                    \
 }
-
+#define Bug(code, message)           \
+{                                    \
+  FATAL << "[  BUG - "               \
+        << Base::ToString(code)      \
+        << " ]"                      \
+        << Base::ToString((message)) \
+        << " at "                    \
+        << __FUNCTION__              \
+        << " "                       \
+        << __FILE__                  \
+        << ":"                       \
+        << Base::ToString(__LINE__)  \
+        << Base::EOL;                \
+  ABI::KillMe();                     \
+}
 
 namespace Base {
 class Error;
