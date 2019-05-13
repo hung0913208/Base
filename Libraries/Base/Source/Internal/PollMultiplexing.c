@@ -50,7 +50,7 @@ typedef Int (*Run)(Pool*, Int, Int);
 
 Int PollAppend(void* ptr, Int socket, Int mode){
   Context* poll = (struct Context*)(ptr);
-  Int index = 0;
+  Int index = 0, fidx;
 
   if (mode != EWaiting && mode != ELooping) {
     return Error(ENoSupport, "append only support EWaiting and ELooping");
@@ -91,6 +91,7 @@ Int PollAppend(void* ptr, Int socket, Int mode){
     poll->events[index].events = POLLOUT | POLLHUP;
     poll->events[index].revents = 0;
   }
+
   return 0;
 }
 
@@ -178,11 +179,13 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
   do {
     Int fidx = 0, nevent = 0;
 
-    poll(context->events, context->nevents, timeout);
-    for (; fidx < context->nevents; ++fidx) {
+    nevent = poll(context->events, context->nevents, timeout);
+
+    for (fidx = 0; fidx < context->nevents; ++fidx) {
       Int fd = context->events[fidx].fd;
       Int ev = context->events[fidx].revents;
 
+      if (!ev) continue;
       if (!(ev & (POLLOUT | POLLIN))) {
         if ((error = pool->ll.Release(pool, fd))) {
           pool->Status = PANICING;
