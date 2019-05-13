@@ -68,12 +68,15 @@ Int PollAppend(void* ptr, Int socket, Int mode){
     poll->size = 1;
     poll->nevents = 1;
   } else if (poll->nevents == poll->size) {
-    Event* tmp = (Event*)realloc(poll->events,
-                                 sizeof(Event)*(index = poll->nevents + 1));
+    Event* tmp = (Event*)malloc(sizeof(Event)*(poll->nevents + 1));
 
     if (!tmp) {
       return Error(EDrainMem, "when use realloc to append socket");
     }
+
+    /* @NOTE: it seems realloc can't duplicate memory to tmp as i expected */
+    memcpy(tmp, poll->events, sizeof(Event)*poll->nevents);
+    free(poll->events);
 
     poll->events = tmp;
     poll->size++;
@@ -180,7 +183,6 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
     Int fidx = 0, nevent = 0;
 
     nevent = poll(context->events, context->nevents, timeout);
-
     for (fidx = 0; fidx < context->nevents; ++fidx) {
       Int fd = context->events[fidx].fd;
       Int ev = context->events[fidx].revents;
