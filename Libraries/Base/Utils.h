@@ -403,6 +403,38 @@ class Format{
   String _Template;
 };
 
+class Fork{
+ public:
+  enum StatusE {
+    EBug = 0,
+    ERunning,
+    EExited,
+    EInterrupted,
+    EContSigned,
+    EStopSigned,
+    EStopped,
+    ESegmented,
+    ETerminated
+  };
+
+  explicit Fork(Function<Int()> redirect);
+  virtual ~Fork();
+
+  /* @NOTE: get PID of the child processes */
+  Int PID();
+
+  /* @NOTE: access I/O fd of child processes */
+  Int Input();
+  Int Error();
+  Int Output();
+
+  /* @NOTE: get status of child processes */
+  StatusE Status();
+
+ private:
+  Int _PID, _Input, _Output, _Error, _ECode;
+};
+
 String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);
 UInt Pagesize();
