@@ -40,12 +40,14 @@ typedef struct Pool {
 
     Int(*Append)(Void* ptr, Int socket, Int mode);
     Int(*Modify)(Void* ptr, Int socket, Int mode);
+    Int(*Probe)(Void* ptr, Int socket, Int mode);
     Int(*Release)(Void* ptr, Int socket);
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
   Int (*Heartbeat)(Void* ptr, Int socket);
   Int (*Remove)(Void* ptr, Int socket);
+  Int (*Flush)(Void* ptr, Int socket);
 } Pool;
 
 enum ErrorCodeE KqueueAppend(Void* ptr, Int socket, Int mode) {
@@ -187,8 +189,15 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
 
           goto checking;
         } else if (pool->Heartbeat && pool->Heartbeat(pool, fd)) {
+          if (pool->Flush) {
+            if (pool->Flush(pool, fd)) {
+              continue;
+            }
+          }
+
           if ((error = pool->ll.Release(pool, fd))) {
             pool->Status = PANICING;
+            break;
           }
 
           goto checking;

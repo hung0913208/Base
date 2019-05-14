@@ -24,6 +24,23 @@ Bool IsPipeAlive(Int pipe) {
   });
   return result;
 }
+
+Bool IsPipeWaiting(Int pipe) {
+  Bool result = False;
+
+  Configs::Locks::Global.Safe([&]() {
+    for (auto& fork: Forks) {
+      if ((fork->Output() != pipe) && (fork->Error() != pipe)) {
+        continue;
+      }
+
+      result = True;
+      break;
+    }
+  });
+
+  return result;
+}
 } // namespace Internal
 
 Fork::Fork(Function<Int()> redirect): _PID{-1}, _Input{-1}, _Output{-1},

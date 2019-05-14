@@ -37,12 +37,14 @@ typedef struct Pool {
 
     Int(*Append)(Void* ptr, Int socket, Int mode);
     Int(*Modify)(Void* ptr, Int socket, Int mode);
+    Int(*Probe)(Void* ptr, Int socket, Int mode);
     Int(*Release)(Void* ptr, Int socket);
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
   Int (*Heartbeat)(Void* ptr, Int socket);
   Int (*Remove)(Void* ptr, Int socket);
+  Int (*Flush)(Void* ptr, Int socket);
 } Pool;
 
 typedef Int (*Run)(Pool*, Int);
@@ -170,9 +172,17 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
       Int ev = poll->events[idx].events;
 
       if (ev & (EPOLLERR | EPOLLHUP | ~(EPOLLOUT | EPOLLIN))) {
+        if (pool->Flush) {
+          if (pool->Flush(pool, fd)) {
+            continue;
+          }
+        }
+
         if ((error = pool->ll.Release(pool, fd))) {
           pool->Status = PANICING;
           break;
+        } else {
+          continue;
         }
       }
 

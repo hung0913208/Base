@@ -38,19 +38,21 @@ typedef struct Pool {
 
     Int(*Append)(Void* ptr, Int socket, Int mode);
     Int(*Modify)(Void* ptr, Int socket, Int mode);
+    Int(*Probe)(Void* ptr, Int socket, Int mode);
     Int(*Release)(Void* ptr, Int socket);
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
   Int (*Heartbeat)(Void* ptr, Int socket);
   Int (*Remove)(Void* ptr, Int socket);
+  Int (*Flush)(Void* ptr, Int socket);
 } Pool;
 
 typedef Int (*Run)(Pool*, Int, Int);
 
 Int PollAppend(void* ptr, Int socket, Int mode){
   Context* poll = (struct Context*)(ptr);
-  Int index = 0, fidx;
+  Int index = 0;
 
   if (mode != EWaiting && mode != ELooping) {
     return Error(ENoSupport, "append only support EWaiting and ELooping");
@@ -108,9 +110,9 @@ Int PollModify(void* ptr, Int socket, Int mode){
     }
 
     if (mode == EWaiting) {
-      poll->events[index].events = POLLIN;
+      poll->events[index].events = POLLIN | POLLPRI | POLLHUP;
     } else if (mode == ELooping) {
-      poll->events[index].events = POLLOUT;
+      poll->events[index].events = POLLOUT | POLLHUP;
     } else if (mode == EReleasing) {
       Int next = index + 1;
 
@@ -125,6 +127,27 @@ Int PollModify(void* ptr, Int socket, Int mode){
   }
 
   return Error(ENotFound, "you\'re modify a non-existing socket");
+}
+
+Int PollProbe(Void* ptr, Int socket, Int mode) {
+  Context* poll = (Context*)(ptr);
+  Int index = 0;
+
+  for (; index < poll->nevents; ++index) {
+    if (poll->events[index].fd != socket) {
+      continue;
+    }
+
+    if (mode == EWaiting) {
+      return poll->events[index].events & POLLIN;
+    } else if (mode == ELooping) {
+      return poll->events[index].events & POLLOUT;
+    } else {
+      return -Error(ENoSupport, "only support EWaiting and ELooping");
+    }
+  }
+
+  return -Error(ENotFound, "you\'re probing a non-existing socket");
 }
 
 Int PollRelease(void* ptr, Int socket) {
@@ -156,6 +179,7 @@ Context* PollBuild(Pool* pool) {
 
   pool->ll.Release = PollRelease;
   pool->ll.Modify = PollModify;
+  pool->ll.Probe = PollProbe;
   pool->ll.Append = PollAppend;
 
   return result;
@@ -189,9 +213,17 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
 
       if (!ev) continue;
       if (!(ev & (POLLOUT | POLLIN))) {
+        if (pool->Flush) {
+          if (pool->Flush(pool, fd)) {
+            continue;
+          }
+        }
+
         if ((error = pool->ll.Release(pool, fd))) {
           pool->Status = PANICING;
           break;
+        } else {
+          continue;
         }
       }
 
@@ -236,6 +268,12 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
       } while (ev & (POLLIN | POLLOUT));
 
       if ((error = pool->Heartbeat(pool, fd))) {
+        if (pool->Flush) {
+          if (pool->Flush(pool, fd)) {
+            continue;
+          }
+        }
+
         if ((error = pool->ll.Release(pool, fd))) {
           pool->Status = PANICING;
           break;
@@ -250,6 +288,12 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         Int fd = context->events[cidx].fd;
 
         if ((error = pool->Heartbeat(pool, fd))) {
+          if (pool->Flush) {
+            if (pool->Flush(pool, fd)) {
+              continue;
+            }
+          }
+
           if ((error = pool->ll.Release(pool, fd))) {
             pool->Status = PANICING;
             break;

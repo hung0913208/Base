@@ -20,12 +20,14 @@ typedef struct Pool {
 
     Int(*Append)(Void* ptr, Int socket, Int mode);
     Int(*Modify)(Void* ptr, Int socket, Int mode);
+    Int(*Probe)(Void* ptr, Int socket, Int mode);
     Int(*Release)(Void* ptr, Int socket);
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
   Int (*Heartbeat)(Void* ptr, Int socket);
   Int (*Remove)(Void* ptr, Int socket);
+  Int (*Flush)(Void* ptr, Int socket);
 } Pool;
 
 typedef Int (*Run)(Pool*, Int, Int);
@@ -53,12 +55,14 @@ Run Select(Pool* pool);
 namespace Base {
 namespace Internal {
 Bool IsPipeAlive(Int pipe);
+Bool IsPipeWaiting(Int pipe);
 ULong GetUniqueId();
 
 namespace Fildes {
 Int Trigger(Void* ptr, Int fd, Bool reading);
 Int Heartbeat(Void* ptr, Int fd);
 Int Remove(Void* ptr, Int fd);
+Int Flush(Void* ptr, Int fd);
 } // namespace Fildes
 } // namespace Internal
 
@@ -73,6 +77,7 @@ class Fildes: public Monitor {
     _Pool.Heartbeat = Base::Internal::Fildes::Heartbeat;
     _Pool.Trigger = Base::Internal::Fildes::Trigger;
     _Pool.Remove = Base::Internal::Fildes::Remove;
+    _Pool.Flush = Base::Internal::Fildes::Flush;
 
     if (Monitor::Head(type) == dynamic_cast<Monitor*>(this)) {
       switch (system) {
@@ -130,6 +135,7 @@ class Fildes: public Monitor {
   friend Int Internal::Fildes::Trigger(Void* ptr, Int fd, Bool reading);
   friend Int Internal::Fildes::Heartbeat(Void* ptr, Int fd);
   friend Int Internal::Fildes::Remove(Void* ptr, Int fd);
+  friend Int Internal::Fildes::Flush(Void* ptr, Int fd);
 
   /* @NOTE: this function is used to register a triggering base on the event */
   ErrorCodeE _Trigger(Auto event, Monitor::Perform perform) {
@@ -348,6 +354,14 @@ class Fildes: public Monitor {
     }
   }
 
+  Int IsWaiting(Int socket) {
+    if (_Type != Monitor::EPipe) {
+      return -(Int)NoSupport(Format{"fd {}"} << socket).code();
+    }
+
+    return Internal::IsPipeWaiting(socket);
+  }
+
   /* @NOTE: this method is used to collect jobs appear at mode waiting */
   ErrorCodeE OnWaiting(Int socket) {
     Vector<Monitor::Perform*> jobs{};
@@ -395,6 +409,8 @@ class Fildes: public Monitor {
     return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
   }
 
+  /* @NOTE: this function is called by callback Trigger when the fd is on the
+   * Looping events */
   ErrorCodeE OnLooping(Int socket) {
     Vector<Monitor::Perform*> jobs{};
     Bool passed{False};
@@ -501,6 +517,26 @@ Int Remove(Void* ptr, Int fd) {
 
   if (pool) {
     return (reinterpret_cast<class Fildes*>(pool->Pool))->OnRemoving(fd);
+  } else {
+    return (Int)BadAccess("ptr is None").code();
+  }
+}
+
+Int Flush(Void* ptr, Int fd) {
+  Pool* pool = reinterpret_cast<Pool*>(ptr);
+
+  if (pool) {
+    auto fildes = (reinterpret_cast<class Fildes*>(pool->Pool));
+
+    if (pool->ll.Probe) {
+      if (pool->ll.Probe(pool->ll.Poll, fd, EWaiting) > 0) {
+        return fildes->OnWaiting(fd);
+      }
+    } else if (fildes->IsWaiting(fd) > 0) {
+      return fildes->OnWaiting(fd);
+    }
+
+    return 0;
   } else {
     return (Int)BadAccess("ptr is None").code();
   }

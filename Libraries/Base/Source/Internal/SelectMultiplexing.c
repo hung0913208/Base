@@ -35,12 +35,14 @@ typedef struct Pool {
 
     Int(*Append)(Void* ptr, Int socket, Int mode);
     Int(*Modify)(Void* ptr, Int socket, Int mode);
+    Int(*Probe)(Void* ptr, Int socket, Int mode);
     Int(*Release)(Void* ptr, Int socket);
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
   Int (*Heartbeat)(Void* ptr, Int socket);
   Int (*Remove)(Void* ptr, Int socket);
+  Int (*Flush)(Void* ptr, Int socket);
 } Pool;
 
 typedef Int (*Run)(Pool*, Int, Int);
@@ -147,6 +149,12 @@ Int SelectRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         /* @NOTE: check heartbeat again to keep in track that the socket has been
          * closed or not */
         if (pool->Heartbeat && (error = pool->Heartbeat(pool, fd))) {
+          if (pool->Flush) {
+            if (pool->Flush(pool, fd)) {
+              continue;
+            }
+          }
+
           if ((error = pool->ll.Release(pool, fd))) {
             pool->Status = PANICING;
             break;
