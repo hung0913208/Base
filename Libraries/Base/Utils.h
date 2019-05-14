@@ -406,15 +406,15 @@ class Format{
 class Fork{
  public:
   enum StatusE {
-    EBug = 0,
-    ERunning,
-    EExited,
-    EInterrupted,
-    EContSigned,
-    EStopSigned,
-    EStopped,
-    ESegmented,
-    ETerminated
+    EBug = -1,
+    ERunning = 0,
+    EExited = 1,
+    EInterrupted = 2,
+    EContSigned = 4,
+    EStopSigned = 6,
+    EStopped = 8,
+    ESegmented = 10,
+    ETerminated = 12
   };
 
   explicit Fork(Function<Int()> redirect);

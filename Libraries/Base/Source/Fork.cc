@@ -18,7 +18,7 @@ Bool IsPipeAlive(Int pipe) {
         continue;
       }
 
-      result = True;
+      result = !(fork->Status() & Fork::EExited);
       break;
     }
   });
