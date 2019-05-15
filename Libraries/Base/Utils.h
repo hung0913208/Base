@@ -417,7 +417,7 @@ class Fork{
     ETerminated = 12
   };
 
-  explicit Fork(Function<Int()> redirect);
+  explicit Fork(Function<Int()> callback, Bool redirect = True);
   virtual ~Fork();
 
   /* @NOTE: get PID of the child processes */
@@ -430,6 +430,7 @@ class Fork{
 
   /* @NOTE: get status of child processes */
   StatusE Status();
+  Int ECode();
 
  private:
   Int _PID, _Input, _Output, _Error, _ECode;
