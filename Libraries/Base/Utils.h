@@ -433,7 +433,7 @@ class Fork{
   Int ECode();
 
  private:
-  Int _PID, _Input, _Output, _Error, _ECode;
+  Int _PID, _Input, _Output, _Error, *_ECode;
 };
 
 String Cut(String sample, Char sep, Int posiiton);

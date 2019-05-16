@@ -45,7 +45,7 @@ Bool IsPipeWaiting(Int pipe) {
 } // namespace Internal
 
 Fork::Fork(Function<Int()> callback, Bool redirect): 
-    _PID{-1}, _Input{-1}, _Output{-1}, _Error{-1}, _ECode{0} {
+    _PID{-1}, _Input{-1}, _Output{-1}, _Error{-1}, _ECode{None} {
   Int input[2], output[2], error[2];
 
   if (redirect) {
@@ -86,6 +86,8 @@ Fork::Fork(Function<Int()> callback, Bool redirect):
       close(error[1]);
       close(output[1]);
     }
+
+    _ECode = new Int(-1);
     Internal::Forks.push_back(this);
   }
 }
@@ -107,6 +109,9 @@ Fork::~Fork() {
         close(_Input);
         close(_Output);
         close(_Error);
+
+        /* @NOTE: free shared memory */
+        if (_ECode) delete _ECode;
         break;
       }
     }
@@ -121,7 +126,7 @@ Int Fork::Error() { return _Error; }
 
 Int Fork::Output() { return _Output; }
 
-Int Fork::ECode() { return _ECode; }
+Int Fork::ECode() { return *_ECode; }
 
 Fork::StatusE Fork::Status() {
   Int status;
@@ -155,9 +160,9 @@ Fork::StatusE Fork::Status() {
 
   /* @NOTE: check if the child was exited and collect its exit code */
   if (WIFEXITED(status)) {
-    _ECode = WEXITSTATUS(status);
-
-    DEBUG(Format{"PID {} is exit with exitcode {}"}.Apply(_PID, _ECode));
+    if (*_ECode < 0) {
+      *_ECode = WEXITSTATUS(status);
+    }
     return Fork::EExited;
   }
 
