@@ -225,7 +225,7 @@ class Watch {
 
   Bool Main(){ return _Main; }
 
-  UMap<ULong, StatusE>& Status(){ return _Status; }
+  OMap<ULong, StatusE>& Status(){ return _Status; }
 
   Unique<Stopper>& Get(UInt name, ULong id, Bool safed = True) {
     if (_Stoppers.find(name) == _Stoppers.end()) {
@@ -989,8 +989,8 @@ class Watch {
   }
 
   /* @NOTE: database of Watch */
-  UMap<UInt, Context> _Stoppers;
-  UMap<ULong, StatusE> _Status;
+  OMap<UInt, Context> _Stoppers;
+  OMap<ULong, StatusE> _Status;
   Vector<ULong> _Ignores;
 
   /* @NOTE: internal locks of Watch */

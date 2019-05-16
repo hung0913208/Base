@@ -1,5 +1,6 @@
 #include <Exception.h>
 #include <Logcat.h>
+#include <Lock.h>
 #include <Macro.h>
 #include <Type.h>
 #include <Utils.h>
