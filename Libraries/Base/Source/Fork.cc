@@ -160,6 +160,8 @@ Fork::StatusE Fork::Status() {
 
   /* @NOTE: check if the child was exited and collect its exit code */
   if (WIFEXITED(status)) {
+    DEBUG(Format{"pid {}\'s exit code {}"}.Apply(_PID, WEXITSTATUS(status)));
+
     if (*_ECode < 0) {
       *_ECode = WEXITSTATUS(status);
     }
