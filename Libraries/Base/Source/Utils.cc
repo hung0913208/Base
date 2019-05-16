@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #if UNIX
+#include <sys/types.h>
 #include <errno.h>
 #include <unistd.h>
 
@@ -436,6 +437,14 @@ UInt Pagesize() {
   return static_cast<UInt>(SystemInfo.dwAllocationGranularity);
 #else
   return static_cast<UInt>(sysconf(_SC_PAGE_SIZE));
+#endif
+}
+
+Int PID() {
+#if UNIX
+  return getpid();
+#else
+  return -1;
 #endif
 }
 

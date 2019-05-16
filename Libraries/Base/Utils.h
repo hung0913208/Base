@@ -439,6 +439,7 @@ class Fork{
 String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);
 UInt Pagesize();
+Int PID();
 }  // namespace Base
 #endif
 #endif  // BASE_UTILS_H_

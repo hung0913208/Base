@@ -83,20 +83,46 @@
 #define CYAN Base::Color(Base::Color::Cyan)
 #define WHITE Base::Color(Base::Color::White)
 
+#if DEBUG
+#define ERROR                                                               \
+  VLOGC(EError, RED) << "[ " << Base::ToString(Base::PID()) << " ] "
+#define WARNING                                                             \
+  VLOGC(EWarning, YELLOW) << "[ " << Base::ToString(Base::PID()) << ") ] "
+
+#define VERBOSE                                                             \
+  VLOGC(EDebug, MAGNETA) << "[ " << Base::ToString(Base::PID()) << " - "    \
+                         << FUNCTION << " ] "
+#define INFO                                                                \
+  VLOGC(EInfo, WHITE) <<  "[ " << Base::ToString(Base::PID()) << " ] "
+#define FATAL                                                               \
+  VLOGC(EError, RED) << "[ " << Base::ToString(Base::PID()) << " ] "
+
+/* @NOTE: this macro will help to write debug log easier while prevent
+ * performance issue */
+#define DEBUG(message)                                                      \
+{                                                                           \
+  if (Base::Log::Level() == EDebug) {                                       \
+    VLOGC(EDebug, CYAN) << "[ " << Base::ToString(Base::PID())              \
+                        << " - " << FUNCTION << "] "                        \
+                        << (message) << Base::EOL;                          \
+  }                                                                         \
+}
+#else
 #define ERROR VLOGC(EError, RED)
-#define WARNING VLOGC(EWarning, YELLOW)
-#define VERBOSE VLOGC(EDebug, MAGNETA) << FUNCTION << ": "
+#define WARNING VLOGC(EWarning, YELLOW) 
+#define VERBOSE VLOGC(EDebug, MAGNETA) << "[  VERBOSE ] "
 #define INFO VLOGC(EInfo, WHITE)
 #define FATAL VLOGC(EError, RED)
 
 /* @NOTE: this macro will help to write debug log easier while prevent
  * performance issue */
-#define DEBUG(message)                                                  \
-{                                                                       \
-  if (Base::Log::Level() == EDebug) {                                   \
-    VLOGC(EDebug, CYAN) << FUNCTION << ": " << (message) << Base::EOL;  \
-  }                                                                     \
+#define DEBUG(message)                                                      \
+{                                                                           \
+  if (Base::Log::Level() == EDebug) {                                       \
+    VLOGC(EDebug, CYAN) << "[   DEBUG  ] "<< (message) << Base::EOL;        \
+  }                                                                         \
 }
+#endif
 
 namespace Base {
 class Color {
@@ -229,6 +255,8 @@ class Error : public Stream {
   ErrorCodeE _Code;
   ErrorLevelE _Level;
 };
+
+Int PID();
 }  // namespace Base
 #else
 #define Error(code, message)                                        \

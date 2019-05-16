@@ -99,18 +99,18 @@ void PrepareSuites() {
              : 0);
 
   /* @NOTE: present the short information about the test */
-  INFO << GREEN(PRESENT_BOUND) << " Run " << ToString(count_tests);
+  VLOG(EInfo) << GREEN(PRESENT_BOUND) << " Run " << ToString(count_tests);
   if (count_tests > 1) {
-    INFO << " tests from ";
+    VLOG(EInfo) << " tests from ";
   } else {
-    INFO << " test from ";
+    VLOG(EInfo) << " test from ";
   }
 
-  INFO << ToString(Units ? Units->size() : 0);
-  INFO << (Units && (Units->size() > 1) ? " test cases\n" : " test case\n");
+  VLOG(EInfo) << ToString(Units ? Units->size() : 0);
+  VLOG(EInfo) << (Units && (Units->size() > 1) ? " test cases\n" : " test case\n");
 
   /* @TODO: perform global configuration */
-  INFO << GREEN(SPLIT_SUITED) << " Global test environment set-up.\n";
+  VLOG(EInfo) << GREEN(SPLIT_SUITED) << " Global test environment set-up.\n";
 }
 
 void AssignValueToTestcase(Unittest* unit, Int index, Any* value) {
@@ -226,27 +226,27 @@ Bool Case::Perform() {
     if (dynamic_cast<Unit::Assertion*>(&except)) {
       /* @NOTE: got an assertion, show message here */
 
-      INFO << (RED << ASSERT_LABEL)
-           << Format{" testcase {}::{} complains {}"}.Apply(_Suite, _Name,
-                                                            except.message())
-           << Base::EOL;
+      VLOG(EError) << (RED << ASSERT_LABEL)
+                   << Format{" testcase {}::{} complains {}"}
+                        .Apply(_Suite, _Name, except.message())
+                   << Base::EOL;
     } else {
       except.Ignore();
-      INFO << (RED << EXCEPTION_LABEL)
-           << (Format{" got Base::Exception \'{}\'"} << except.message())
-           << Base::EOL;
+      VLOG(EError) << (RED << EXCEPTION_LABEL)
+                   << (Format{" got Base::Exception \'{}\'"} << except.message())
+                   << Base::EOL;
     }
 
     _Status = EFail;
   } catch (std::exception& except) {
-    INFO << (RED << EXCEPTION_LABEL)
-         << (Format{" got std::exception \'{}\'"} << except.what())
-         << Base::EOL;
+    VLOG(EError) << (RED << EXCEPTION_LABEL)
+                 << (Format{" got std::exception \'{}\'"} << except.what())
+                 << Base::EOL;
 
     _Status = EFail;
   } catch (...) {
-    INFO << (RED << EXCEPTION_LABEL) << " got unknown exception"
-         << Base::EOL;
+    VLOG(EError) << (RED << EXCEPTION_LABEL) << " got unknown exception"
+                 << Base::EOL;
     _Status = EFail;
   }
 
@@ -257,26 +257,27 @@ Bool Case::Perform() {
     if (dynamic_cast<Unit::Assertion*>(&except)) {
       /* @NOTE: got an assertion, show message here */
 
-      WARNING << (RED << ASSERT_LABEL)
-              << Format{" teardown testcase {}::{} "
-                        "complains {}"}.Apply(_Suite, _Name,
-                                              except.message())
-              << Base::EOL;
+      VLOG(EWarning) << (RED << ASSERT_LABEL)
+                     << Format{" teardown testcase {}::{} complains {}"}
+                          .Apply(_Suite, _Name, except.message())
+                     << Base::EOL;
     } else {
       except.Ignore();
-      WARNING << (RED << EXCEPTION_LABEL)
-              << (Format{" teardown got Base::Exception \'{}\'"}
-              << except.message())
-              << Base::EOL;
+      VLOG(EWarning) << (RED << EXCEPTION_LABEL)
+                     << (Format{" teardown got Base::Exception \'{}\'"}
+                     << except.message())
+                     << Base::EOL;
     }
 
   } catch (std::exception& except) {
-    WARNING << (RED << EXCEPTION_LABEL)
-            << (Format{" teardown got std::exception \'{}\'"} << except.what())
-            << Base::EOL;
+    VLOG(EWarning) << (RED << EXCEPTION_LABEL)
+                   << (Format{" teardown got std::exception \'{}\'"}
+                   << except.what())
+                   << Base::EOL;
   } catch (...) {
-    WARNING << (RED << EXCEPTION_LABEL) << " teardown got unknown exception"
-            << Base::EOL;
+    VLOG(EWarning) << (RED << EXCEPTION_LABEL)
+                   << " teardown got unknown exception"
+                   << Base::EOL;
   }
 
   return _Status != EFail;
@@ -542,7 +543,7 @@ extern "C" Int BSRunTests() {
     double elapsed_suite_milisecs;
     clock_t begin;
 
-    INFO << GREEN(SPLIT_SUITED) << " " << suite.Left.Information() << Base::EOL;
+    VLOG(EInfo) << GREEN(SPLIT_SUITED) << " " << suite.Left.Information() << Base::EOL;
 
     begin = clock();
     for (auto& test : suite.Right) {
@@ -550,7 +551,7 @@ extern "C" Int BSRunTests() {
       /* @NOTE: using a single loop is the simple and safe way to implement my
        * testing flow, consider using Parallel to improve performance */
 
-      INFO << YELLOW(RUN_LABEL) << " " << test->Information() << Base::EOL;
+      VLOG(EInfo) << YELLOW(RUN_LABEL) << " " << test->Information() << Base::EOL;
 
       /* @NOTE: perform this test now */
       if (test->Status() == Base::Unit::EUnknown) {
@@ -570,22 +571,24 @@ extern "C" Int BSRunTests() {
       if (test->Status() == Base::Unit::EFail) {
         did_everything_pass = False;
 
-        INFO << RED(FAIL_LABEL) << " " << test->Information() << " ("
-             << Base::ToString(elapsed_test_milisecs) << " ms)" << Base::EOL;
+        VLOG(EInfo) << RED(FAIL_LABEL) << " " << test->Information() << " ("
+                    << Base::ToString(elapsed_test_milisecs) << " ms)"
+                    << Base::EOL;
       } else if (test->Status() == Base::Unit::EFatal) {
         did_everything_pass = False;
-
-        INFO << RED(FAIL_LABEL) << " " << test->Information() << " ("
-             << Base::ToString(elapsed_test_milisecs) << " ms)" << Base::EOL;
+        VLOG(EInfo) << RED(FAIL_LABEL) << " " << test->Information() << " ("
+                    << Base::ToString(elapsed_test_milisecs) << " ms)"
+                    << Base::EOL;
 
         /* @NOTE: with fatal errors we must abandon remaining tests */
         break;
       } else if (test->Status() == Base::Unit::EIgnored) {
-        INFO << YELLOW(IGNORED_LABEL) << " " << test->Information()
-             << Base::EOL;
+        VLOG(EInfo) << YELLOW(IGNORED_LABEL) << " " << test->Information()
+                    << Base::EOL;
       } else {
-        INFO << GREEN(PASS_LABEL) << " " << test->Information() << " ("
-             << Base::ToString(elapsed_test_milisecs) << " ms)" << Base::EOL;
+        VLOG(EInfo) << GREEN(PASS_LABEL) << " " << test->Information() << " ("
+                    << Base::ToString(elapsed_test_milisecs) << " ms)"
+                    << Base::EOL;
       }
     }
 
@@ -593,8 +596,10 @@ extern "C" Int BSRunTests() {
     elapsed_suite_milisecs = 1000.0 * (clock() - begin) / CLOCKS_PER_SEC;
 
     /* @NOTE: notice that we finish this test suite */
-    INFO << GREEN(SPLIT_SUITED) << " " << suite.Left.Information() << " ("
-         << Base::ToString(elapsed_suite_milisecs) << " ms)" << Base::EOL;
+    VLOG(EInfo) << GREEN(SPLIT_SUITED) << " " << suite.Left.Information() 
+                << " ("
+                << Base::ToString(elapsed_suite_milisecs) << " ms)"
+                << Base::EOL;
 
     /* @NOTE: notify that we are passing the suite */
     suite.Left.OnPassing(index);
