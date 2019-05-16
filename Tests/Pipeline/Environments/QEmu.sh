@@ -365,15 +365,7 @@ cat './repo.list' | while read DEFINE; do
 			$BASE/Tests/Pipeline/Prepare.sh
 
 			if [ -f $WORKSPACE/.environment ]; then
-				source $WORKSPACE.environment
-			fi
-
-			if [ ! -f $KER_FILENAME ]; then
-				compile_linux_kernel
-			fi
-
-			if [ ! -f $RAM_FILENAME ]; then
-				compile_busybox
+				source $WORKSPACE/.environment
 			fi
 
 			if [ $? != 0 ]; then
@@ -384,6 +376,12 @@ cat './repo.list' | while read DEFINE; do
 				if [ $? != 0 ]; then
 					warning "Fail repo $REPO/$BRANCH"
 				else
+					# @NOTE: build a new initrd
+
+					if [ ! -f $RAM_FILENAME ]; then
+						compile_busybox
+					fi
+
 					generate_initrd "$WORKSPACE/build"
 				fi
 			fi
@@ -396,6 +394,10 @@ cat './repo.list' | while read DEFINE; do
 	fi
 
 	if [ -f "$RAM_FILENAME" ]; then
+		if [ ! -f $KER_FILENAME ]; then
+			compile_linux_kernel
+		fi
+
 		info "run qemu-system-x86 with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 	\
 				-initrd "${RAM_FILENAME}"		\
