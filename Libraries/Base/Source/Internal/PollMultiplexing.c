@@ -14,6 +14,7 @@
 #define RUNNING 2
 #define INTERRUPTED 3
 #define RELEASING 4
+#define PANICING 5
 
 enum Mode {
   EWaiting = 0,
@@ -179,14 +180,19 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
       Int ev = context->events[fidx].revents;
 
       if (!(ev & (POLLOUT | POLLIN))) {
-        pool->ll.Release(pool, fd);
+        if ((error = pool->ll.Release(pool, fd))) {
+          pool->Status = PANICING;
+          break;
+        }
       }
 
       do {
         if (ev & POLLIN) {
           switch (pool->Trigger(pool, fd, True)) {
           default:
-            pool->ll.Release(pool, fd);
+            if ((error = pool->ll.Release(pool, fd))) {
+              pool->Status = PANICING;
+            }
 
           case ENoError:
           case EBadAccess:
@@ -202,7 +208,9 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         if (ev & POLLOUT) {
           switch (pool->Trigger(pool, fd, False)) {
           default:
-            pool->ll.Release(pool, fd);
+            if ((error = pool->ll.Release(pool, fd))) {
+              pool->Status = PANICING;
+            }
 
           case ENoError:
             pool->ll.Modify(pool, fd, EWaiting);
@@ -219,7 +227,10 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
       } while (ev & (POLLIN | POLLOUT));
 
       if ((error = pool->Heartbeat(pool, fd))) {
-        pool->ll.Release(pool, fd);
+        if ((error = pool->ll.Release(pool, fd))) {
+          pool->Status = PANICING;
+          break;
+        }
       }
     }
 
@@ -230,7 +241,10 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         Int fd = context->events[cidx].fd;
 
         if ((error = pool->Heartbeat(pool, fd))) {
-          pool->ll.Release(pool, fd);
+          if ((error = pool->ll.Release(pool, fd))) {
+            pool->Status = PANICING;
+            break;
+          }
         }
       }
     }

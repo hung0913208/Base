@@ -185,7 +185,22 @@ class Fildes: public Monitor {
   /* @NOTE: this function is used to append a new fd to polling system */
   ErrorCodeE _Append(Auto fd, Int mode) {
     try {
-      return (ErrorCodeE) _Pool.ll.Append( _Pool.ll.Poll, fd.Get<Int>(), mode);
+      if (fd.Get<Int>() < 0) {
+        return BadLogic("fd shouldn\'t be negative").code();
+      } else if (_Entries.find(fd) != _Entries.end()) {
+        return BadLogic(Format{"duplicate fd {}"} << fd).code();
+      } else {
+        auto error = (ErrorCodeE) _Pool.ll.Append(_Pool.ll.Poll,
+                                                  fd.Get<Int>(),
+                                                  mode);
+
+        if (error) {
+          return error;
+        }
+
+        _Entries[fd.Get<Int>()] = Auto{};
+        return ENoError;
+      }
     } catch(Base::Exception& except) {
       return except.code();
     }
@@ -370,7 +385,7 @@ class Fildes: public Monitor {
       }
     }
 
-    return passed? ENoError: ENotFound;
+    return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
   }
 
   ErrorCodeE OnLooping(Int socket) {
@@ -415,7 +430,7 @@ class Fildes: public Monitor {
       }
     }
 
-    return passed? ENoError: ENotFound;
+    return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
   }
 
   ErrorCodeE OnRemoving(Int socket) {
@@ -434,7 +449,7 @@ class Fildes: public Monitor {
       }
     }
 
-    return passed? ENoError: ENotFound;
+    return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
   }
 
   Map<Int, Auto> _Entries;
@@ -459,7 +474,7 @@ Int Trigger(Void* ptr, Int fd, Bool waiting) {
       return (Int)(reinterpret_cast<class Fildes*>(pool->Pool))->OnLooping(fd);
     }
   } else {
-    return (Int)EBadAccess;
+    return (Int)BadAccess("ptr is None").code();
   }
 }
 
@@ -470,7 +485,7 @@ Int Heartbeat(Void* ptr, Int socket) {
     return (Int)(reinterpret_cast<class Fildes*>(pool->Pool))
       ->Heartbeat(Auto::As<Int>(socket));
   } else {
-    return (Int)EBadAccess;
+    return (Int)BadAccess("ptr is None").code();
   }
 }
 
@@ -480,7 +495,7 @@ Int Remove(Void* ptr, Int fd) {
   if (pool) {
     return (reinterpret_cast<class Fildes*>(pool->Pool))->OnRemoving(fd);
   } else {
-    return (Int)EBadAccess;
+    return (Int)BadAccess("ptr is None").code();
   }
 }
 } // namespace Fildes

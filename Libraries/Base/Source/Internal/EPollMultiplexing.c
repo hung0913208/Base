@@ -13,6 +13,7 @@
 #define RUNNING 2
 #define INTERRUPTED 3
 #define RELEASING 4
+#define PANICING 5
 
 enum Mode {
   EWaiting = 0,
@@ -165,14 +166,19 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
       Int ev = poll->events[idx].events;
 
       if (ev & (EPOLLERR | EPOLLHUP | ~(EPOLLOUT | EPOLLIN))) {
-        pool->ll.Release(pool, fd);
+        if ((error = pool->ll.Release(pool, fd))) {
+          pool->Status = PANICING;
+          break;
+        }
       }
 
       do {
         if (ev & EPOLLIN) {
           switch (pool->Trigger(pool, fd, True)) {
           default:
-            pool->ll.Release(pool, fd);
+            if ((error = pool->ll.Release(pool, fd))) {
+              pool->Status = PANICING;
+            }
 
           case ENoError:
           case EBadAccess:
@@ -188,7 +194,9 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
         if (ev & EPOLLOUT) {
           switch (pool->Trigger(pool, fd, False)) {
           default:
-            pool->ll.Release(pool, fd);
+            if ((error = pool->ll.Release(pool, fd))) {
+              pool->Status = PANICING;
+            }
 
           case ENoError:
             pool->ll.Modify(pool, fd, EWaiting);

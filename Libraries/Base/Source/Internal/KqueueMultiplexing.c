@@ -14,6 +14,7 @@
 #define RUNNING 2
 #define INTERRUPTED 3
 #define RELEASING 4
+#define PANICING 5
 
 enum Mode {
   EWaiting = 0,
@@ -176,10 +177,16 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
         /* @NOTE: if we found out that this fd don't have any I/O event, we
          * should close it now */
         if (flags & EV_EOF) {
-          pool->ll.Release(pool, fd, EWatchErrno);
+          if ((error = pool->ll.Release(pool, fd))) {
+            pool->Status = PANICING;
+          }
+
           goto checking;
         } else if (pool->Heartbeat && pool->Heartbeat(pool, fd)) {
-          pool->ll.Release(pool, fd, ENoError);
+          if ((error = pool->ll.Release(pool, fd))) {
+            pool->Status = PANICING;
+          }
+
           goto checking;
         }
 
@@ -189,7 +196,9 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
 
             switch((error = pool->Trigger(pool, True, fd))) {
             default:
-              pool->ll.Release(pool, fd, error);
+              if ((error = pool->ll.Release(pool, fd))) {
+                pool->Status = PANICING;
+              }
 
             case EBadAccess:
             case ENoError:
@@ -206,7 +215,9 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
 
             switch((error = pool->Trigger(pool, False, fd))) {
             default:
-              pool->ll.Release(pool, fd, error);
+              if ((error = pool->ll.Release(pool, fd))) {
+                pool->Status = PANICING;
+              }
 
             case EBadAccess:
             case ENoError:
@@ -226,7 +237,11 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
         /* @NOTE: check heartbeat again to keep in track that the socket has been
          * closed or not */
         if (pool->Heartbeat && pool->Heartbeat(pool, fd)) {
-          pool->ll.Release(pool, fd, ENoError);
+          if ((error = pool->ll.Release(pool, fd))) {
+            pool->Status = PANICING;
+            break;
+          }
+
           continue;
         }
 

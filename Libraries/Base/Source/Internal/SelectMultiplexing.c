@@ -16,6 +16,7 @@
 #define RUNNING 2
 #define INTERRUPTED 3
 #define RELEASING 4
+#define PANICING 5
 
 enum Mode {
   EWaiting = 0,
@@ -129,7 +130,9 @@ Int SelectRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
 
         switch((error = pool->Trigger(pool, True, fd))) {
         default:
-          error = pool->ll.Release(pool, fd);
+          if ((error = pool->ll.Release(pool, fd))) {
+            pool->Status = PANICING;
+          }
 
         case ENoError:
         case EBadAccess:
@@ -140,7 +143,10 @@ Int SelectRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         /* @NOTE: check heartbeat again to keep in track that the socket has been
          * closed or not */
         if (pool->Heartbeat && (error = pool->Heartbeat(pool, fd))) {
-          error = pool->ll.Release(pool, fd);
+          if ((error = pool->ll.Release(pool, fd))) {
+            pool->Status = PANICING;
+            break;
+          }
         }
 
 checking:
@@ -157,7 +163,10 @@ checking:
 
     for (; fd < FD_SETSIZE; ++fd) {
       if (FD_ISSET (fd, context)) {
-        pool->ll.Release(pool, fd);
+        if ((error = pool->ll.Release(pool, fd))) {
+          pool->Status = PANICING;
+          break;
+        }
       }
     }
 
