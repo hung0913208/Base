@@ -3,19 +3,31 @@
 #include <Macro.h>
 #include <Type.h>
 #include <Utils.h>
+#include <Vertex.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
 namespace Base {
 namespace Internal {
-Map<UInt, Vector<Function<void(siginfo_t *)>>> *_SignalCallbacks{None};
+Mutex* CreateMutex();
+
+static Map<UInt, Vector<Function<void(siginfo_t *)>>> *_SignalCallbacks{None};
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
+                                  [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
+                                  CreateMutex());
 
 static void SigCallbackWrapper(int signum, siginfo_t *siginfo,
                                void *UNUSED(context)) {
-  if (_SignalCallbacks->find(signum) != _SignalCallbacks->end()) {
-    for (UInt i = 0; i < (*_SignalCallbacks)[signum].size(); ++i) {
-      (*_SignalCallbacks)[signum][i](siginfo);
+  Map<UInt, Vector<Function<void(siginfo_t *)>>> callbacks;
+
+  Secure.Circle([&]() { 
+    if (_SignalCallbacks) callbacks = *_SignalCallbacks; 
+  });
+
+  if (callbacks.find(signum) != callbacks.end()) {
+    for (UInt i = 0; i < callbacks[signum].size(); ++i) {
+      callbacks[signum][i](siginfo);
     }
 
     if (signum != SIGALRM) {
@@ -27,6 +39,8 @@ static void SigCallbackWrapper(int signum, siginfo_t *siginfo,
         exit(signum);
       }
     }
+  } else {
+    exit(signum);
   }
 }
 
@@ -36,7 +50,13 @@ void CatchSignal(UInt signal, Function<void(siginfo_t *)> callback) {
   if (_SignalCallbacks == None) {
     _SignalCallbacks = new Map<UInt, Vector<Function<void(siginfo_t *)>>>();
 
-    AtExit([]() { delete _SignalCallbacks; });
+    AtExit([]() {
+      auto callbacks = _SignalCallbacks;
+
+      Secure.Circle([]() { _SignalCallbacks = None; });
+      delete callbacks;
+    });
+
   }
 
   if (_SignalCallbacks->find(signal) == _SignalCallbacks->end()) {

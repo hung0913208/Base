@@ -163,6 +163,39 @@ class Vertex {
     }
   }
 
+  void Circle(Function<void()> callback) {
+    if (templated == True) {
+      if (_Enter) {
+        (*_Enter)(_Content);
+      }
+      try {
+        callback();
+
+        if (_Exit) {
+          (*_Exit)(_Content);
+        }
+      } catch (Base::Exception& except) {
+        if (_Exit) {
+          (*_Exit)(_Content);
+        }
+
+        throw except;
+      } catch (std::exception& except) {
+        if (_Exit) {
+          (*_Exit)(_Content);
+        }
+
+        throw except;
+      } catch (...) {
+        if (_Exit) {
+          (*_Exit)(_Content);
+        }
+
+        throw Except(EBadLogic, "catch unknown exception");
+      }
+    }
+  }
+
   /* @NOTE: if templated is False, call this object will activate function enter
    * and after that, function exit will be called automatically at the end of
    * this object lifecycle
