@@ -115,17 +115,19 @@ free -m
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
-# @NOTE: config loopback interface
+# @NOTE: config nameserver
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
+# @NOTE: config loopback interface
 ifconfig lo 127.0.0.1
 route add 127.0.0.1
 
+# @NOTE: config eth0 interface to connect to outside
 ifconfig eth0 up
-ifconfig eth0 192.168.100.2
-route add 192.168.100.1
+ifconfig eth0 192.168.0.2
+route add default gw 192.168.100.1
 
-ping -c 5 192.168.100.1 >& /dev/null
+ping -c 5 192.168.0.1 >& /dev/null
 if [ $? != 0 ]; then
 	echo "can't connect to the gateway"
 fi
@@ -283,36 +285,26 @@ function detect_libbase() {
 
 ETH="$(get_internet_interface)"
 TAP="$(get_new_bridge "tap")"
-BRD="$(get_latest_bridge "br")"
 
 create_tuntap "$TAP"
 
 if [ $? != 0 ]; then
 	error "can\'t create a new tap interface"
 else
-	$SU ip addr add 172.20.0.1/16 dev $BRD
-	$SU ip link set $BRD up
-	$SU dnsmasq --interface=br0 --bind-interfaces --dhcp-range=172.20.0.2,172.20.255.254
+	# @NOTE: set ip address of this TAP interface
+	$SU ip address add  192.168.0.1/24 dev $TAP
 
-	if [[ ! -d /etc/qemu ]]; then
-		$SU mkdir /etc/qemu
-	fi
-
-	# @NOTE: by default, qemu will use bridges that are configured inside
-	# this file
-	$SU bash -c "echo allow $BRD > /etc/qemu/bridge.conf"
-
-	$SU ip link set $TAP up promisc on
-	$SU ip link set $TAP master $BRD
-
-	# @NOTE: configure ip forward
+	# activate ip forwarding
 	$SU sysctl net.ipv4.ip_forward=1
 	$SU sysctl net.ipv6.conf.default.forwarding=1
 	$SU sysctl net.ipv6.conf.all.forwarding=1
 
-	$SU iptables -t nat -A POSTROUTING -o $ETH -j MASQUERADE
-	$SU iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+	# @NOTE: Create forwarding rules, where
+	# tap0 - virtual interface
+	# eth0 - net connected interface
 	$SU iptables -A FORWARD -i $TAP -o $ETH -j ACCEPT
+	$SU iptables -A FORWARD -i $ETH -o $TAP -m state --state ESTABLISHED,RELATED -j ACCEPT
+	$SU iptables -t nat -A POSTROUTING -o $ETH -j MASQUERADE
 fi
 
 mkdir -p "$ROOT/content"
@@ -398,13 +390,16 @@ cat './repo.list' | while read DEFINE; do
 			compile_linux_kernel
 		fi
 
-		info "run qemu-system-x86 with kernel $KER_FILENAME and initrd $RAM_FILENAME"
-		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 	\
-				-initrd "${RAM_FILENAME}"		\
-				-nographic 				\
-				-smp $(nproc) -m 1G			\
-				-net nic -net tap,ifname=$TAP,script=no	\
+		info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 					\
+				-initrd "${RAM_FILENAME}"						\
+				-nographic 								\
+				-smp $(nproc) -m 1G							\
+				-net nic,model=e1000,vlan=0 -net tap,ifname=$TAP,vlan=0,script=no	\
 				-append "console=ttyS0 loglevel=8"
+
+		# @TODO: start slave VMs at the same time with master VM using builder
+		# to create a cluster for testing with different kind of network
 	fi
 
 	rm -fr "$RAM_FILENAME"
