@@ -1,4 +1,4 @@
-#if !defined(BASE_LOGCAT_H_) && __cplusplus
+#if !defined(BASE_LOGCAT_H_)
 #define BASE_LOGCAT_H_
 #include <Property.h>
 #include <Stream.h>
@@ -13,6 +13,7 @@
 #define INFO_LABEL "[  INFO   ]"
 #define DEBUG_LABEL "[  DEBUG  ]"
 
+#if __cplusplus
 #if READABLE
 #define NoError \
   Base::Error {}
@@ -229,4 +230,16 @@ class Error : public Stream {
   ErrorLevelE _Level;
 };
 }  // namespace Base
+#else
+#define Error(code, message)                                        \
+  WriteLog0(code, EError, __FUNCTION__, __FILE__, __LINE__, message)
+#define Warning(code, message)                                      \
+  WriteLog0(code, EWarning, __FUNCTION__, __FILE__, __LINE__, message)
+#define Info(code, message)                                         \
+  WriteLog0(code, EInfo, __FUNCTION__, __FILE__, __LINE__, message)
+
+Int WriteLog0(enum ErrorCodeE code, enum ErrorLevelE level,
+              const CString function, const CString file, Int line,
+              const CString message);
+#endif
 #endif  // BASE_LOGCAT_H_

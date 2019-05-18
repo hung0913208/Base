@@ -299,3 +299,11 @@ Error& Error::Fatal() {
   return *this;
 }
 }  // namespace Base
+
+extern "C" {
+Int WriteLog0(enum ErrorCodeE code, enum ErrorLevelE level,
+              const CString function, const CString file, Int line,
+              const CString message) {
+  return Base::Error{code, message, function, file, line, level}.code();
+}
+}

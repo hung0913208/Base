@@ -68,7 +68,7 @@ void BSLog(String message);
 void BSError(UInt code, String message);
 
 /* @NOTE: these functions are wrapping around I/O functions of specifict OS */
-ErrorCodeE BSCloseFileDescription(Int fd);
+enum ErrorCodeE BSCloseFileDescription(Int fd);
 Int BSReadFromFileDescription(Int fd, Bytes buffer, UInt size);
 Int BSWriteToFileDescription(Int fd, Bytes buffer, UInt size);
 
@@ -143,6 +143,14 @@ template <typename Ret, typename... Args>
 Ret Wait(Mutex& locker, Function<Ret(Args...)> run_after_wait, Args... args) {
   if (Locker::IsLocked(locker)) Locker::Lock(locker);
   return run_after_wait(args...);
+}
+
+template <typename T, typename... U>
+ULong GetAddress(std::function<T(U...)> f) {
+  typedef T(fnType)(U...);
+
+  fnType **fnPointer = f.template target<fnType *>();
+  return (fnPointer)? (size_t)*fnPointer: 0;
 }
 
 #ifdef BASE_TYPE_STRING_H_

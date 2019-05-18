@@ -8,14 +8,6 @@
 #include <string.h>
 
 namespace Base {
-template <typename T, typename... U>
-ULong GetAddress(std::function<T(U...)> f) {
-  typedef T(fnType)(U...);
-
-  fnType **fnPointer = f.template target<fnType *>();
-  return (fnPointer)? (size_t)*fnPointer: 0;
-}
-
 namespace Internal {
 Map<UInt, Vector<Function<void(siginfo_t *)>>> *_SignalCallbacks{None};
 

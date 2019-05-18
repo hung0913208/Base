@@ -17,4 +17,3 @@ using String = Base::String;
 #define String char*
 #endif
 #endif  // BASE_TYPE_H_
-

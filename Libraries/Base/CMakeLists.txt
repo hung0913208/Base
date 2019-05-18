@@ -7,7 +7,8 @@ file(GLOB HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
 file(GLOB DEBUGS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Debug/*.cc")
 file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cc"
 		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Debug/*.cc"
-		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Internal/*.cc")
+		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Internal/*.cc"
+		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Internal/*.c")
 
 add_library(base STATIC ${SOURCES})
 find_package(Threads)
