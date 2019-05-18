@@ -203,13 +203,8 @@ ErrorCodeE Monitor::Loop(Function<Bool(Monitor&)> status, Int timeout) {
   ErrorCodeE error = EBadAccess;
 
   do {
-    if (error == EBadAccess) {
-      DEBUG("status is OK -> perform interact from head");
-    } else {
-      DEBUG(Format{"error code is {}"} << error);
-    }
     while ((error = Head(_Type)->_Interact(this, timeout)) == EDoAgain) {}
-  } while (status(*this) && error == EBadAccess);
+  } while (status(*this) || error == EBadAccess);
 
   return error;
 }

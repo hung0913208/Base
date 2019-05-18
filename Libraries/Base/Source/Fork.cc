@@ -1,5 +1,6 @@
-#include <Utils.h>
 #include <Config.h>
+#include <Logcat.h>
+#include <Utils.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -95,28 +96,36 @@ Fork::StatusE Fork::Status() {
   Int status;
 
   if (waitpid(_PID, &status, WNOHANG) < 0) {
+    DEBUG(Format{"PID {} doesn\'t exist"} << _PID);
     return Fork::EBug;
   }
 
   /* @NOTE: check if we catch a signal continue from children */
   if (WIFCONTINUED(status)) {
+    DEBUG(Format{"PID {} doesn\'t exist"} << _PID);
     return Fork::EContSigned;
   }
 
   /* @NOTE: check if the child was stoped by delivered signals */
   if (WIFSTOPPED(status)) {
     if (WSTOPSIG(status)) {
+      DEBUG(Format{"PID {} faces signal Stop"} << _PID);
       return Fork::EStopSigned;
+    } else {
+      DEBUG(Format{"PID {} is stopped"} << _PID);
     }
   }
 
   /* @NOTE: check if the child was crash by unavoided signals */
   if (WIFSIGNALED(status)) {
     if (WCOREDUMP(status)) {
+      DEBUG(Format{"PID {} crashed and generate coredump"} << _PID);
       return Fork::ESegmented;
     } else if (WTERMSIG(status)) {
+      DEBUG(Format{"PID {} receives sigterm"} << _PID);
       return Fork::ETerminated;
     } else {
+      DEBUG(Format{"PID {} faces unknown signals"} << _PID);
       return Fork::EInterrupted;
     }
   }
@@ -124,6 +133,8 @@ Fork::StatusE Fork::Status() {
   /* @NOTE: check if the child was exited and collect its exit code */
   if (WIFEXITED(status)) {
     _ECode = WEXITSTATUS(status);
+
+    DEBUG(Format{"PID {} is exit with exitcode {}"}.Apply(_PID, _ECode));
     return Fork::EExited;
   }
 
