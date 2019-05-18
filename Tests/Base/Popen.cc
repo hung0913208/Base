@@ -209,6 +209,7 @@ TEST(Popen, Exec) {
 }
 
 int main(){
+  Base::Log::Level() = EDebug;
   return RUN_ALL_TESTS();
 }
 

@@ -74,6 +74,8 @@ class Fildes: public Monitor {
   explicit Fildes(String name, Monitor::TypeE type, Int system) :
 #endif
       Monitor(name, type), _Tid{-1} {
+    using namespace std::placeholders;  // for _1, _2, _3...
+
     _Pool.Heartbeat = Base::Internal::Fildes::Heartbeat;
     _Pool.Trigger = Base::Internal::Fildes::Trigger;
     _Pool.Remove = Base::Internal::Fildes::Remove;
@@ -133,6 +135,11 @@ class Fildes: public Monitor {
     /* @NOTE: we should register our own Monitor to the polling system, since
      * the polling system only care about the HEAD */
     _Pool.Pool = this;
+
+    /* @NOTE: build a pair check - indicate to help to translate
+     * event -> callbacks */
+    Registry(std::bind(&Fildes::OnChecking, this, _1, _2, _3),
+             std::bind(&Fildes::OnSelecting, this, _1, _2));
   }
 
  protected:
@@ -163,6 +170,8 @@ class Fildes: public Monitor {
             return error;
           }
 
+          _Read[fork.Output()] = perform;
+          _Read[fork.Error()] = perform;
           return ENoError;
         } else {
           return BadAccess("fork can\'t create process as expected").code();
@@ -172,6 +181,7 @@ class Fildes: public Monitor {
           return error;
         }
 
+        _Read[event.Get<Int>()] = perform;
         return ENoError;
       }
     } else if (_Type == Monitor::EIOSync) {
@@ -184,8 +194,8 @@ class Fildes: public Monitor {
           return error;
         }
 
+        _Read[event.Get<Int>()] = perform;
         return ENoError;
-      } else if (event.Type() == typeid(Stream)) {
       }
     }
 
@@ -200,12 +210,10 @@ class Fildes: public Monitor {
       } else if (_Entries.find(fd) != _Entries.end()) {
         return BadLogic(Format{"duplicate fd {}"} << fd).code();
       } else {
-        auto error = (ErrorCodeE) _Pool.ll.Append(_Pool.ll.Poll,
-                                                  fd.Get<Int>(),
-                                                  mode);
+        auto error = _Pool.ll.Append(_Pool.ll.Poll, fd.Get<Int>(), mode);
 
         if (error) {
-          return error;
+          return (ErrorCodeE) error;
         }
 
         _Entries[fd.Get<Int>()] = Auto{};
@@ -221,7 +229,23 @@ class Fildes: public Monitor {
   ErrorCodeE _Modify(Auto fd, Int mode) final {
     try {
       if (mode != ERelease) {
-        return (ErrorCodeE) _Pool.ll.Modify(_Pool.ll.Poll, fd.Get<Int>(), mode);
+        Int error = _Pool.ll.Modify(_Pool.ll.Poll, fd.Get<Int>(), mode);
+
+        if (error) {
+          return (ErrorCodeE) error;
+        }
+
+        if (mode == ELooping && _Read.find(fd.Get<Int>()) != _Read.end()) {
+          _Write[fd.Get<Int>()] = _Read[fd.Get<Int>()];
+          _Read.erase(fd.Get<Int>());
+        }
+
+        if (mode == EWaiting && _Write.find(fd.Get<Int>()) != _Write.end()) {
+          _Read[fd.Get<Int>()] = _Write[fd.Get<Int>()];
+          _Write.erase(fd.Get<Int>());
+        }
+
+        return (ErrorCodeE) error;
       } else {
         return ENoSupport;
       }
@@ -229,7 +253,6 @@ class Fildes: public Monitor {
       return except.code();
     }
   }
-
 
   /* @NOTE: this function is used to find the fd inside Fildes */
   ErrorCodeE _Find(Auto fd) final {
@@ -248,6 +271,9 @@ class Fildes: public Monitor {
   ErrorCodeE _Remove(Auto fd) final {
     try {
       _Entries.erase(fd.Get<Int>());
+      _Read.erase(fd.Get<Int>());
+      _Write.erase(fd.Get<Int>());
+
       return ENoError;
     } catch(Base::Exception& except) {
       return except.code();
@@ -358,12 +384,44 @@ class Fildes: public Monitor {
     }
   }
 
+ private:
   Int IsWaiting(Int socket) {
-    if (_Type != Monitor::EPipe) {
-      return -(Int)NoSupport(Format{"fd {}"} << socket).code();
+    return _Read.find(socket) != _Read.end();
+  }
+
+  /* @NOTE: this method is called automatically to check if the event should be
+   * going on or not. By default, i think we should accept everything since the
+   * flow has been handle very good to prevent */
+  ErrorCodeE OnChecking(Auto fd, Auto& UNUSED(context), Int mode) {
+    auto sk = fd.Get<Int>();
+
+    DEBUG(Format{"checking event {} of fd {}"}.Apply(mode, fd.Get<Int>()));
+
+    switch(mode) {
+    case EWaiting:
+      if (_Read.find(sk) != _Read.end()) {
+        return ENoError;
+      }
+      break;
+
+    case ELooping:
+      if (_Write.find(sk) != _Read.end()) {
+        return ENoError;
+      }
+      break;
+
+    default:
+      break;
     }
 
-    return Internal::IsPipeWaiting(socket);
+    return ENoSupport;
+  }
+
+  /* @NOTE: this method is called automatically after passing the checking step,
+   * it would use to pick handling callback which help to solve the specific events
+   */
+  Perform* OnSelecting(Auto& fd, Int mode) {
+    return &(mode == EWaiting? _Read[fd.Get<Int>()]: _Write[fd.Get<Int>()]);
   }
 
   /* @NOTE: this method is used to collect jobs appear at mode waiting */
@@ -480,6 +538,7 @@ class Fildes: public Monitor {
   }
 
   Map<Int, Auto> _Entries;
+  Map<Int, Perform> _Read, _Write;
   Long _Tid;
   Pool _Pool;
   Run _Run;
