@@ -16,7 +16,8 @@ class Python : public Wrapping {
   typedef Function<PyObject*(PyObject*)> Wrapper;
 
  public:
-  explicit Python(String name, UInt version) : Wrapping("Python", name, 100) {}
+  explicit Python(String name, UInt version) :
+    Wrapping("Python", name, 100), _Version{version} {}
 
   virtual ~Python() {}
 
@@ -60,7 +61,7 @@ class Python : public Wrapping {
     }
 
     _Procedures[name] = reinterpret_cast<Void*>(function);
-    _Wrappers[name] = [&](PyObject* pyargs) -> PyObject* {
+    _Wrappers[name] = [&](PyObject* UNUSED(pyargs)) -> PyObject* {
       try {
         Vector<Void*> arguments{};
 
@@ -126,7 +127,7 @@ class Python : public Wrapping {
     }
 
     _Functions[name] = reinterpret_cast<Void*>(function);
-    _Wrappers[name] = [&](PyObject* pyargs) -> PyObject* {
+    _Wrappers[name] = [&](PyObject* UNUSED(pyargs)) -> PyObject* {
       try {
         Vector<Void*> arguments{};
         ResultT result{};
@@ -150,6 +151,8 @@ class Python : public Wrapping {
 
     return ENoError;
   }
+
+  Int Verison() { return _Version; }
 
  protected:
   virtual void Init() = 0;
@@ -175,12 +178,12 @@ class Python : public Wrapping {
   }
 
   template <typename ResultT>
-  static ResultT* To(Auto&& input) {
+  static ResultT* To(Auto&& UNUSED(input)) {
     return None;
   }
 
   template <typename ResultT>
-  static ResultT* To(PyObject* input) {
+  static ResultT* To(PyObject* UNUSED(input)) {
     return None;
   }
 

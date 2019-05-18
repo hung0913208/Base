@@ -75,7 +75,7 @@ Bool Python::IsExist(String object, String type) {
   }
 }
 
-Bool Python::IsUpper(String function) {
+Bool Python::IsUpper(String UNUSED(function)) {
   /* @TODO */
   return False;
 }

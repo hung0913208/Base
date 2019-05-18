@@ -32,7 +32,7 @@ String Wrapping::Language() { return _Language; }
 String Wrapping::Name() { return _Module; }
 
 ErrorCodeE Wrapping::Invoke(String function, Vector<Auto> arguments,
-                            Bool testing) {
+                            Bool UNUSED(testing)) {
   if (!IsExist(function, "procedure")) {
     return NotFound(function).code();
   } else if (IsUpper(function)) {
@@ -54,7 +54,7 @@ ErrorCodeE Wrapping::Invoke(String function, Vector<Auto> arguments,
 }
 
 ErrorCodeE Wrapping::Invoke(String function, Vector<Auto> arguments,
-                            Auto& result, Bool testing) {
+                            Auto& result, Bool UNUSED(testing)) {
   if (result == None) {
     return EDoNothing;
   } else if (!IsExist(function, "function")) {
