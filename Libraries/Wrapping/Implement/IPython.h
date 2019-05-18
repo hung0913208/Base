@@ -208,7 +208,7 @@ class Python : public Wrapping {
         return error;
       }
     } else {
-      return BadAccess << "pyargs must be a tuple";
+      return (BadAccess << "pyargs must be a tuple").code();
     }
   }
 
