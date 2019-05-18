@@ -122,7 +122,11 @@ class Fildes: public Monitor {
 
     if (type == Monitor::EPipe) {
       _Fallbacks.push_back([&](Auto fd) -> ErrorCodeE {
-        return Internal::IsPipeAlive(fd.Get<Int>())? ENoError: EBadAccess;
+        if (Internal::IsPipeAlive(fd.Get<Int>())) {
+          return ENoError;
+        } else {
+          return BadAccess(Format{"fd {} is closed"} << fd.Get<Int>()).code();
+        }
       });
     }
 
@@ -350,7 +354,7 @@ class Fildes: public Monitor {
         return BadLogic("child should be Fildes").code();
       }
     } else {
-      return EBadAccess;
+      return BadAccess("Monitor is still on  initing").code();
     }
   }
 

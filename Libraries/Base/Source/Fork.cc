@@ -22,6 +22,7 @@ Bool IsPipeAlive(Int pipe) {
       break;
     }
   });
+
   return result;
 }
 

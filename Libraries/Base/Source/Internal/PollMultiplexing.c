@@ -267,6 +267,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         }
       } while (ev & (POLLIN | POLLOUT));
 
+      printf("heartbeat(%d)\n", fd);
       if ((error = pool->Heartbeat(pool, fd))) {
         if (pool->Flush) {
           if (pool->Flush(pool, fd)) {
@@ -284,6 +285,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
     if (nevent == 0) {
       Int cidx = 0;
 
+      printf("nevent == 0\n");
       for(; cidx < context->nevents; ++cidx) {
         Int fd = context->events[cidx].fd;
 
