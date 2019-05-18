@@ -124,12 +124,12 @@ ErrorCodeE Monitor::Trigger(Auto event, Perform perform) {
   return _Trigger(event, perform);
 }
 
-void Monitor::Trigger(Check check, Perform perform) {
+void Monitor::Registry(Check check, Indicate indicate) {
   if (_Indicators.find(GetAddress(check)) == _Indicators.end()) {
     _Checks.push_back(check);
   }
 
-  _Indicators[GetAddress(check)] = perform;
+  _Indicators[GetAddress(check)] = indicate;
 }
 
 void Monitor::Heartbeat(Fallback fallback) {
@@ -162,9 +162,13 @@ ErrorCodeE Monitor::Scan(Auto fd, Int mode, Vector<Perform*>& callbacks) {
   }
 
   for (auto& check: _Checks) {
-    if (check(fd, _Access(fd), mode)) {
-      callbacks.push_back(&_Indicators[GetAddress(check)]);
-      passed = True;
+    if (!check(fd, _Access(fd), mode)) {
+      auto callback = _Indicators[GetAddress(check)](fd, mode);
+
+      if (callback) {
+        callbacks.push_back(callback);
+        passed = True;
+      }
     }
   }
 

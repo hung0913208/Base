@@ -16,6 +16,7 @@ class Monitor {
 
   using Check = Function<ErrorCodeE(Auto, Auto&, Int)>;
   using Perform = Function<ErrorCodeE(Auto, Auto&)>;
+  using Indicate = Function<Perform*(Auto&, Int)>;
   using Fallback = Function<ErrorCodeE(Auto fd)>;
 
   /* @NOTE: these methods are used to append, modify or remove a fd */
@@ -44,8 +45,12 @@ class Monitor {
   static Shared<Monitor> Make(String name, Monitor::TypeE type);
 
  protected:
-  /* @NOTE: this function is used to register a triggering */
-  void Trigger(Check check, Perform perform);
+  /* @NOTE: this function is used to registry an indicator which is used 
+   * to generate a Perform. By default, indicator is always activated when
+   * its checker accepts to open a route. When it happens, we will receive
+   * a callback Perform and we will use Reroute to redirect the callback to
+   * a place for performing */
+  void Registry(Check check, Indicate indicate);
 
   /* @NOTE: this function is used to reroute a callback to specific place for
    * calling. How to handle these callbacks? how to keep balancing these
@@ -94,7 +99,7 @@ class Monitor {
   /* @NOTE: these should be managed by CHILD */
   Vector<Check> _Checks;
   Vector<Fallback> _Fallbacks;
-  Map<ULong, Perform> _Indicators;
+  Map<ULong, Indicate> _Indicators;
 
   /* @NOTE: this should be managed by HEAD */
   Vector<Monitor*> _Children;
