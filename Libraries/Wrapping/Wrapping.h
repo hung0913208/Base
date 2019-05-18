@@ -41,6 +41,7 @@ class Wrapping {
   /* @NOTE: wrap around to help create module without saving any trace */
   static Bool Create(Wrapping* module);
 
+#if defined(__GNUC__) && !defined(__clang__)
   /* @NOTE: these funtions are used to test Wrappers without installing Upper
    * languages */
   template<typename ...Args>
@@ -64,6 +65,7 @@ class Wrapping {
       return !(NotFound(Format("{}.{} of {}").Apply(module, function, language)));
     }
   }
+#endif
 
   /* @NOTE: these functions will help to instruct CPU to run a callback */
   static void Instruct(Void* callback, Void* result, Vector<Auto>& params);

@@ -64,6 +64,7 @@ TEST(Instruct, Parameters) {
   EXPECT_TRUE(EnteredTest2);
 }
 
+#if defined(__GNUC__) && !defined(__clang__)
 #ifdef USE_PYTHON
 PY_MODULE(CTest) {
   Procedure("Print", Print);
@@ -85,6 +86,7 @@ RUBY_MODULE(CTest) {
 TEST(RubyWrapping, Simple) {
   EXPECT_TRUE(Wrapping::Test("Ruby", "CTest", "Print"));
 }
+#endif
 #endif
 
 int main(){
