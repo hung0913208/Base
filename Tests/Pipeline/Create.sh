@@ -97,7 +97,7 @@ fi
 
 # @NOTE: build a CI system with a qemu image
 if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
-	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities")
+	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities" "kmod")
 	PASSED=1
 
 	source $PIPELINE/Libraries/QEmu.sh
@@ -118,22 +118,44 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 
 	# @NOTE: create a new bridge, this will be used in the cases we want to
 	# make a dificult network
-	if [ $PASSED != 0 ]; then
-		create_bridge "$BRIDGE"
+	create_bridge "$BRIDGE"
+	if [ $? != 0 ]; then
+		warning "your environemt don't support creating a bridge"
+		PASSED=0
+	else
+		PASSED=1
+	fi
 
-		if [ $? != 0 ]; then
-			warning "your environemt don't support creating a bridge"
-			PASSED=0
+	if [ $(which depmod) ]; then
+		DEPMOD="depmod"
+	else
+		DEPMOD=$($SU find /sbin/ -type f -name "depmod")
+
+		if [[ ${#DEPMOD} -eq 0 ]]; then
+			warning "can't find depmod"
+			DEPMOD=""
 		fi
 	fi
 
 	# @NOTE: load module TUN/TAP
-	if [ $PASSED != 0 ]; then
-		$SU modprobe tun
+	if [ $(which modprobe) ]; then
+		MODPROBE="modprobe"
+	else
+		MODPROBE=$($SU find /sbin/ -type f -name "modprobe")
+		if [[ ${#MODPROBE} -eq 0 ]]; then
+			warning "can't find modprobe"
+			MODPROBE=""
+		fi
+	fi
+
+	if [[ ${#MODPROBE} -gt 0 ]]; then
+		$SU $MODPROBE tun
 
 		if [ $? != 0 ]; then
 			warning "can't load module TUN/TAP"
 			PASSED=0
+		else
+			PASSED=1
 		fi
 	fi
 
