@@ -150,9 +150,9 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	create_bridge "$BRIDGE"
 	if [ $? != 0 ]; then
 		warning "your environemt don't support creating a bridge"
-		MODE="nat"
+		PASSED=0
 	else
-		MODE="bridge"
+		PASSED=1
 	fi
 
 	if [ $(which depmod) ]; then
