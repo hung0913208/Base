@@ -68,4 +68,8 @@
 #endif  // DETECT_BSD_DISTRIBUTE
 #endif  // DETECT_OS
 
+#ifndef __FUNCTION__
+#define __FUNCTION__ __func__
+#endif // __FUNCTION__
+
 #endif  // BASE_MACRO_H_
