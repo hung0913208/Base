@@ -400,9 +400,11 @@ cat './repo.list' | while read DEFINE; do
 
 		# @TODO: start slave VMs at the same time with master VM using builder
 		# to create a cluster for testing with different kind of network
-	fi
 
-	rm -fr "$RAM_FILENAME"
+		rm -fr "$RAM_FILENAME"
+	else
+		warning "i can't start QEmu because i don't see any approviated test suites"
+	fi
 done
 
 rm -fr "$INIT_DIR/$BBOX_DIRNAME"
