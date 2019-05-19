@@ -149,20 +149,79 @@ if [ $(which git) ]; then
 		# @NOTE: use tool reinstall to perform build this repo since the repo's build
 		# scripts always define on $ROOT, we will use this trick to build everything
 		# with cmake first
-
-		$BASE/Tools/Utilities/reinstall.sh Debug $ROOT
-		if [ $? != 0 ]; then
-			error "cannot build Debug"
+		if ! options=$(getopt -l root,debug,rebuild,mode: -- "$@")
+		then
+			error "Can' parse $BASE/Tools/Builder/build $@"
 		fi
 
-		$BASE/Tools/Utilities/reinstall.sh Release $ROOT
-		if [ $? != 0 ]; then
-			error "cannot build Release"
+		while [ $# -gt 0 ]; do
+			case $1 in
+				--root)		ROOT="$2"; shift;;
+				--debug)	DEBUG="$2"; shift;;
+				--rebuild)	REBUILD="$2"; shift;;
+				--mode)		MODE="$2" ; shift;;
+				(--) 		shift; break;;
+				(-*) 		error "unrecognized option $1";;
+				(*) 		break;;
+			esac
+			shift
+		done
+
+		if [[ $MODE -eq 1 ]]; then
+			BUILD="$BUILD -DBUILD_STATIC_EXEC=ON"
+		else
+			BUILD="$BUILD"
 		fi
 
-		$BASE/Tools/Utilities/reinstall.sh Coverage $ROOT
-		if [ $? != 0 ]; then
-			error "cannot jump to Coverage"
+		if [[ $REBUILD -eq 0 ]]; then
+			CMAKE="reinstall.sh"
+		else
+			CMAKE="rebuild.sh"
+		fi
+
+		exec 2>&-
+		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Debug $ROOT 2>&1 | tee /dev/fd/2)"
+
+		if [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+			warning "fail build on Debug mode, please check console log bellow"
+			echo "================================================================================="
+			echo ""
+			echo "$OUTPUT"
+			echo "---------------------------------------------------------------------------------"
+			exit -1
+		fi
+
+		exec 2>&-
+		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Release $ROOT 2>&1 | tee /dev/fd/2)"
+
+		if [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+			warning "fail build on Release mode, please check console log bellow"
+			echo "================================================================================="
+			echo ""
+			echo "$OUTPUT"
+			echo "---------------------------------------------------------------------------------"
+			exit -1
+		fi
+
+		if [ $MODE != 1 ]; then
+			exec 2>&-
+			OUTPUT="$(CONFIGURE=$BUILD BASE/Tools/Utilities/$CMAKE Coverage $ROOT 2>&1 | tee /dev/fd/2)"
+
+			if [ $? != 0 ]; then
+				exec 2>&-
+				OUTPUT="$($BASE/Tools/Utilities/ctest.sh Coverage 2>&1 | tee /dev/fd/2)"
+
+				if [ $? != 0 ]; then
+					if [ $? != 0 ]; then
+						warning "Fail test Debug"
+						echo "================================================================================="
+						echo ""
+						echo "$OUTPUT"
+						echo "---------------------------------------------------------------------------------"
+						exit -1
+					fi
+				fi
+			fi
 		fi
 
 		cd $CURRENT
