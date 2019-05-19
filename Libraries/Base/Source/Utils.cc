@@ -472,6 +472,9 @@ String ToString<Type>(Type value) {          \
   }                                          \
                                              \
   result.reverse();                          \
+  if (result.size() == 0) {                  \
+    result += '0';                           \
+  }                                          \
   return result;                             \
 }
 
@@ -489,7 +492,9 @@ String ToString<Type>(Type value) {          \
   }                                          \
                                              \
   result.reverse();                          \
-  if (!sign) result = '-' + result;          \
+  if (result.size() == 0) {                  \
+    result += '0';                           \
+  } else if (!sign) result = '-' + result;   \
   return result;                             \
 }
 
