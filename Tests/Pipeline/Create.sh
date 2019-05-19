@@ -97,7 +97,8 @@ fi
 
 # @NOTE: build a CI system with a qemu image
 if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
-	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities" "kmod")
+	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities" "wput" "wget" "flex" "bison")
+	ELFUTILS=("libelf-dev" "libelf-devel" "elfutils-libelf-devel")
 	PASSED=1
 
 	source $PIPELINE/Libraries/QEmu.sh
@@ -106,6 +107,13 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	for CMD in "${CMDS[@]}"; do
 		if [ $(install_package $CMD) ]; then
 			PASSED=0
+		fi
+	done
+
+	for CMD in "${ELFUTILS[@]}"; do
+		install_package $ELFUTILS
+		if [ $? = 0 ]; then
+			break;
 		fi
 	done
 
