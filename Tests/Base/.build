@@ -1,0 +1,87 @@
+cc_test(
+	name = "Argparse",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Argparse.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Auto",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Auto.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Logcat",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Logcat.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Exception",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Exception.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Property",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Property.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Stream"
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Stream.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Vertex",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Vertex.cc"],
+	copts = ["-std=c++11", "-Werror", "-g"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Deadlock",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Deadlock.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Thread",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Thread.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Popen",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest", "//Tests/Base:Deadlock"],
+	srcs = ["Popen.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
+
+cc_test(
+	name = "Hashtable",
+	deps = ["//Libraries/Base:base", "//Libraries/Unittest:unittest"],
+	srcs = ["Hashtable.cc"],
+	copts = ["-std=c++11", "-Werror"],
+	linkopts = ["-lpthread"]
+)
