@@ -121,9 +121,9 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	create_bridge "$BRIDGE"
 	if [ $? != 0 ]; then
 		warning "your environemt don't support creating a bridge"
-		PASSED=0
+		MODE="nat"
 	else
-		PASSED=1
+		MODE="bridge"
 	fi
 
 	if [ $(which depmod) ]; then
@@ -153,15 +153,13 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 
 		if [ $? != 0 ]; then
 			warning "can't load module TUN/TAP"
-			PASSED=0
-		else
-			PASSED=1
+			MODE="isolate"
 		fi
+	else
+		MODE="isolate"
 	fi
 
-	if [ $PASSED != 0 ]; then
-		METHOD=4
-	fi
+	METHOD=4
 fi
 
 # @NOTE: build a CI system with a docker image
@@ -199,7 +197,7 @@ if [ -e "$PIPELINE/Environments/$CMD" ]; then
 		*)		;;
 	esac
 
-	"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $REPO $BRANCH
+	"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $REPO $BRANCH $MODE
 else
 	error "Broken pipeline, not found $PIPELINE/Environemts/$CMD"
 fi
