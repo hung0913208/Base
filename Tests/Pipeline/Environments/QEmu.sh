@@ -1,5 +1,6 @@
 #!/bin/bash
 
+MODE=$5
 REPO=$3
 METHOD=$1
 BRANCH=$4
@@ -42,7 +43,7 @@ if [ $? != 0 ]; then
 		git fetch >& /dev/null
 		git checkout -b "Pipeline/QEmu" "origin/Pipeline/QEmu"
 		if [ $? = 0 ]; then
-			"$0" $METHOD $PIPELINE $REPO $BRANCH
+			"$0" $METHOD $PIPELINE $REPO $BRANCH $MODE
 		fi
 
 		exit $?
@@ -65,7 +66,7 @@ function compile_busybox() {
 	cd "$INIT_DIR"
 }
 
-function generate_initscript(){
+function generate_isolate_initscript(){
 	if [ "$METHOD" == "reproduce" ]; then
 		cat > "$INIT_DIR/$BBOX_DIRNAME/initramfs/init" << EOF
 #!/bin/busybox sh
@@ -79,11 +80,49 @@ free -m
 ulimit -n 65536
 
 # @NOTE: config loopback interface
+ifconfig lo 127.0.0.1
+route add 127.0.0.1
+EOF
+	else
+		cat > "$INIT_DIR/$BBOX_DIRNAME/initramfs/init" << EOF
+#!/bin/busybox sh
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+echo "The virtual machine's memory usage:"
+free -m
+
+# @NOTE: increase maximum fd per process
+ulimit -n 65536
+
+# @NOTE: config loopback interface
+ifconfig lo 127.0.0.1
+route add 127.0.0.1
+EOF
+	fi
+}
+
+function generate_network_initscript(){
+	if [ "$METHOD" == "reproduce" ]; then
+		cat > "$INIT_DIR/$BBOX_DIRNAME/initramfs/init" << EOF
+#!/bin/busybox sh
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+echo "The virtual machine's memory usage:"
+free -m
+
+# @NOTE: increase maximum fd per process
+ulimit -n 65536
+
+# @NOTE: config nameserver
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
+# @NOTE: config loopback interface
 ifconfig lo 127.0.0.1
 route add 127.0.0.1
 
+# @NOTE: config eth0 interface to connect to outside
 ifconfig eth0 up
 ifconfig eth0 192.168.100.2
 route add 192.168.100.1
@@ -157,7 +196,11 @@ function generate_initrd() {
 	$SU cp -a /dev/{null,console,tty,tty1,tty2,tty3,tty4} initramfs/dev/ >& /dev/null
 
 	# @NOTE: generate our initscript which is used to call our testing system
-	generate_initscript
+	if [ $MODE != "isolate" ]; then
+		generate_network_initscript
+	else
+		generate_isolate_initscript
+	fi
 	chmod a+x initramfs/init
 
 	# @NOTE: copy only execuators that don't support dynamic link
@@ -283,28 +326,32 @@ function detect_libbase() {
 	fi
 }
 
-ETH="$(get_internet_interface)"
-TAP="$(get_new_bridge "tap")"
+if [ "$MODE" != "isolate" ]; then
+	ETH="$(get_internet_interface)"
+	TAP="$(get_new_bridge "tap")"
 
-create_tuntap "$TAP"
+	create_tuntap "$TAP"
 
-if [ $? != 0 ]; then
-	error "can\'t create a new tap interface"
-else
-	# @NOTE: set ip address of this TAP interface
-	$SU ip address add  192.168.0.1/24 dev $TAP
+	if [ $? != 0 ]; then
+		error "can\'t create a new tap interface"
+	else
+		# @NOTE: set ip address of this TAP interface
+		$SU ip address add  192.168.0.1/24 dev $TAP
 
-	# activate ip forwarding
-	$SU sysctl net.ipv4.ip_forward=1
-	$SU sysctl net.ipv6.conf.default.forwarding=1
-	$SU sysctl net.ipv6.conf.all.forwarding=1
+		# activate ip forwarding
+		$SU sysctl net.ipv4.ip_forward=1
+		$SU sysctl net.ipv6.conf.default.forwarding=1
+		$SU sysctl net.ipv6.conf.all.forwarding=1
 
-	# @NOTE: Create forwarding rules, where
-	# tap0 - virtual interface
-	# eth0 - net connected interface
-	$SU iptables -A FORWARD -i $TAP -o $ETH -j ACCEPT
-	$SU iptables -A FORWARD -i $ETH -o $TAP -m state --state ESTABLISHED,RELATED -j ACCEPT
-	$SU iptables -t nat -A POSTROUTING -o $ETH -j MASQUERADE
+		# @NOTE: Create forwarding rules, where
+		# tap0 - virtual interface
+		# eth0 - net connected interface
+		$SU iptables -A FORWARD -i $TAP -o $ETH -j ACCEPT
+		$SU iptables -A FORWARD -i $ETH -o $TAP -m state --state ESTABLISHED,RELATED -j ACCEPT
+		$SU iptables -t nat -A POSTROUTING -o $ETH -j MASQUERADE
+	fi
+
+	NETWORK="-net nic,model=e1000,vlan=0 -net tap,ifname=$TAP,vlan=0,script=no"
 fi
 
 mkdir -p "$ROOT/content"
@@ -391,11 +438,11 @@ cat './repo.list' | while read DEFINE; do
 		fi
 
 		info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
-		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 					\
-				-initrd "${RAM_FILENAME}"						\
-				-nographic 								\
-				-smp $(nproc) -m 1G							\
-				-net nic,model=e1000,vlan=0 -net tap,ifname=$TAP,vlan=0,script=no	\
+		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 	\
+				-initrd "${RAM_FILENAME}"		\
+				-nographic 				\
+				-smp $(nproc) -m 1G			\
+				$NETWORK				\
 				-append "console=ttyS0 loglevel=8"
 
 		# @TODO: start slave VMs at the same time with master VM using builder
