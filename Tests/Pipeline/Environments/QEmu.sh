@@ -7,7 +7,7 @@ BRANCH=$5
 PIPELINE=$2
 
 if [ -z "$KERNEL_URL" ]; then
-	KERNEL_URL="git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux"
+	KERNEL_URL="git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux"
 fi
 
 if [ -z "$KERNEL_BRANCH" ]; then
