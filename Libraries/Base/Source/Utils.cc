@@ -285,16 +285,16 @@ template <>
 String ToString<ErrorLevelE>(ErrorLevelE value) {
   switch (value) {
     case EError:
-      return "[  ERROR  ]";
+      return "[    ERROR ]";
 
     case EWarning:
-      return "[ WARNING ]";
+      return "[  WARNING ]";
 
     case EInfo:
-      return "[  INFOR  ]";
+      return "[    INFOR ]";
 
     case EDebug:
-      return "[  DEBUG  ]";
+      return "[    DEBUG ]";
 
     default:
       return "";
