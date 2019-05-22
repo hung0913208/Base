@@ -206,6 +206,7 @@ if [ -e "$PIPELINE/Environments/$CMD" ]; then
 	esac
 
 	"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $REPO $BRANCH $MODE
+	exit $?
 else
 	error "Broken pipeline, not found $PIPELINE/Environemts/$CMD"
 fi

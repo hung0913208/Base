@@ -55,6 +55,8 @@ else
 	fi
 fi
 
+CODE=0
+
 # @NOTE: perform testing on wire range
 cat './repo.list' | while read DEFINE; do
 	SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
@@ -83,15 +85,18 @@ cat './repo.list' | while read DEFINE; do
 
 			if [ $? != 0 ]; then
 				warning "Fail repo $REPO/$BRANCH"
+				CODE=1
 			else
 				./Tests/Pipeline/Build.sh
 
 				if [ $? != 0 ]; then
 					warning "Fail repo $REPO/$BRANCH"
+					CODE=1
 				fi
 			fi
 		else
 			warning "repo $REPO don't support usual CI method"
+			CODE=1
 		fi
 
 		# @NOTE: back to the root before jumping to another Repos
@@ -99,3 +104,5 @@ cat './repo.list' | while read DEFINE; do
 		rm -fr $WORKSPACE
 	fi
 done
+
+exit $CODE
