@@ -377,6 +377,7 @@ else
 	fi
 fi
 
+CODE=0
 cat './repo.list' | while read DEFINE; do
 	SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
 	REPO=${SPLITED[0]}
@@ -411,6 +412,7 @@ cat './repo.list' | while read DEFINE; do
 
 			if [ $? != 0 ]; then
 				warning "Fail repo $REPO/$BRANCH"
+				CODE=1
 			else
 				$WORKSPACE/Tests/Pipeline/Build.sh 1
 
@@ -428,6 +430,7 @@ cat './repo.list' | while read DEFINE; do
 			fi
 		else
 			warning "repo $REPO don't support usual CI method"
+			CODE=1
 		fi
 
 		cd "$ROOT" || error "can't cd to $ROOT"
@@ -453,9 +456,11 @@ cat './repo.list' | while read DEFINE; do
 		rm -fr "$RAM_FILENAME"
 	else
 		warning "i can't start QEmu because i don't see any approviated test suites"
+		CODE=1
 	fi
 done
 
 rm -fr "$INIT_DIR/$BBOX_DIRNAME"
 rm -fr "$INIT_DIR/$KERNEL_DIRNAME"
+exit $CODE
 
