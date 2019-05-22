@@ -3,6 +3,7 @@
 
 #if __cplusplus
 #include <Common.h>
+#include <Refcount.h>
 
 #ifndef KERNEL
 #if defined(BASE_TYPE_H_)
@@ -14,7 +15,7 @@
 #endif
 
 namespace Base{
-class String {
+class String{
  public:
   String(String& str);
   String(String&& str);

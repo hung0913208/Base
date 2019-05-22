@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <stack>
 #include <string>
 #include <tuple>
@@ -28,6 +29,9 @@ using UMap = std::unordered_map<Key, Value>;
 
 template <typename Key, typename Value>
 using Map = OMap<Key, Value>;
+
+template <typename Key>
+using Set = std::set<Key>;
 
 template <typename... Args>
 using Tuple = std::tuple<Args...>;

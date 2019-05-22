@@ -7,12 +7,15 @@
 #include <String.h>
 
 #ifndef BASE_TYPE_STRING_H_
+#include <Refcount.h>
+
 using String = std::string;
 #else
 using String = Base::String;
 #endif // BASE_TYPE_STRING_H_
 #else
 #include <string.h>
+#include <Refcount.h>
 
 #define String char*
 #endif
