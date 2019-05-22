@@ -25,9 +25,12 @@ TEST(Popen, Simple0){
           Char buf[512];
           UInt len = read(fd.Get<Int>(), buf, 512);
 
+          DEBUG(Format{"receive {} bytes"}.Apply(len));
           if(len <= 0) {
             break;
           }
+
+          INFO << buf << Base::EOL;
           is_read = True;
         }
 
@@ -51,7 +54,9 @@ TEST(Popen, Simple1){
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
     Fork fork{[]() -> Int {
       const CString args[] = {"/bin/uname", "-a", None};
-      return execv(args[0], (CString const*)args);
+
+      execv(args[0], (CString const*)args);
+      return -1;
     }};
 
     monitor->Trigger(Auto::As(fork),
@@ -60,10 +65,12 @@ TEST(Popen, Simple1){
           Char buf[512];
           UInt len = read(fd.Get<Int>(), buf, 512);
 
+          DEBUG(Format{"receive {} bytes"}.Apply(len));
           if(len <= 0) {
             break;
           }
 
+          INFO << buf << Base::EOL;
           is_read = True;
         }
 
@@ -74,8 +81,49 @@ TEST(Popen, Simple1){
       [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
       ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
-    EXPECT_EQ(fork.ECode(), 0);
+    EXPECT_NEQ(fork.ECode(), 0);
     EXPECT_TRUE(is_read);
+  };
+
+  TIMEOUT(5, { perform(); });
+}
+
+TEST(Popen, Simple2){
+  auto perform = []() {
+    Bool is_read{False};
+    Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
+    Fork fork{[]() -> Int {
+      const CString args[] = {"/bin/uname", "-a", None};
+      const Int code = execv(args[0], (CString const*)args);
+
+      FATAL << "Can\'t use execv to perform /bin/uname -a" << Base::EOL;
+      return code;
+    }};
+
+    monitor->Trigger(Auto::As(fork),
+      [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
+
+        while (True) {
+          Char buf[512];
+          UInt len = read(fd.Get<Int>(), buf, 512);
+
+          DEBUG(Format{"receive {} bytes"}.Apply(len));
+          if ((is_read = len > 0)) {
+            INFO << buf << Base::EOL;
+          } else {
+            break;
+          }
+        }
+
+        return ENoError;
+      });
+
+    EXPECT_EQ(monitor->Loop(
+      [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
+      ENoError);
+    EXPECT_NEQ(fork.ECode(), -1);
+    EXPECT_EQ(fork.ECode(), 0);
+    EXPECT_FALSE(is_read);
   };
 
   TIMEOUT(5, { perform(); });
@@ -161,12 +209,9 @@ TEST(Popen, Stacked1){
           Char buf[512];
           UInt len = read(fd.Get<Int>(), buf, 512);
 
-          if(len <= 0) {
+          if (len <= 0) {
             break;
           }
-
-          fprintf(stderr, "read %d bytes\n", len);
-          write(STDOUT_FILENO, buf, len);
         }
 
         return ENoError;

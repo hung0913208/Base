@@ -6,6 +6,6 @@ namespace Internal {
 } // namespace Internal
 
 ErrorCodeE Monitor::Reroute(Monitor* UNUSED(child), Auto UNUSED(fd), Perform& UNUSED(callback)) {
-  return NoSupport("reroute still on developing").code();
+	return ENoSupport;
 }
 } // namespace Base

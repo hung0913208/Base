@@ -127,7 +127,7 @@ class Fildes: public Monitor {
         if (Internal::IsPipeAlive(fd.Get<Int>())) {
           return ENoError;
         } else {
-          return BadAccess(Format{"fd {} is closed"} << fd.Get<Int>()).code();
+          return EBadAccess;
         }
       });
     }
@@ -441,7 +441,11 @@ class Fildes: public Monitor {
 
       for (auto& job: jobs) {
         if ((error = Reroute(this, fd, *job))) {
-          return error;
+          if (error == ENoSupport) {
+            return (*job)(Auto::As(socket), _Entries[socket]);
+          } else {
+            return error;
+          }
         }
       }
 
@@ -463,7 +467,11 @@ class Fildes: public Monitor {
 
       for (auto& job: jobs) {
         if ((error = Reroute(child, fd, *job))) {
-          return error;
+          if (error == ENoSupport) {
+            return (*job)(Auto::As(socket), _Entries[socket]);
+          } else {
+            return error;
+          }
         }
       }
     }
