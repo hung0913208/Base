@@ -103,7 +103,7 @@ if [ -d "$ROOT/.requirement.d" ]; then
 				$SU $INSTALL $DEFINE &> /dev/null
 
 				if [ $? != 0 ]; then
-					error "fail install $DEFINE"
+					warning "fail install $DEFINE"
 				fi
 			fi
 		done
@@ -117,7 +117,7 @@ elif [ -f "$ROOT/.requirement" ]; then
 			$SU $INSTALL $DEFINE &> /dev/null
 
 			if [ $? != 0 ]; then
-				error "fail install $DEFINE"
+				warning "fail install $DEFINE"
 			fi
 		fi
 	done
