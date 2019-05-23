@@ -211,10 +211,12 @@ if [ $(which git) ]; then
 
 			exec 2>&1
 			if [ $? = 0 ]; then
+				exec 2>&-
 				OUTPUT="$($BASE/Tools/Utilities/ctest.sh Coverage 2>&1 | tee /dev/fd/2)"
 				CODE=$?
 
 				if [ $CODE != 0 ]; then
+					exec 2>&1
 					warning "Fail test Coverage"
 					echo "================================================================================="
 					echo ""

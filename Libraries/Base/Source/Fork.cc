@@ -49,9 +49,17 @@ Fork::Fork(Function<Int()> callback, Bool redirect):
   Int input[2], output[2], error[2];
 
   if (redirect) {
-    pipe(input);
-    pipe(output);
-    pipe(error);
+    if (pipe(input)) {
+      throw Except(EWatchErrno, "");
+    }
+
+    if (pipe(output)) {
+      throw Except(EWatchErrno, "");
+    }
+
+    if (pipe(error)) {
+      throw Except(EWatchErrno, "");
+    }
   }
 
   if ((_PID = fork()) < 0) {
