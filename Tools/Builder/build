@@ -182,6 +182,7 @@ if [ $(which git) ]; then
 		exec 2>&-
 		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Debug $ROOT 2>&1 | tee /dev/fd/2)"
 
+		exec 2>&1
 		if [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 			warning "fail build on Debug mode, please check console log bellow"
 			echo "================================================================================="
@@ -194,6 +195,7 @@ if [ $(which git) ]; then
 		exec 2>&-
 		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Release $ROOT 2>&1 | tee /dev/fd/2)"
 
+		exec 2>&1
 		if [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 			warning "fail build on Release mode, please check console log bellow"
 			echo "================================================================================="
@@ -205,22 +207,24 @@ if [ $(which git) ]; then
 
 		if [ $MODE != 1 ]; then
 			exec 2>&-
-			OUTPUT="$(CONFIGURE=$BUILD BASE/Tools/Utilities/$CMAKE Coverage $ROOT 2>&1 | tee /dev/fd/2)"
+			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Coverage $ROOT 2>&1 | tee /dev/fd/2)"
 
-			if [ $? != 0 ]; then
-				exec 2>&-
+			exec 2>&1
+			if [ $? = 0 ]; then
 				OUTPUT="$($BASE/Tools/Utilities/ctest.sh Coverage 2>&1 | tee /dev/fd/2)"
+				CODE=$?
 
-				if [ $? != 0 ]; then
-					if [ $? != 0 ]; then
-						warning "Fail test Debug"
-						echo "================================================================================="
-						echo ""
-						echo "$OUTPUT"
-						echo "---------------------------------------------------------------------------------"
-						exit -1
-					fi
+				if [ $CODE != 0 ]; then
+					warning "Fail test Coverage"
+					echo "================================================================================="
+					echo ""
+					printf "$OUTPUT"
+					echo "---------------------------------------------------------------------------------"
 				fi
+
+				exec 2>&1
+				$BASE/Tools/Utilities/coverage.sh .
+				exit $CODE
 			fi
 		fi
 
