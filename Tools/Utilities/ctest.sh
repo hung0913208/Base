@@ -31,45 +31,53 @@ error(){
 }
 
 exec_with_timeout(){
+	CODE=0
+
 	if [ -d "$2" ]; then
 		return 0
 	fi
 
-	info "execute $(pwd)/$2 with timeout $1s"
-	echo "" >&2
+	if [ $1 -gt 0 ]; then
+		info "execute $(pwd)/$2 with timeout $1s"
+		echo ""
 
-	("$2" >&2 || touch "/tmp/$(basename "$2").fail") & PID=$!
-	(for _ in 0..$1; do
-		if [ ! "$(kill -0 $PID >& /dev/null)" ]; then
-			exit 0;
-		else
-			sleep 1;
-		fi;
-	done;
-	kill -9 $PID >& /dev/null) &
-	KILLER_PID=$!
+		("$2" || touch "/tmp/$(basename "$2").fail") & PID=$!
+		(for _ in 0..$1; do
+			if [ ! "$(kill -0 $PID >& /dev/null)" ]; then
+				exit 0;
+			else
+				sleep 1;
+			fi;
+		done;
+		kill -9 $PID >& /dev/null) &
+		KILLER_PID=$!
 
-	# @NOTE: we don't wait KILLER if the test pass completedly
-	wait $PID >& /dev/null
-	kill $KILLER_PID >& /dev/null
-	wait $KILLER_PID >& /dev/null
+		# @NOTE: we don't wait KILLER if the test pass completedly
+		wait $PID >& /dev/null
+		kill $KILLER_PID >& /dev/null
+		wait $KILLER_PID >& /dev/null
+
+		# @NOTE: check if the fail flag existed
+		if [ -f "/tmp/$(basename "$2").fail" ]; then
+			rm -fr "/tmp/$(basename "$2").fail"
+			CODE=1
+		fi
+	else
+		"$2"
+
+		if [ $? != 0 ]; then
+			CODE=1
+		fi
+	fi
 
 	COREFILE=$(find . -maxdepth 1 -name "core-$(basename "$FILE").*" | head -n 1)
 
 	if [[ -f "$COREFILE" ]]; then
-		warning "found coredump $COREFILE"
-		echo "" >&2
-		return 1
+		coredump $FILE
+		CODE=2
 	fi
 
-	echo "" >&2
-	# @NOTE: check if the fail flag existed
-	if [ -f "/tmp/$(basename "$2").fail" ]; then
-		rm -fr "/tmp/$(basename "$2").fail"
-		return 1
-	else
-		return 0
-	fi
+	return $CODE
 }
 
 compress_coredump(){
@@ -167,12 +175,26 @@ if [ -d "./$1" ]; then
 	$SU sysctl -w kernel.core_pattern="$(pwd)/core-%e.%p.%h.%t"
 	ulimit -c unlimited
 
-	if [ "$1" == "Debug" ] || [ "$1" == "Release" ]; then
+	if [ "$1" == "Debug" ] || [ "$1" == "Release" ] || [ "$1" == "Coverage" ]; then
 		export ASAN_SYMBOLIZER_PATH=$LLVM_SYMBOLIZER
 		export LSAN_OPTIONS=verbosity=1:log_threads=1
 		export TSAN_OPTIONS=second_deadlock_stack=1
 
-		ctest --verbose --timeout 1
+		if [ "$1" != "Coverage" ]; then
+			ctest --verbose --timeout 1
+			CODE=$?
+		else
+			for FILE in ./Tests/*; do
+				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
+					exec_with_timeout -1 $FILE
+
+					if [ $? != 0 ]; then
+						CODE=1
+					fi
+				fi
+			done
+		fi
+
 		if [ $? -ne 0 ]; then
 			EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
 			CODE=-1
@@ -218,13 +240,13 @@ if [ -d "./$1" ]; then
 				echo ""
 			fi
 		fi
-		exit $CODE
 	else
 		if [ "$(ctest --verbose)" -ne 0 ]; then
 			exit -1
 		fi
 	fi
 	cd "$CURRENT" || error "can't cd to $CURRENT"
+	exit $CODE
 else
 	error "Please run \"reinstall.sh $1\" first"
 fi
