@@ -270,6 +270,8 @@ class Fildes: public Monitor {
   /* @NOTE: this function is used to remove fd out of polling system */
   ErrorCodeE _Remove(Auto fd) final {
     try {
+      DEBUG(Format{"remove fd {}"}.Apply(fd));
+
       _Entries.erase(fd.Get<Int>());
       _Read.erase(fd.Get<Int>());
       _Write.erase(fd.Get<Int>());
