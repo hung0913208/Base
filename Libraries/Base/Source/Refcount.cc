@@ -150,7 +150,7 @@ void Refcount::Init() {
     });
   }
 
-  if (pass) this->_Init();
+  if (pass && _Init) _Init();
 }
 
 void Refcount::Release() { Release(False); }
@@ -209,7 +209,7 @@ void Refcount::Release(Bool safed) {
       });
     }
 
-    this->_Release();
+    if (_Release) _Release();
   }
 
   _Count = None;

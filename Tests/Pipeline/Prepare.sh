@@ -26,35 +26,35 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 
 	# @NOTE: check and set INSTALL tool
 	if [ $(which apt-get) ]; then
-		REQUIRED=("ssh" "python3" "git")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
 		$SU apt-get update &> /dev/null
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Ubuntu/Debian"
 		info "Kernel info $(uname -a)"
 	elif [ $(which apt) ]; then
-		REQUIRED=("ssh" "python3" "git")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
 		$SU apt update &> /dev/null
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Ubuntu/Debian"
 		info "Kernel info $(uname -a)"
 	elif [ $(which yum) ]; then
-		REQUIRED=("ssh" "python3" "git")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
 		$SU yum update
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Fedora/Centos"
 		info "Kernel info $(uname -a)"
 	elif [ $(which zypper) ]; then
-		REQUIRED=("openssh" "python3" "git")
+		REQUIRED=("openssh" "python3" "git" "ftp" "ncftp")
 		$SU zypper update
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Opensuse"
 		info "Kernel info $(uname -a)"
 	elif [ $(which pkg) ]; then
-		REQUIRED=("ssh" "python3" "git")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
 		$SU pkg update
 
 		# @NOTE: print infomation of this device
