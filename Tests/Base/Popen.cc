@@ -10,7 +10,7 @@ using namespace Base;
 
 TEST(Popen, Simple0){
   auto perform = []() {
-    Bool is_read{False};
+    Bool is_read_from_err{False};
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
     Fork fork{[]() -> Int {
       const CString args[] = {"/bin/cat", "/tmp", None};
@@ -30,8 +30,13 @@ TEST(Popen, Simple0){
             break;
           }
 
-          INFO << buf << Base::EOL;
-          is_read = True;
+          buf[len] = '\0';
+          if (fork.Error() == fd.Get<Int>()) {
+            DEBUG(Format{"result from child's stderr: {}"} << buf);
+            is_read_from_err = True;
+          } else {
+            DEBUG(Format{"result from child's stdout: {}"} << buf);
+          }
         }
 
         return ENoError;
@@ -42,7 +47,7 @@ TEST(Popen, Simple0){
       ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
     EXPECT_NEQ(fork.ECode(), 0);
-    EXPECT_TRUE(is_read);
+    EXPECT_TRUE(is_read_from_err);
   };
 
   TIMEOUT(5, { perform(); });
@@ -50,7 +55,7 @@ TEST(Popen, Simple0){
 
 TEST(Popen, Simple1){
   auto perform = []() {
-    Bool is_read{False};
+    Bool is_read_from_out{False};
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
     Fork fork{[]() -> Int {
       const CString args[] = {"/bin/uname", "-a", None};
@@ -70,8 +75,13 @@ TEST(Popen, Simple1){
             break;
           }
 
-          INFO << buf << Base::EOL;
-          is_read = True;
+          buf[len] = '\0';
+          if (fork.Error() == fd.Get<Int>()) {
+            DEBUG(Format{"result from child's stderr: {}"} << buf);
+          } else {
+            DEBUG(Format{"result from child's stdout: {}"} << buf);
+            is_read_from_out = True;
+          }
         }
 
         return ENoError;
@@ -81,8 +91,8 @@ TEST(Popen, Simple1){
       [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
       ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
-    EXPECT_NEQ(fork.ECode(), 0);
-    EXPECT_TRUE(is_read);
+    EXPECT_EQ(fork.ECode(), 0);
+    EXPECT_TRUE(is_read_from_out);
   };
 
   TIMEOUT(5, { perform(); });
@@ -90,7 +100,7 @@ TEST(Popen, Simple1){
 
 TEST(Popen, Simple2){
   auto perform = []() {
-    Bool is_read{False};
+    Bool is_read_from_out{False};
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
     Fork fork{[]() -> Int {
       const CString args[] = {"/bin/uname", "-a", None};
@@ -108,8 +118,15 @@ TEST(Popen, Simple2){
           UInt len = read(fd.Get<Int>(), buf, 512);
 
           DEBUG(Format{"receive {} bytes"}.Apply(len));
-          if ((is_read = len > 0)) {
-            INFO << buf << Base::EOL;
+          if (len > 0) {
+            buf[len] = '\0';
+
+            if (fork.Error() == fd.Get<Int>()) {
+              DEBUG(Format{"result from child's stderr: {}"} << buf);
+            } else {
+              DEBUG(Format{"result from child's stdout: {}"} << buf);
+              is_read_from_out = True;
+            }
           } else {
             break;
           }
@@ -123,7 +140,7 @@ TEST(Popen, Simple2){
       ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
     EXPECT_EQ(fork.ECode(), 0);
-    EXPECT_FALSE(is_read);
+    EXPECT_TRUE(is_read_from_out);
   };
 
   TIMEOUT(5, { perform(); });
