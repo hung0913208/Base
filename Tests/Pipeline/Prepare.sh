@@ -134,9 +134,9 @@ if [ -d "$ROOT/.recompile.d" ]; then
 				info "recompile $REPO now, $BACKGROUND background"
 
 				if [ $BACKGROUND == "show" ]; then
-					$ROOT/Tests/Pipeline/Libraries/Install.sh $DEFINE
+					$PIPELINE/Libraries/Install.sh $DEFINE
 				else
-					$ROOT/Tests/Pipeline/Libraries/Install.sh $DEFINE &> /dev/null
+					$PIPELINE/Libraries/Install.sh $DEFINE &> /dev/null
 				fi
 
 				if [ $? != 0 ]; then
@@ -157,9 +157,9 @@ elif [ -f "$ROOT/.recompile" ]; then
 			info "recompile $REPO now, $BACKGROUND background"
 
 			if [ $BACKGROUND == "show" ]; then
-				$ROOT/Tests/Pipeline/Libraries/Install.sh $DEFINE
+				$PIPELINE/Libraries/Install.sh $DEFINE
 			else
-				$ROOT/Tests/Pipeline/Libraries/Install.sh $DEFINE &> /dev/null
+				$PIPELINE/Libraries/Install.sh $DEFINE &> /dev/null
 			fi
 
 			if [ $? != 0 ]; then
@@ -173,8 +173,8 @@ fi
 
 # @NOTE: new Tools/Builder may require preinstall some libraries from Eevee. To do
 # that, i will use CMake as a convenient tool to build these libraries
-if [ -f $ROOT/Tools/Builder/install.sh ]; then
-	$ROOT/Tools/Builder/install.sh
+if [ -f $PIPELINE/../../Tools/Builder/install.sh ]; then
+	$PIPELINE/../../Tools/Builder/install.sh
 
 	if [ $? != 0 ]; then
 		error "Error when run script $ROOT/Tools/Builder/Install.sh"
