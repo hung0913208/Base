@@ -12,10 +12,6 @@ class Target: public Refcount {
   Target(const Target& src): Refcount{src} {}
   Target(Target&& src): Refcount{src} {}
   Target(): Refcount() {}
-
- private: 
-  void _Init() override {}
-  void _Release() override {}
 };
 
 TEST(Refcount, Case0) {
@@ -47,10 +43,6 @@ class Exception0: Refcount {
   Exception0(const Exception0& src): Refcount{src} {}
   Exception0(Exception0&& src): Refcount{src} {}
   Exception0(): Refcount() {}
-
- private: 
-  void _Init() override {}
-  void _Release() override {}
 };
 
 class Exception1 {

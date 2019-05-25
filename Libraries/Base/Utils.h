@@ -403,7 +403,7 @@ class Format{
   String _Template;
 };
 
-class Fork{
+class Fork: Refcount {
  public:
   enum StatusE {
     EBug = -1,
@@ -420,6 +420,13 @@ class Fork{
   explicit Fork(Function<Int()> callback, Bool redirect = True);
   virtual ~Fork();
 
+  /* @NOTE: copy constructors */
+  Fork(const Fork& src);
+  Fork(Fork&& src);
+
+  /* @NOTE: the assign operator */
+  Fork& operator=(const Fork& src);
+
   /* @NOTE: get PID of the child processes */
   Int PID();
 
@@ -433,6 +440,8 @@ class Fork{
   Int ECode();
 
  private:
+  void Release();
+
   Int _PID, _Input, _Output, _Error, *_ECode;
 };
 

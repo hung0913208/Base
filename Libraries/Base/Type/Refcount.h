@@ -23,8 +23,8 @@ class Refcount {
 #endif  // BASE_UNITTEST_H_
 
  protected:
-  virtual void _Init() {}
-  virtual void _Release() {}
+  Function<void()> _Init;
+  Function<void()> _Release;
 
   void Init();
   void Release();
