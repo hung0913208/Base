@@ -86,10 +86,12 @@ fi
 
 # @NOTE: this function helps you to install a package
 function install_package() {
+	info "install $1 now"
 	$SU $INSTALL $1 >& /dev/null
 
 	if [ $? != 0 ]; then
-		return 1
+		$SU $INSTALL $1
+		error "install $1 fail"
 	else
 		return 0
 	fi

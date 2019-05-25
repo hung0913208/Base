@@ -99,12 +99,7 @@ if [ -d "$ROOT/.requirement.d" ]; then
 	if [ -e "$ROOT/.requirement.d/$SYS" ]; then
 		cat "$ROOT/.requirement.d/$SYS" | while read DEFINE; do
 			if [[ ${#DEFINE} -gt 0 ]]; then
-				info "install $DEFINE now"
-				$SU $INSTALL $DEFINE &> /dev/null
-
-				if [ $? != 0 ]; then
-					warning "fail install $DEFINE"
-				fi
+				install_package $DEFINE
 			fi
 		done
 	else
@@ -113,8 +108,7 @@ if [ -d "$ROOT/.requirement.d" ]; then
 elif [ -f "$ROOT/.requirement" ]; then
 	cat "$ROOT/.requirement" | while read DEFINE; do
 		if [[ ${#DEFINE} -gt 0 ]]; then
-			info "install $DEFINE now"
-			$SU $INSTALL $DEFINE &> /dev/null
+			install_package $DEFINE
 
 			if [ $? != 0 ]; then
 				warning "fail install $DEFINE"
