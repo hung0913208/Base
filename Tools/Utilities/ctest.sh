@@ -37,46 +37,45 @@ exec_with_timeout(){
 		return 0
 	fi
 
-	if [ $1 -gt 0 ]; then
-		info "execute $(pwd)/$2 with timeout $1s"
-		echo ""
-
-		("$2" || touch "/tmp/$(basename "$2").fail") & PID=$!
-		(for _ in 0..$1; do
-			if [ ! "$(kill -0 $PID >& /dev/null)" ]; then
-				exit 0;
-			else
-				sleep 1;
-			fi;
-		done;
-		kill -9 $PID >& /dev/null) &
-		KILLER_PID=$!
-
-		# @NOTE: we don't wait KILLER if the test pass completedly
-		wait $PID >& /dev/null
-		kill $KILLER_PID >& /dev/null
-		wait $KILLER_PID >& /dev/null
-
-		# @NOTE: check if the fail flag existed
-		if [ -f "/tmp/$(basename "$2").fail" ]; then
-			rm -fr "/tmp/$(basename "$2").fail"
-			CODE=1
-		fi
+	if [ $1 -le  0 ]; then
+		TIMEOUT=60
 	else
-		"$2"
+		TIMEOUT=$1
+	fi
 
-		if [ $? != 0 ]; then
-			CODE=1
-		fi
+	("$2" || touch "/tmp/$(basename "$2").fail") & PID=$!
+	(for _ in 0..$1; do
+		if [ ! "$(kill -0 $PID >& /dev/null)" ]; then
+			exit 0;
+		else
+			sleep 1;
+		fi;
+	done;
+	kill -9 $PID >& /dev/null) &
+	KILLER_PID=$!
+
+	# @NOTE: we don't wait KILLER if the test pass completedly
+	wait $PID >& /dev/null
+	kill $KILLER_PID >& /dev/null
+	wait $KILLER_PID >& /dev/null
+
+	# @NOTE: check if the fail flag existed
+	if [ -f "/tmp/$(basename "$2").fail" ]; then
+		rm -fr "/tmp/$(basename "$2").fail"
+		CODE=1
 	fi
 
 	COREFILE=$(find . -maxdepth 1 -name "core-$(basename "$FILE").*" | head -n 1)
-
 	if [[ -f "$COREFILE" ]]; then
+		echo "[  ERROR  ] found cordump during runing $2:"
 		coredump $FILE
 		CODE=2
 	fi
 
+	if [ $CODE != 0 ]; then
+		echo "[  ERROR  ] run $2 fail"
+	fi
+	echo ""
 	return $CODE
 }
 
