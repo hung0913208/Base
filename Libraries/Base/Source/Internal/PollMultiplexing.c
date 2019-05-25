@@ -223,7 +223,7 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
           pool->Status = PANICING;
           break;
         } else {
-          continue;
+          fidx--;
         }
       }
 
