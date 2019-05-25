@@ -247,15 +247,13 @@ else
 	fi
 
 	# @NOTE: migrate Pipeline's libraries
-	mkdir -p "$ROOT/Tests/Pipeline/Libraries"
-	mv "$BASE/Tests/Pipeline/Libraries/*" "$ROOT/Tests/Pipeline/Libraries"
+	cp -a "$BASE/Tests/Pipeline/Libraries" "$ROOT/Tests/Pipeline/Libraries"
 
 	# @NOTE: migrate Pipeline's installing scripts
-	mkdir -p "$ROOT/Tests/Pipeline/Packages"
-	mv "$BASE/Tests/Pipeline/Packages/*" "$ROOT/Tests/Pipeline/Packages"
+	cp -a "$BASE/Tests/Pipeline/Packages" "$ROOT/Tests/Pipeline/Packages"
 
 	# @NOTE: migrate reproduce script
-	mv "$BASE/Tests/Pipeline/Reproduce.sh" "$ROOT/Tests/Pipeline"
+	cp -a "$BASE/Tests/Pipeline/Reproduce.sh" "$ROOT/Tests/Pipeline"
 
 	if [ ! -f $ROOT/Tests/Pipeline/Build.sh ] && [ ! -f $ROOT/Tests/Pipeline/Test.sh ]; then
 		# @NOTE: migrate builder to an approviated position
@@ -275,7 +273,7 @@ else
 
 		# @NOTE: migrate build script if it needs
 		if [ ! -f "$ROOT/Tests/Pipeline/Build.sh" ]; then
-			mv "$BASE/Tests/Pipeline/Build.sh" "$ROOT/Tests/Pipeline"
+			cp -a "$BASE/Tests/Pipeline/Build.sh" "$ROOT/Tests/Pipeline"
 		fi
 	fi
 fi
