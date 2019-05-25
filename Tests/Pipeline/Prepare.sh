@@ -150,8 +150,17 @@ if [ -d "$ROOT/.recompile.d" ]; then
 elif [ -f "$ROOT/.recompile" ]; then
 	cat "$ROOT/.recompile" | while read DEFINE; do
 		if [[ ${#DEFINE} -gt 0 ]]; then
-			info "recompile $DEFINE now"
-			$ROOT/Tests/Pipeline/Install.sh $DEFINE &> /dev/null
+			SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+			REPO=${SPLITED[0]}
+			BACKGROUND=${SPLITED[1]}
+
+			info "recompile $REPO now, $BACKGROUND background"
+
+			if [ $BACKGROUND == "show" ]; then
+				$ROOT/Tests/Pipeline/Libraries/Install.sh $DEFINE
+			else
+				$ROOT/Tests/Pipeline/Libraries/Install.sh $DEFINE &> /dev/null
+			fi
 
 			if [ $? != 0 ]; then
 				error "fail recompile $DEFINE"
