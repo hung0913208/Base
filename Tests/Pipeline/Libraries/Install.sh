@@ -63,11 +63,11 @@ git clone --recurse-submodules -j"$PARALLEL" "$1" &> /dev/null
 # @NOTE: install step
 cd "$CURRENT/$(basename "$1")" || error "cannot jump to $CURRENT/$(basename "$1")"
 
-if [ ! -f "$ROOT/Tests/Pipeline/packages/$(basename "$1").sh" ]; then
-	error "not found "$ROOT/Tests/Pipeline/packages/$(basename "$1").sh""
+if [ ! -f "$ROOT/Tests/Pipeline/Packages/$(basename "$1").sh" ]; then
+	error "not found "$ROOT/Tests/Pipeline/Packages/$(basename "$1").sh""
 fi
 
-bash "$ROOT/Tests/Pipeline/packages/$(basename "$1").sh"
+bash "$ROOT/Tests/Pipeline/Packages/$(basename "$1").sh"
 cd "$CURRENT" || error "cannot jump to $CURRENT"
 
 # @TODO: store artifact to reuse again
