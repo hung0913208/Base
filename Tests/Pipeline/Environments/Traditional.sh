@@ -39,7 +39,7 @@ fi
 # @NOTE: otherwide, we should the current environment since the branch maybe
 # merged with the master
 if [ "$METHOD" == "reproduce" ]; then
-	$PIPELINE/Reproduce.sh $REPO
+	$PIPELINE/Reproduce.sh
 	exit $?
 elif [[ $# -gt 3 ]]; then
 	info "import '$REPO $BRANCH' >> ./repo.list"

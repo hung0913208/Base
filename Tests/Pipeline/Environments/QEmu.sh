@@ -358,7 +358,7 @@ mkdir -p "$ROOT/content"
 cd "$ROOT/content"
 
 if [ "$METHOD" == "reproduce" ]; then
-	$PIPELINE/Reproduce.sh $REPO
+	$PIPELINE/Reproduce.sh
 	exit $?
 elif [[ $# -gt 3 ]]; then
 	BRANCH=$4

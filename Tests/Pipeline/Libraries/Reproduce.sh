@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # - File: reproduce.sh
 # - Description: This bash script will be used to provide steps to
 # reproduce any issue from scratch
@@ -8,102 +8,212 @@ source $PIPELINE/Logcat.sh
 source $PIPELINE/Package.sh
 
 SCRIPT="$(basename "$0")"
-
 ISSUE=$2
 ROOT=$3
 
-if [[ "$1" == "clone" ]]; then
+if [ "$1" = "clone" ]; then
+	REPO=$ROOT
+	ROOT=$4
+	SPEC=$5
+
 	if [ ! -d "$ROOT/.reproduce.d" ]; then
 		mkdir -p "$ROOT/.reproduce.d"
 	fi
 
-	git clone "$ROOT" "$ROOT/.reproduce.d/$ISSUE"
+	git clone "$REPO" "$ROOT/.reproduce.d/$ISSUE"
+
+	if [ $# -gt 3 ]; then
+		cd "$ROOT/.reproduce.d/$ISSUE" || error "can't cd $ROOT/.reproduce.d/$ISSUE"
+
+		if [[ $(grep "$SPEC" <<< $(git branch -a)) ]]; then
+			git checkout -b $SPEC "origin/$SPEC"
+		else
+			git fetch --all
+			git pull --all
+			git checkout -b $(git name-rev --name-only $SPEC) $SPEC
+		fi
+		CODE=$?
+
+		cd "$CURRENT" || error "can't cd $CURRENT"
+		if [ "$CODE" != 0 ]; then
+			error "fail to clone $ISSUE with spec $SPEC"
+		fi
+	fi
+
 	if [ $? != 0 ]; then
 		error "fail to clone $ISSUE"
-	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/create.sh" ]; then
-		"$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/create.sh" "reproduce" "$ROOT/.reproduce.d/$ISSUE"
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Fetch.sh" ]; then
+		info "found script Fetch.sh, halt instead of invoking Create.sh"
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Create.sh" ]; then
+		"$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Create.sh" "reproduce" "$ROOT/.reproduce.d/$ISSUE"
 
 		if [ $? != 0 ]; then
 			error "can't perform script create.sh to generate reproducing scripts"
 		fi
 	fi
-elif [[ "$1" == "prepare" ]]; then
+elif [ "$1" = "prepare" ]; then
 	if [ -d "$ROOT/.reproduce.d/$ISSUE/.recompile.d" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/.recompile.d/$SYS" | while read REPO; do
-			$PIPELINE/Libraries/Install.sh $REPO
+		cat "$ROOT/.reproduce.d/$ISSUE/.recompile.d/$SYS" | while read DEFINE; do
+			if [[ ${#DEFINE} -gt 0 ]]; then
+				SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+				REPO=${SPLITED[0]}
+				BACKGROUND=${SPLITED[1]}
 
-			if [ $? != 0 ]; then
-				error "fail when run command "$PIPELINE/Libraries/Install.sh $REPO""
+				info "recompile $REPO now, $BACKGROUND background"
+
+				if [ $BACKGROUND == "show" ]; then
+					$PIPELINE/Libraries/Install.sh $DEFINE
+				else
+					$PIPELINE/Libraries/Install.sh $DEFINE &> /dev/null
+				fi
+
+				if [ $? != 0 ]; then
+					error "fail recompile $DEFINE"
+				fi
 			fi
 		done
 	fi
 
 	if [ -f "$ROOT/.reproduce.d/$ISSUE/.recompile" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/.recompile" | while read REPO; do
-			$PIPELINE/Libraries/Install.sh $REPO
+		cat "$ROOT/.reproduce.d/$ISSUE/.recompile" | while read DEFINE; do
+			if [[ ${#DEFINE} -gt 0 ]]; then
+				SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+				REPO=${SPLITED[0]}
+				BACKGROUND=${SPLITED[1]}
 
-			if [ $? != 0 ]; then
-				error "fail when run command "$PIPELINE/Libraries/Install.sh $REPO""
+				info "recompile $REPO now, $BACKGROUND background"
+
+				if [ $BACKGROUND == "show" ]; then
+					$PIPELINE/Libraries/Install.sh $DEFINE
+				else
+					$PIPELINE/Libraries/Install.sh $DEFINE &> /dev/null
+				fi
+
+				if [ $? != 0 ]; then
+					error "fail recompile $DEFINE"
+				fi
 			fi
 		done
 	fi
 
 	if [ -d "$ROOT/.reproduce.d/$ISSUE/.requirement.d" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/.requirement.d/$SYS" | while read REPO; do
-			sudo $INSTALL $PACKAGE
+		cat "$ROOT/.reproduce.d/$ISSUE/.requirement.d/$SYS" | while read PACKAGE; do
+			install_package $PACKAGE
 
 			if [ $? != 0 ]; then
-				error "fail when run command "sudo $INSTALL $PACKAGE""
+				exit $?
 			fi
 		done
 	fi
 
 	if [ -f "$ROOT/.reproduce.d/$ISSUE/.requirement" ]; then
 		cat "$ROOT/.reproduce.d/$ISSUE/.requirement" | while read PACKAGE; do
-			sudo $INSTALL $PACKAGE
+			install_package $PACKAGE
 
 			if [ $? != 0 ]; then
-				error "fail when run command "sudo $INSTALL $PACKAGE""
+				exit $?
 			fi
 		done
 	fi
 
 	if [ -f "$ROOT/.reproduce.d/$ISSUE/fetch.sh" ]; then
-		$ROOT/.reproduce.d/$ISSUE/fetch.sh "$ROOT/.reproduce.d/$ISSUE"
+		CURRENT=$(pwd)
 
-		if [ $? != 0 ]; then
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		$ROOT/.reproduce.d/$ISSUE/fetch.sh "$ROOT/.reproduce.d/$ISSUE"
+		CODE=$?
+
+		cd $CURRENT || error "can't cd to $CURRENT"
+		if [ $CODE != 0 ]; then
 			error "fail when run $ROOT/.reproduce.d/$ISSUE/fetch.sh"
+		fi
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Fetch.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Fetch.sh "$ROOT/.reproduce.d/$ISSUE"
+		CODE=$?
+
+		cd $CURRENT || error "can't cd to $CURRENT"
+		if [ $CODE != 0 ]; then
+			error "fail when run $ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Fetch.sh"
 		fi
 	fi
 
 	if [ -f "$ROOT/.reproduce.d/$ISSUE/install.sh" ]; then
-		$ROOT/.reproduce.d/$ISSUE/install.sh
+		CURRENT=$(pwd)
 
-		if [ $? != 0 ]; then
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		$ROOT/.reproduce.d/$ISSUE/install.sh
+		CODE=$?
+
+		cd $CURRENT || error "can't cd to $CURRENT"
+		if [ $CODE != 0 ]; then
 			error "fail when run $ROOT/.reproduce.d/$ISSUE/install.sh"
 		fi
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Install.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Install.sh
+
+		if [ $? != 0 ]; then
+			error "fail when run $ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Install.sh"
+		fi
 	fi
-elif [[ "$1" == "reproduce" ]]; then
+elif [ "$1" = "reproduce" ]; then
 	if [ -f "$ROOT/.reproduce.d/$ISSUE/test.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
 		$ROOT/.reproduce.d/$ISSUE/test.sh
 		CODE=$?
 
+		cd $CURRENT || error "can't cd to $CURRENT"
 		if [ $CODE != 0 ]; then
 			exit -1
 		else
 			exit 1 # <--- try to redo again and again
 		fi
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Test.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Test.sh
+		CODE=$?
+
+		cd $CURRENT || error "can't cd to $CURRENT"
+		if [ $CODE != 0 ]; then
+			exit 0
+		else
+			exit 1 # <--- try to redo again and again
+		fi
 	fi
-elif [[ "$1" == "verify" ]]; then
+elif [ "$1" = "verify" ]; then
 	LOGS=$4
 	CODE=$5
 
-	if [ $CODE != 0 ] && [ $CODE != 1 ]; then
+	if [ "$CODE" != 0 ] && [ "$CODE" != 1 ]; then
 		exit $CODE
 	elif [ -f "$ROOT/.reproduce.d/$ISSUE/verify.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
 		$ROOT/.reproduce.d/$ISSUE/verify.sh $LOGS/$ISSUE
 		CODE=$?
 
+		cd $CURRENT || error "can't cd to $CURRENT"
+		if [ $CODE != 0 ]; then
+			exit -1
+		fi
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Verify.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Verify.sh $LOGS
+		CODE=$?
+
+		cd $CURRENT || error "can't cd to $CURRENT"
 		if [ $CODE != 0 ]; then
 			exit -1
 		fi
@@ -113,3 +223,4 @@ else
 fi
 
 info "Congratulation, you have done step $1"
+
