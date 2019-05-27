@@ -199,16 +199,16 @@ void Refcount::Release(Bool safed) {
       auto idx = Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count);
 
       /* @NOTE: release this counter since we are reaching the last one */
-      RefMasters.erase(idx);
+      RefMasters.erase(RefMasters.begin() + idx);
       delete _Count;
     } else {
       /* @NOTE: non-safed area should be run here */
 
-      Secure.Circle([&]() {
+      Internal::Secure.Circle([&]() {
         auto idx = Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count);
 
         /* @NOTE: release this counter since we are reaching the last one */
-        RefMasters.erase(idx);
+        RefMasters.erase(RefMasters.begin() + idx);
         delete _Count;
       });
     }
@@ -217,6 +217,12 @@ void Refcount::Release(Bool safed) {
   }
 
   _Count = None;
+}
+
+void Refcount::Secure(Function<void()> callback) {
+  Internal::Secure.Circle([&]() {
+    callback();
+  });
 }
 
 Bool Refcount::Reference(const Refcount* src) {

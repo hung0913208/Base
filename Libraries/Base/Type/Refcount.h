@@ -28,6 +28,7 @@ class Refcount {
 
   void Init();
   void Release();
+  void Secure(Function<void()> callback);
   Bool Reference(const Refcount* src);
 
  private:
