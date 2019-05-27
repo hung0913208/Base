@@ -9,7 +9,7 @@ namespace Base {
 namespace Internal {
 Mutex* CreateMutex();
 
-static Set<ULong> RefMasters;
+static Vector<ULong> RefMasters{};
 static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
                                   [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
                                   CreateMutex());
@@ -26,7 +26,7 @@ Refcount::Refcount(const Refcount& src) {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (RefMasters.find((ULong)_Count) != RefMasters.end()) {
+      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
         (*_Count)++;
       } else {
         pass = False;
@@ -38,7 +38,7 @@ Refcount::Refcount(const Refcount& src) {
     _Count = new Int{0};
 
     Internal::Secure.Circle([&]() {
-      Internal::RefMasters.insert((ULong)_Count);
+      Internal::RefMasters.push_back((ULong)_Count);
     });
     Init();
   }
@@ -53,7 +53,7 @@ Refcount::Refcount(Refcount&& src) {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (RefMasters.find((ULong)_Count) != RefMasters.end()) {
+      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
         (*_Count)++;
       } else {
         pass = False;
@@ -65,7 +65,7 @@ Refcount::Refcount(Refcount&& src) {
     _Count = new Int{0};
 
     Internal::Secure.Circle([&]() {
-      Internal::RefMasters.insert((ULong)_Count);
+      Internal::RefMasters.push_back((ULong)_Count);
     });
 
     Init();
@@ -76,7 +76,7 @@ Refcount::Refcount() {
   _Count = new Int{0};
 
   Internal::Secure.Circle([&]() {
-    Internal::RefMasters.insert((ULong)_Count);
+    Internal::RefMasters.push_back((ULong)_Count);
   });
   Init();
 }
@@ -92,7 +92,7 @@ Bool Refcount::IsExist() {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (RefMasters.find((ULong)_Count) != RefMasters.end()) {
+      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
         result = True;
       }
     });
@@ -111,7 +111,7 @@ Int Refcount::Count() {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (RefMasters.find((ULong)_Count) != RefMasters.end()) {
+      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
         result = *_Count;
       }
     });
@@ -128,7 +128,7 @@ Refcount& Refcount::operator=(const Refcount& src) {
   Internal::Secure.Circle([&]() {
     using namespace Internal;
 
-    if (RefMasters.find((ULong)src._Count) != RefMasters.end()) {
+    if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
       Release(True);
       (*(_Count = src._Count))++;
     }
@@ -144,7 +144,7 @@ void Refcount::Init() {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (RefMasters.find((ULong)_Count) != RefMasters.end()) {
+      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
         pass = False;
       }
     });
@@ -163,7 +163,7 @@ void Refcount::Release(Bool safed) {
       using namespace Internal;
 
       /* @NOTE: check the exitence of this counter and reduce counting */
-      if (RefMasters.find((ULong)_Count) != RefMasters.end()) {
+      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
         if (!(pass = *_Count == 0)) {
           (*_Count)--;
         } else if (*_Count < 0){
@@ -179,7 +179,7 @@ void Refcount::Release(Bool safed) {
         using namespace Internal;
         /* @NOTE: check the exitence of this counter and reduce counting */
 
-        if (RefMasters.find((ULong)_Count) != RefMasters.end()) {
+        if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
           if (!(pass = *_Count == 0)) {
             (*_Count)--;
           } else if (*_Count < 0) {
@@ -193,18 +193,22 @@ void Refcount::Release(Bool safed) {
   }
 
   if (pass) {
-    if (safed) {
-      /* @NOTE: release this counter since we are reaching the last one */
+    using namespace Internal;
 
-      Internal::RefMasters.erase((ULong)_Count);
+    if (safed) {
+      auto idx = Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count);
+
+      /* @NOTE: release this counter since we are reaching the last one */
+      RefMasters.erase(idx);
       delete _Count;
     } else {
       /* @NOTE: non-safed area should be run here */
 
-      Internal::Secure.Circle([&]() {
-        /* @NOTE: release this counter since we are reaching the last one */
+      Secure.Circle([&]() {
+        auto idx = Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count);
 
-        Internal::RefMasters.erase((ULong)_Count);
+        /* @NOTE: release this counter since we are reaching the last one */
+        RefMasters.erase(idx);
         delete _Count;
       });
     }
@@ -218,9 +222,9 @@ void Refcount::Release(Bool safed) {
 Bool Refcount::Reference(const Refcount* src) {
   Bool result = False;
 
-  /* @NOTE: this function is used to make a new reference with src which is used to
-   * increase the new reference counting and decrease the old reference counting
-   * */
+  /* @NOTE: this function is used to make a new reference with src which is
+   * used to increase the new reference counting and decrease the old reference
+   * counting */
 
   if (!src || src == this) {
     throw Except(EBadLogic, "reference itself");
@@ -229,7 +233,7 @@ Bool Refcount::Reference(const Refcount* src) {
   Internal::Secure.Circle([&]() {
     using namespace Internal;
 
-    if (RefMasters.find((ULong)src->_Count) != RefMasters.end()) {
+    if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
       Release(True);
     }
 
