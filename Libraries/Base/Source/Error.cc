@@ -52,35 +52,24 @@ void Assign(Error* logcat) {
 
 void Decline(Error* logcat) {
   auto UNUSED(guranteer) = Secure.generate();
-  auto thread_id = GetUniqueId();
+  auto thread_id = ULong{0};
 
-  if (Logcats.find(thread_id) != Logcats.end()) {
-    /* @NOTE: it seems current thread has been ceased by another Logcat, force
-     * print it now and overwrite with our new logcat
-     */
+  /* @NOTE: sometime we can use a tricky way like Assign same logcat on
+   * different Thread and cause our system confuse and crash unexpectedly. So
+   * we must check again to make sure everything is Okey.
+   */
 
-    if (Logcats[thread_id]) {
-      Logcats[thread_id]->Print(True);
-      Logcats[thread_id] = None;
+  for (auto item : Logcats) {
+    thread_id = std::get<0>(item);
+
+    if (std::get<1>(item) == logcat) {
+      std::get<1>(item)->Print(True);
+      break;
     }
-  } else {
-    /* @NOTE: sometime we can use a tricky way like Assign same logcat on
-     * different Thread and cause our system confuse and crash unexpectedly. So
-     * we must check again to make sure everything is Okey.
-     */
-    auto found_it = thread_id;
+  }
 
-    for (auto item : Logcats) {
-      if (std::get<1>(item) == logcat) {
-        found_it = std::get<0>(item);
-        break;
-      }
-    }
-
-    if (found_it != thread_id) {
-      Logcats[found_it]->Print();
-      Logcats[thread_id] = None;
-    }
+  if (thread_id > 0) {
+    Logcats[thread_id] = None;
   }
 }
 }  // namespace Logcat
@@ -227,56 +216,14 @@ Error::operator bool() { return _Level == EError && _Code != ENoError; }
 void Error::Print(bool force) {
   /* @NOTE: print basic information about this error */
 
-  auto perform = [&]() {
-    if (!_IsPrinted) {
-      if (_Code != ENoError) {
-        auto color =
-          _Level == EError ? RED : (_Level == EWarning ? YELLOW : GREEN);
-
-        if (_IsPrinted == False) {
-#if READABLE
-          VLOG(_Level) << (color << ToString(_Level) << "[" << ToString(_Code)
-                                 << "]: ");
-#else
-          if (_Message.size() > 0) {
-            VLOG(_Level) << (color << ToString(_Level) << "[ " << ToString(_Code)
-                                   << " ]");
-          } else {
-            VLOG(_Level) << (color << ToString(_Level) << " " << ToString(_Code));
-          }
-#endif
-
-          /* @NOTE: print human description of this error */
-          if (_Message.size() > 0) {
-            VLOG(_Level) << ": " << _Message;
-          }
-
-#if READABLE
-          /* @NOTE: print information regarded about where the error happens
-           */
-          if (_Line >= 0 && _Function.size() > 0 && _File.size() > 0) {
-            VLOG(_Level) << " at `" << _Function << "` " << _File << ":"
-                         << ToString(_Line);
-          }
-#endif
-
-          /* @NOTE: put enter to flush message thought to C++'s iostream */
-          VLOG(_Level) << "\n";
-        }
-      }
-
-      /* @NOTE: change flags _IsPrinted to prevent printing again */
-      _IsPrinted = True;
-    }
-  };
 
   /* @NOTE: call lambda with or without safeguard */
   if (!force) {
     auto UNUSED(guranteer) = Internal::Secure.generate();
 
-    perform();
+    _Print();
   } else {
-    perform();
+    _Print();
   }
 
   /* @NOTE: since we are going to force to print */
@@ -297,6 +244,49 @@ Error& Error::Warn() {
 Error& Error::Fatal() {
   _Level = EError;
   return *this;
+}
+
+void Error::_Print() {
+  if (!_IsPrinted) {
+    if (_Code != ENoError) {
+      auto color =
+        _Level == EError ? RED : (_Level == EWarning ? YELLOW : GREEN);
+
+      if (_IsPrinted == False) {
+#if READABLE
+        VLOG(_Level) << (color << ToString(_Level) << "[" << ToString(_Code)
+                               << "]: ");
+#else
+        if (_Message.size() > 0) {
+          VLOG(_Level) << (color << ToString(_Level) << "[ " << ToString(_Code)
+                                 << " ]");
+        } else {
+          VLOG(_Level) << (color << ToString(_Level) << " " << ToString(_Code));
+        }
+#endif
+
+        /* @NOTE: print human description of this error */
+        if (_Message.size() > 0) {
+          VLOG(_Level) << ": " << _Message;
+        }
+
+#if READABLE
+        /* @NOTE: print information regarded about where the error happens
+         */
+        if (_Line >= 0 && _Function.size() > 0 && _File.size() > 0) {
+          VLOG(_Level) << " at `" << _Function << "` " << _File << ":"
+                       << ToString(_Line);
+        }
+#endif
+
+        /* @NOTE: put enter to flush message thought to C++'s iostream */
+        VLOG(_Level) << "\n";
+      }
+    }
+
+    /* @NOTE: change flags _IsPrinted to prevent printing again */
+    _IsPrinted = True;
+  }
 }
 }  // namespace Base
 

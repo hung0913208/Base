@@ -109,7 +109,7 @@
 }
 #else
 #define ERROR VLOGC(EError, RED)
-#define WARNING VLOGC(EWarning, YELLOW) 
+#define WARNING VLOGC(EWarning, YELLOW)
 #define VERBOSE VLOGC(EDebug, MAGNETA) << "[  VERBOSE ] "
 #define INFO VLOGC(EInfo, WHITE)
 #define FATAL VLOGC(EError, RED)
@@ -247,6 +247,8 @@ class Error : public Stream {
   Property<String> message;
 
  private:
+  void _Print();
+
   Bool _IsRef, _IsPrinted;
 
   Int _Line;
