@@ -12,8 +12,8 @@ void CatchSignal(UInt signal, Function<void(siginfo_t *)> callback);
 Mutex* CreateMutex();
 
 static Vector<Exception*> Exceptions;
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex, True); },
-                                  [](Mutex* mutex) { Locker::Unlock(*mutex); },
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
+                                  [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
                                   CreateMutex());
 
 namespace Exception{

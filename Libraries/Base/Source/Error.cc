@@ -9,8 +9,8 @@ ULong GetUniqueId();
 Mutex* CreateMutex();
 
 static UMap<ULong, Error*> Logcats{};
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex, True); },
-                                  [](Mutex* mutex) { Locker::Unlock(*mutex); },
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
+                                  [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
                                   CreateMutex());
 
 void DumpPendingError();
