@@ -45,7 +45,8 @@ Bool IsPipeWaiting(Int pipe) {
 } // namespace Internal
 
 Fork::Fork(Function<Int()> callback, Bool redirect):
-    Refcount{}, _PID{-1}, _Input{-1}, _Output{-1}, _Error{-1}, _ECode{None} {
+     Refcount{Fork::Release}, _PID{-1}, _Input{-1}, _Output{-1},
+    _Error{-1}, _ECode{None} {
   Int input[2], output[2], error[2];
 
   if (redirect) {
@@ -96,7 +97,6 @@ Fork::Fork(Function<Int()> callback, Bool redirect):
     }
 
     _ECode = new Int(-1);
-    _Release = std::bind(&Fork::Release, this);
     Internal::Forks.push_back(this);
   }
 }
@@ -107,7 +107,6 @@ Fork::Fork(const Fork& src): Refcount(src) {
   _ECode = src._ECode;
   _Input = src._Input;
   _Output = src._Output;
-  _Release = std::bind(&Fork::Release, this);
 }
 
 Fork::Fork(Fork&& src): Refcount(src) {
@@ -116,7 +115,6 @@ Fork::Fork(Fork&& src): Refcount(src) {
   _ECode = src._ECode;
   _Input = src._Input;
   _Output = src._Output;
-  _Release = std::bind(&Fork::Release, this);
 }
 
 Fork::~Fork() {
@@ -201,17 +199,19 @@ Fork::StatusE Fork::Status() {
   return Fork::ERunning;
 }
 
+void Fork::Release(Refcount* ptr) {
+  Fork* thiz = reinterpret_cast<Fork*>(ptr);
 
-void Fork::Release() {
   /* @NOTE: close pipeline from here, we don't need them and we should
    * notify monitors too about this event */
-  DEBUG(Format{"Fork::~Fork() close its pipelines"} << _PID);
-  close(_Input);
-  close(_Output);
-  close(_Error);
 
-  /* @NOTE: free shared memory */
-  if (_ECode) delete _ECode;
+  if (thiz) {
+    close(thiz->Input());
+    close(thiz->Output());
+    close(thiz->Error());
 
+    /* @NOTE: free shared memory */
+    if (thiz->_ECode) delete thiz->_ECode;
+  }
 }
 } // namespace Base

@@ -10,9 +10,12 @@ class Refcount {
   virtual ~Refcount();
 
   /* @NOTE: the contrustors */
+  explicit Refcount(void (*release)(Refcount* thiz));
+  explicit Refcount(void (*init)(Refcount* thiz),
+                    void (*release)(Refcount* thiz));
+  Refcount();
   Refcount(const Refcount& src);
   Refcount(Refcount&& src);
-  Refcount();
 
   /* @NOTE: the assign operator */
   Refcount& operator=(const Refcount& src);
@@ -22,9 +25,12 @@ class Refcount {
   Int Count();
 #endif  // BASE_UNITTEST_H_
 
+  Void Secure(Int index, Void* address);
+  Void* Access(Int index);
+
  protected:
-  Function<void()> _Init;
-  Function<void()> _Release;
+  void (*_Init)(Refcount* thiz);
+  void (*_Release)(Refcount* thiz);
 
   void Init();
   void Release();
@@ -34,7 +40,10 @@ class Refcount {
  private:
   void Release(Bool safed);
 
+  Map<Int, Void*> _Secure;
+  Bool _Status;
   Int* _Count;
+  Void* _Context;
 };
 } // namespace Base
 #endif

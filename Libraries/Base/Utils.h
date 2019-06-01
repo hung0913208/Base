@@ -440,7 +440,7 @@ class Fork: Refcount {
   Int ECode();
 
  private:
-  void Release();
+  static void Release(Refcount* ptr);
 
   Int _PID, _Input, _Output, _Error, *_ECode;
 };

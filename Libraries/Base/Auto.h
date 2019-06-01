@@ -18,6 +18,10 @@ typedef struct Any {
   /* @NOTE: callbacks of deleting and cloning this variable */
   void (*Del)(void* value);
   void* (*Clone)(void* value);
+
+#if __cplusplus
+  Any(): Context{None}, Type{None}, Reference{None}, Del{None}, Clone{None} {}
+#endif
 } Any;
 
 /* @NOTE: Any is a flexible type and it can be release at the end of program

@@ -266,11 +266,13 @@ extern "C" Any* BSAssign2Any(Any* any, void* context, void* type,
   using namespace Base::Internal;
 
   auto index = (ULong)context;
-  auto var = Any{.Context = context,
-                 .Type = type,
-                 .Reference = None,
-                 .Del = del,
-                 .Clone = None};
+  auto var = Any{};
+
+  var.Context = context;
+  var.Type = type;
+  var.Reference = None;
+  var.Del = del;
+  var.Clone = None;
 
   /* @NOTE: init variable */
   if (!(var.Reference = (Int*)ABI::Malloc(sizeof(Int)))) {

@@ -34,98 +34,70 @@
 
 namespace Base {
 template <typename Type>
-class Property {
+class Property : public Base::Refcount {
  public:
+#define CONTENT 0
+#define SETTER 1
+#define GETTER 2
   using Getter = Function<Type&()>;
   using Setter = Function<void(Type)>;
 
-  explicit Property(Getter getter = None, Setter setter = None)
-      : _Content{None}, _Count{None}, _Getter{getter}, _Setter{setter} {}
+  explicit Property(Getter getter = None, Setter setter = None):
+      Refcount{Property<Type>::Release}, _Content{None}, _Getter{None},
+      _Setter{None} {
+    Secure(CONTENT, _Content = new Type{});
 
-  Property(Property& src){
+    if (getter){
+      Secure(GETTER, _Getter = new Getter{getter});
+    }
+
+    if (setter) {
+      Secure(SETTER, _Setter = new Setter{setter});
+    }
+  }
+
+  Property(Property& src): Refcount{src} {
     _Content = src._Content;
-    _Count = src._Count;
     _Getter = src._Getter;
     _Setter = src._Setter;
-
-    if (_Count) {
-      (*_Count)++;
-    }
   }
 
-  Property(const Property& src){
+  Property(const Property& src): Refcount{src} {
     _Content = src._Content;
-    _Count = src._Count;
     _Getter = src._Getter;
     _Setter = src._Setter;
-
-    if (_Count) {
-      (*_Count)++;
-    }
   }
 
-  virtual ~Property() {
-    if (_Content && _Count){
-      if (*_Count == 0) {
-        delete _Content;
-        delete _Count;
-      } else {
-        (*_Count)--;
-      }
-    }
-  }
+  virtual ~Property() { }
 
   /* @NOTE: getter and setter methods */
   Property<Type>& set(Type&& value) {
-    if (_Setter) {
-      _Setter(value);
-    } else {
-      /* @NOTE: set a reference */
-
-      if (_Count){
-        if (*_Count == 0) {
-          delete _Count;
-          delete _Content;
-
-          _Content = None;
-          _Count = None;
-        } else {
-          (*_Count)--;
-        }
+    Secure([&]() {
+      if (_Setter) {
+        (*_Setter)(value);
+      } else {
+        *_Content = value;
       }
+    });
 
-      _Content = new Type(value);
-      _Count = new Int{0};
-    }
     return *this;
   }
 
   Property<Type>& set(Type& value) {
-    if (_Setter) {
-      _Setter(value);
-    } else {
-      /* @NOTE: set a reference */
-
-      if (_Count){
-        if (*_Count == 0) {
-          delete _Count;
-          delete _Content;
-
-          _Content = None;
-          _Count = None;
-        } else {
-          (*_Count)--;
-        }
+    Secure([&]() {
+      if (_Setter) {
+        (*_Setter)(value);
+      } else {
+        *_Content = value;
       }
-      _Content = &value;
-    }
+    });
 
     return *this;
   }
 
   Type&& get() {
     if (_Getter) {
-      return std::move(_Getter());
+      return std::move((*_Getter)());
     } else {
       return std::forward<Type>(*_Content);
     }
@@ -133,7 +105,7 @@ class Property {
 
   Type& ref(){
     if (_Getter) {
-      return _Getter();
+      return (*_Getter)();
     } else {
       return *_Content;
     }
@@ -147,10 +119,24 @@ class Property {
   virtual Type& operator()() { return ref(); }
 
  private:
+  static void Release(Refcount* thiz) {
+    if (thiz->Access(CONTENT)) {
+      delete (Type*)thiz->Access(CONTENT);
+    }
+
+    if (thiz->Access(GETTER)) {
+      delete (Getter*)thiz->Access(GETTER);
+    }
+
+    if (thiz->Access(SETTER)) {
+      delete (Setter*)thiz->Access(SETTER);
+    }
+  }
+
   Type* _Content;
-  Int* _Count;
-  Getter _Getter;
-  Setter _Setter;
+  Getter* _Getter;
+  Setter* _Setter;
+
 };
 
 template <typename Type>

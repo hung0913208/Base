@@ -9,25 +9,35 @@ namespace Base {
 namespace Internal {
 Mutex* CreateMutex();
 
-static Vector<ULong> RefMasters{};
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
-                                  [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
-                                  CreateMutex());
+static Vector<ULong>* RefMasters{None};
+static Vertex<Mutex, True> Secure(
+    [](Mutex* mutex) { pthread_mutex_lock(mutex); },
+    [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
+    CreateMutex());
 } // namespace Internal
 
 Refcount::~Refcount() { Release(); }
 
-Refcount::Refcount(const Refcount& src) {
+Refcount::Refcount(const Refcount& src): _Status{False} {
   Bool pass = True;
 
   if (this == &src) {
     throw Except(EBadLogic, "reference itself");
   } else if ((_Count = src._Count)) {
+    _Context = src._Context;
+    _Init = src._Init;
+    _Release = src._Release;
+
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-        (*_Count)++;
+      if (RefMasters) {
+        if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
+          (*_Count)++;
+          _Secure = src._Secure;
+        } else {
+          pass = False;
+        }
       } else {
         pass = False;
       }
@@ -38,23 +48,32 @@ Refcount::Refcount(const Refcount& src) {
     _Count = new Int{0};
 
     Internal::Secure.Circle([&]() {
-      Internal::RefMasters.push_back((ULong)_Count);
+      Internal::RefMasters->push_back((ULong)_Count);
     });
     Init();
   }
 }
 
-Refcount::Refcount(Refcount&& src) {
+Refcount::Refcount(Refcount&& src): _Status{False} {
   Bool pass = True;
 
   if (this == &src) {
     throw Except(EBadLogic, "reference itself");
   } else if ((_Count = src._Count)) {
+    _Context = src._Context;
+    _Init = src._Init;
+    _Release = src._Release;
+
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-        (*_Count)++;
+      if (RefMasters) {
+        if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
+          (*_Count)++;
+          _Secure = src._Secure;
+        } else {
+          pass = False;
+        }
       } else {
         pass = False;
       }
@@ -65,20 +84,53 @@ Refcount::Refcount(Refcount&& src) {
     _Count = new Int{0};
 
     Internal::Secure.Circle([&]() {
-      Internal::RefMasters.push_back((ULong)_Count);
+      Internal::RefMasters->push_back((ULong)_Count);
     });
 
     Init();
   }
 }
 
-Refcount::Refcount() {
+Refcount::Refcount(void (*init)(Refcount* thiz),
+                   void (*release)(Refcount* thiz)): _Status{False} {
   _Count = new Int{0};
+  _Init = init;
+  _Release = release;
 
   Internal::Secure.Circle([&]() {
-    Internal::RefMasters.push_back((ULong)_Count);
+    if (Internal::RefMasters == None) {
+      Internal::RefMasters = new Vector<ULong>{};
+    }
+
+    Internal::RefMasters->push_back((ULong)_Count);
   });
-  Init();
+}
+
+Refcount::Refcount(void (*release)(Refcount* thiz)): _Status{False} {
+  _Count = new Int{0};
+  _Release = release;
+
+  Internal::Secure.Circle([&]() {
+    if (Internal::RefMasters == None) {
+      Internal::RefMasters = new Vector<ULong>{};
+    }
+
+    Internal::RefMasters->push_back((ULong)_Count);
+  });
+}
+
+Refcount::Refcount(): _Status{False} {
+  _Count = new Int{0};
+  _Init = None;
+  _Release = None;
+
+  Internal::Secure.Circle([&]() {
+    if (Internal::RefMasters == None) {
+      Internal::RefMasters = new Vector<ULong>{};
+    }
+
+    Internal::RefMasters->push_back((ULong)_Count);
+  });
 }
 
 Bool Refcount::IsExist() {
@@ -92,8 +144,10 @@ Bool Refcount::IsExist() {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-        result = True;
+      if (RefMasters) {
+        if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
+          result = True;
+        }
       }
     });
   }
@@ -111,8 +165,10 @@ Int Refcount::Count() {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-        result = *_Count;
+      if (RefMasters) {
+        if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
+          result = *_Count;
+        }
       }
     });
   }
@@ -128,9 +184,18 @@ Refcount& Refcount::operator=(const Refcount& src) {
   Internal::Secure.Circle([&]() {
     using namespace Internal;
 
-    if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-      Release(True);
-      (*(_Count = src._Count))++;
+    if (RefMasters) {
+      if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
+        Release(True);
+
+        (*(_Count = src._Count))++;
+        _Secure = src._Secure;
+        _Context = src._Context;
+        _Init = src._Init;
+        _Release = src._Release;
+      }
+    } else {
+      Bug(EBadLogic, "Internal::RefMaster shouldn\'t be None");
     }
   });
 
@@ -144,13 +209,41 @@ void Refcount::Init() {
     Internal::Secure.Circle([&]() {
       using namespace Internal;
 
-      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
+      if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
         pass = False;
       }
     });
   }
 
-  if (pass && _Init) _Init();
+  if (pass && _Init) _Init(this);
+}
+
+Void Refcount::Secure(Int index, Void* address) {
+  Internal::Secure.Circle([&]() {
+    _Secure[index] = address;
+  });
+}
+
+Void* Refcount::Access(Int index){
+  Void* result = None;
+
+  if (_Status) {
+    if (_Secure.find(index) == _Secure.end()) {
+      result = None;
+    } else {
+      result = _Secure[index];
+    }
+  } else {
+    Internal::Secure.Circle([&]() {
+      if (_Secure.find(index) == _Secure.end()) {
+        result = None;
+      } else {
+        result = _Secure[index];
+      }
+    });
+  }
+
+  return result;
 }
 
 void Refcount::Release() { Release(False); }
@@ -163,14 +256,18 @@ void Refcount::Release(Bool safed) {
       using namespace Internal;
 
       /* @NOTE: check the exitence of this counter and reduce counting */
-      if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-        if (!(pass = *_Count == 0)) {
+      if (RefMasters) {
+        if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
+          if (*_Count == 0) {
+            pass = True;
+          } else if (*_Count < 0){
+            Bug(EBadLogic, "Counter below zero");
+          }
+
           (*_Count)--;
-        } else if (*_Count < 0){
-          Bug(EBadLogic, "Counter below zero");
-        } else {
-          pass = True;
         }
+      } else {
+        Bug(EBadLogic, "Internal::RefMasters shouldn\'t be None")
       }
     } else {
       /* @NOTE: non-safed area should be run here */
@@ -179,14 +276,19 @@ void Refcount::Release(Bool safed) {
         using namespace Internal;
         /* @NOTE: check the exitence of this counter and reduce counting */
 
-        if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-          if (!(pass = *_Count == 0)) {
+        if (RefMasters) {
+          if (Find(RefMasters->begin(), RefMasters->end(),
+                   (ULong)_Count) >= 0) {
+            if (*_Count == 0) {
+              pass = True;
+            } else if (*_Count < 0) {
+              Bug(EBadLogic, "Counter below zero");
+            }
+
             (*_Count)--;
-          } else if (*_Count < 0) {
-            Bug(EBadLogic, "Counter below zero");
-          } else {
-            pass = True;
           }
+        } else {
+          Bug(EBadLogic, "Internal::RefMasters shouldn\'t be None");
         }
       });
     }
@@ -196,24 +298,52 @@ void Refcount::Release(Bool safed) {
     using namespace Internal;
 
     if (safed) {
-      auto idx = Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count);
+      if (RefMasters) {
+        auto idx = Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count);
 
-      /* @NOTE: release this counter since we are reaching the last one */
-      RefMasters.erase(RefMasters.begin() + idx);
-      delete _Count;
+        /* @NOTE: release this counter since we are reaching the last one */
+        RefMasters->erase(RefMasters->begin() + idx);
+        delete _Count;
+      } else {
+        Bug(EBadLogic, "Internal::RefMasters shouldn\'t be None");
+      }
     } else {
       /* @NOTE: non-safed area should be run here */
 
       Internal::Secure.Circle([&]() {
-        auto idx = Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count);
+        if (RefMasters) {
+          auto idx = Find(RefMasters->begin(), RefMasters->end(),
+                          (ULong)_Count);
 
-        /* @NOTE: release this counter since we are reaching the last one */
-        RefMasters.erase(RefMasters.begin() + idx);
-        delete _Count;
+          /* @NOTE: release this counter since we are reaching the last one */
+          RefMasters->erase(RefMasters->begin() + idx);
+          delete _Count;
+        } else {
+          Bug(EBadLogic, "Internal::RefMasters shouldn\'t be None");
+        }
       });
     }
 
-    if (_Release) _Release();
+    if (_Release) {
+      Vertex<void> secure{[&]() { _Status = safed; },
+                          [&]() { _Status = False; }};
+
+      _Release(this);
+    }
+
+    if (safed) {
+      if (RefMasters->size() == 0) {
+        delete RefMasters;
+        RefMasters = None;
+      }
+    } else {
+      Internal::Secure.Circle([&]() {
+        if (RefMasters->size() == 0) {
+          delete RefMasters;
+            RefMasters = None;
+        }
+      });
+    }
   }
 
   _Count = None;
@@ -239,8 +369,12 @@ Bool Refcount::Reference(const Refcount* src) {
   Internal::Secure.Circle([&]() {
     using namespace Internal;
 
-    if (Find(RefMasters.begin(), RefMasters.end(), (ULong)_Count) >= 0) {
-      Release(True);
+    if (RefMasters) {
+      if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
+        Release(True);
+      }
+    } else {
+      Bug(EBadLogic, "Internal::RefMasters shouldn\'t be None");
     }
 
     if ((result = !_Count)) {

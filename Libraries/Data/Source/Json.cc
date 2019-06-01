@@ -604,11 +604,7 @@ void Json::RegistryList() {
 
 ErrorCodeE Json::ExportString() {
   auto& str = _Pending.top().Sentence;
-  auto result = Any{.Context = None,
-                    .Type = None,
-                    .Reference = None,
-                    .Del = None,
-                    .Clone = None};
+  auto result = Any{};
 
   Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
                         [&]() { BSNone2Any(&result); });
@@ -647,11 +643,7 @@ ErrorCodeE Json::ExportString() {
 
 ErrorCodeE Json::ExportNumber() {
   auto& num = _Pending.top().Number;
-  auto result = Any{.Context = None,
-                    .Type = None,
-                    .Reference = None,
-                    .Del = None,
-                    .Clone = None};
+  auto result = Any{};
 
   Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
                         [&]() { BSNone2Any(&result); });
@@ -682,11 +674,7 @@ ErrorCodeE Json::ExportNumber() {
 }
 
 ErrorCodeE Json::ExportBoolean() {
-  auto result = Any{.Context = None,
-                    .Type = None,
-                    .Reference = None,
-                    .Del = None,
-                    .Clone = None};
+  auto result = Any{};
 
   Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
                         [&]() { BSNone2Any(&result); });
@@ -709,11 +697,7 @@ ErrorCodeE Json::ExportBoolean() {
 
 ErrorCodeE Json::ExportList() {
   Data::List* list = _Pending.top().List;
-  Any result = Any{.Context = None,
-                   .Type = None,
-                   .Reference = None,
-                   .Del = None,
-                   .Clone = None};
+  Any result = Any{};
 
   Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
                         [&]() { BSNone2Any(&result); });
@@ -734,11 +718,7 @@ ErrorCodeE Json::ExportList() {
 
 ErrorCodeE Json::ExportDict() {
   Data::Dict* dict = _Pending.top().Dict;
-  Any result = Any{.Context = None,
-                   .Type = None,
-                   .Reference = None,
-                   .Del = None,
-                   .Clone = None};
+  Any result = Any{};
 
   Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
                         [&]() { BSNone2Any(&result); });
