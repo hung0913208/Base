@@ -59,6 +59,11 @@ Thread::~Thread() {
           usleep(1);
         }
       }};
+    } else {
+      /* @NOTE: it seems except the first one won't run this, the other should
+       * call this in order to fix the memory leak of pthread_create */
+
+      pthread_join(_ThreadId, None);
     }
 
     delete _Count;
