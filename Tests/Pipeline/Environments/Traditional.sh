@@ -13,6 +13,24 @@ source $PIPELINE/Libraries/Package.sh
 
 SCRIPT="$(basename "$0")"
 
+function detect_libbase() {
+	PROJECT=$1
+
+	if [[ -d "${PROJECT}/Eden" ]]; then
+		echo "${PROJECT}/Eden"
+	elif [[ -d "${PROJECT}/Base" ]]; then
+		echo "${PROJECT}/Base"
+	elif [[ -d "${PROJECT}/base" ]]; then
+		echo "${PROJECT}/base"
+	elif [[ -d "${PROJECT}/LibBase" ]]; then
+		echo "${PROJECT}/LibBase"
+	elif [[ -d "${PROJECT}/Eevee" ]]; then
+		echo "${PROJECT}/Eevee"
+	else
+		echo "$PROJECT"
+	fi
+}
+
 git branch | egrep 'Pipeline/Traditional$'
 if [ $? != 0 ]; then
 	CURRENT=$(pwd)
@@ -78,18 +96,19 @@ cat './repo.list' | while read DEFINE; do
 		cd $WORKSPACE
 		git submodule update --init --recursive
 
-		mkdir -p "./build"
+		BASE="$(detect_libbase $WORKSPACE)"
+		mkdir -p "$WORKSPACE/build"
 
 		# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
 		# that we are using Eevee as the tool to deploy this Repo
-		if [ -e "./Tests/Pipeline/Prepare.sh" ]; then
-			./Tests/Pipeline/Prepare.sh
+		if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
+			$BASE/Tests/Pipeline/Prepare.sh
 
 			if [ $? != 0 ]; then
 				warning "Fail repo $REPO/$BRANCH"
 				CODE=1
 			else
-				./Tests/Pipeline/Build.sh
+				$WORKSPACE/Tests/Pipeline/Build.sh
 
 				if [ $? != 0 ]; then
 					warning "Fail repo $REPO/$BRANCH"
