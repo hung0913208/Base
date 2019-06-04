@@ -101,6 +101,13 @@ if [[ ${#HOOK} -gt 0 ]]; then
 
 	if [ $? = 0 ]; then
 		source ./HOOK
+
+		if [ $? != 0 ]; then
+			info "script HOOK is corrupted please check again i will do with default configure"
+			cat ./HOOK
+
+			rm -fr ./HOOK
+		fi
 	fi
 fi
 
@@ -150,9 +157,9 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	create_bridge "$BRIDGE"
 	if [ $? != 0 ]; then
 		warning "your environemt don't support creating a bridge"
-		PASSED=0
+		MODE="nat"
 	else
-		PASSED=1
+		MODE="bridge"
 	fi
 
 	if [ $(which depmod) ]; then

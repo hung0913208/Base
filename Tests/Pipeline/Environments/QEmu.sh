@@ -363,7 +363,6 @@ if [ "$METHOD" == "reproduce" ]; then
 elif [ -f './repo.list' ]; then
 	info "use default ./repo.list"
 elif [[ $# -gt 3 ]]; then
-	BRANCH=$4
 	info "import '$REPO $BRANCH' >> ./repo.list"
 
 	echo "$REPO $BRANCH" >> ./repo.list
