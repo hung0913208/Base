@@ -12,14 +12,14 @@ SCRIPT="$(basename "$0")"
 
 if [ "$1" == "reproduce" ] || [ "$1" == "build" ]; then
 	PACKAGES=$4
-	METHOD=$1
 	BRANCH=$3
 	REPO=$2
+	JOB=$1
 else
-	METHOD="build"
 	PACKAGES=$3
 	BRANCH=$2
 	REPO=$1
+	JOB="build"
 fi
 
 probe_osx_machine() {
@@ -111,15 +111,11 @@ if [[ ${#HOOK} -gt 0 ]]; then
 	fi
 fi
 
-info "perform job $JOB"
-
 if [[ ${#JOB} -gt 0 ]]; then
-	if [[ "$JOB" == "reproduce" ]]; then
-		METHOD=$JOB
-	elif [[ "$JOB" == "build" ]]; then
-		METHOD=$JOB
-	else
+	if [[ "$JOB" != "reproduce" ]] && [[ "$JOB" != "build" ]]; then
 		exit 0
+	else
+		info "Peform job $JOB"
 	fi
 fi
 
@@ -234,9 +230,9 @@ if [ -e "$PIPELINE/Environments/$CMD" ]; then
 	esac
 
 	if [ -f ./HOOK ]; then
-		"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $MODE
+		"$PIPELINE/Environments/$CMD" $JOB $PIPELINE $MODE
 	else
-		"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $MODE $REPO $BRANCH
+		"$PIPELINE/Environments/$CMD" $JOB $PIPELINE $MODE $REPO $BRANCH
 	fi
 	exit $?
 else
