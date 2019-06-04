@@ -95,8 +95,16 @@ if [[ ${#PACKAGES} -gt 0 ]]; then
 	done
 fi
 
-if [[ ${#HOOK} -gt 0 ]]; then
-	printf "$HOOK" >> ./HOOK
+for IDX in {0..256}; do
+	NAME="HOOK$IDX"
+	HOOK=${!NAME}
+
+	if [[ ${#HOOK} -gt 0 ]]; then
+		printf "$HOOK" >> ./HOOK
+	fi
+done
+
+if [ -f ./HOOK ]; then
 	$SU chmod +x ./HOOK
 
 	if [ $? = 0 ]; then
