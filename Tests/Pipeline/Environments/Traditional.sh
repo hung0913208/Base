@@ -41,6 +41,8 @@ fi
 if [ "$METHOD" == "reproduce" ]; then
 	$PIPELINE/Reproduce.sh
 	exit $?
+elif [[ -f './repo.list' ]]; then
+	info "use default ./repo.list"
 elif [[ $# -gt 3 ]]; then
 	info "import '$REPO $BRANCH' >> ./repo.list"
 

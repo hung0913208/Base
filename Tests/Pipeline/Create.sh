@@ -95,6 +95,27 @@ if [[ ${#PACKAGES} -gt 0 ]]; then
 	done
 fi
 
+if [[ ${#HOOK} -gt 0 ]]; then
+	printf "$HOOK" >> ./HOOK
+	$SU chmod +x ./HOOK
+
+	if [ $? = 0 ]; then
+		source ./HOOK
+	fi
+fi
+
+info "perform job $JOB"
+
+if [[ ${#JOB} -gt 0 ]]; then
+	if [[ "$JOB" == "reproduce" ]]; then
+		METHOD=$JOB
+	elif [[ "$JOB" == "build" ]]; then
+		METHOD=$JOB
+	else
+		exit 0
+	fi
+fi
+
 # @NOTE: build a CI system with a qemu image
 if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities" "wput" "wget" "flex" "bison" "bc")
@@ -205,7 +226,11 @@ if [ -e "$PIPELINE/Environments/$CMD" ]; then
 		*)		;;
 	esac
 
-	"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $REPO $BRANCH $MODE
+	if [ -f ./HOOK ]; then
+		"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $MODE
+	else
+		"$PIPELINE/Environments/$CMD" $METHOD $PIPELINE $MODE $REPO $BRANCH
+	fi
 	exit $?
 else
 	error "Broken pipeline, not found $PIPELINE/Environemts/$CMD"

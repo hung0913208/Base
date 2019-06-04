@@ -1,9 +1,9 @@
 #!/bin/bash
 
-MODE=$5
-REPO=$3
+MODE=$3
+REPO=$4
 METHOD=$1
-BRANCH=$4
+BRANCH=$5
 PIPELINE=$2
 
 if [ -z "$KERNEL_URL" ]; then
@@ -43,7 +43,7 @@ if [ $? != 0 ]; then
 		git fetch >& /dev/null
 		git checkout -b "Pipeline/QEmu" "origin/Pipeline/QEmu"
 		if [ $? = 0 ]; then
-			"$0" $METHOD $PIPELINE $REPO $BRANCH $MODE
+			"$0" $METHOD $PIPELINE $MODE $REPO $BRANCH
 		fi
 
 		exit $?
@@ -360,6 +360,8 @@ cd "$ROOT/content"
 if [ "$METHOD" == "reproduce" ]; then
 	$PIPELINE/Reproduce.sh
 	exit $?
+elif [ -f './repo.list' ]; then
+	info "use default ./repo.list"
 elif [[ $# -gt 3 ]]; then
 	BRANCH=$4
 	info "import '$REPO $BRANCH' >> ./repo.list"

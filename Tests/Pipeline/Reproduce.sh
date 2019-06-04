@@ -10,6 +10,26 @@ SCRIPT="$(basename "$0")"
 ROOT="$(git rev-parse --show-toplevel)"
 CODE=0
 
+
+if [[ ${#HOOK} -gt 0 ]]; then
+	printf "$HOOK" >> ./HOOK
+	$SU chmod +x ./HOOK
+
+	if [ $? != 0 ]; then
+		source ./HOOK
+	fi
+fi
+
+echo "JOB: $JOB"
+if [[ ${#JOB} -gt 0 ]]; then
+	if [[ "$JOB" == "build" ]]; then
+		$PIPELINE/Create.sh
+		exit $?
+	elif [[ "$JOB" != "reproduce" ]]; then
+		exit 0
+	fi
+fi
+
 if [[ $# -gt 1 ]]; then
 	echo "$1 $2 $3 $4 $5" >> './repo.list'
 elif [ ! -f "$ROOT/repo.list" ]; then
@@ -19,7 +39,7 @@ elif [ ! -f "$ROOT/repo.list" ]; then
 		if [ $? != 0 ]; then
 			error "Can't fetch list of project from $REPO"
 		fi
-	else
+	elif [ ! -f './repo.list' ]; then
 		error "Please provide issues list before doing anything"
 	fi
 fi
