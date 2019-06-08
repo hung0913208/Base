@@ -1,11 +1,18 @@
 #ifndef BASE_TYPE_CXX_ABI_H_
 #define BASE_TYPE_CXX_ABI_H_
 #include <Common.h>
+#include <Macro.h>
 
 #if __cplusplus
 #include <atomic>
 #include <cstdlib>
-#include <functional>
+#include <type_traits>
+
+template <typename Type>
+using Atomic = std::atomic<Type>;
+
+#if APPLE
+#else
 #include <list>
 #include <map>
 #include <memory>
@@ -13,7 +20,6 @@
 #include <queue>
 #include <set>
 #include <stack>
-#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -66,6 +72,7 @@ using Shared = std::shared_ptr<Type>;
 
 template <typename Type>
 using Weak = std::weak_ptr<Type>;
+#endif
 
 namespace ABI {
 /* @NOTE: memory allocation */
@@ -91,5 +98,13 @@ void KillMe();
 /* @NOTE: exit program with provided exit code */
 Int Exit(Int code, Bool force = True);
 } // namespace ABI
+
+#if APPLE
+namespace {
+inline void memcpy(void* dst, void* src, ULong size) {
+  ABI::Memcpy(dst, src, size);
+}
+}
+#endif
 #endif
 #endif  // BASE_TYPE_CXX_ABI_H_

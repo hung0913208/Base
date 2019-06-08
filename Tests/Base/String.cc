@@ -1,11 +1,7 @@
 #include <algorithm>
 #include <cstring>
-
-#if USE_GTEST
 #include <gtest/gtest.h>
-#else
 #include <Logcat.h>
-#include <Unittest.h>
 #include <Type.h>
 #include <Utils.h>
 
@@ -267,11 +263,7 @@ TEST(String, Format2String) {
 }
 #endif
 
-#if USE_GTEST
 int main(int argc, CString argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-#else
-int main() { return RUN_ALL_TESTS(); }
-#endif

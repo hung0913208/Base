@@ -3,16 +3,12 @@
 
 #if __cplusplus
 #include <Common.h>
-#include <Refcount.h>
+#include <Macro.h>
 
-#ifndef KERNEL
-#if defined(BASE_TYPE_H_)
-#include <string>
-#endif
-
+#if !APPLE
 #include <ostream>
 #include <istream>
-#endif
+#endif  // APPLE
 
 namespace Base{
 class String{
@@ -111,7 +107,7 @@ Base::String operator+(const Char c, Base::String&& string);
 Base::String operator+(const CString cstring, Base::String& string);
 Base::String operator+(const CString cstring, Base::String&& string);
 
-#ifndef KERNEL
+#if !APPLE
 /* @NOTE: push string to std::ostream  with operator<< */
 std::ostream& operator<<(std::ostream& cout, Base::String& string);
 std::ostream& operator<<(std::ostream& cout, Base::String&& string);
@@ -119,7 +115,7 @@ std::ostream& operator<<(std::ostream& cout, Base::String&& string);
 /* @NOTE: pull string from std::istream  with operator<< */
 std::istream& operator>>(std::istream& cout, Base::String& string);
 #else
-#endif  // KERNEL
+#endif  // APPLE
 #endif  // __cplusplus
 #endif  // BASE_TYPE_STRING_H
 
