@@ -24,11 +24,12 @@ find_package(GTest)
 include(AddCXXCompilerFlag)
 include(AddCCompilerFlag)
 
+if(APPLE)
+add_cxx_compiler_flag(-std=c++14)
+add_c_compiler_flag(-std=c11)
+else()
 add_cxx_compiler_flag(-std=c++11)
 add_c_compiler_flag(-std=c11)
-
-if (NOT HAVE_CXX_FLAG_STD_CXX11)
-	add_cxx_compiler_flag(-std=c++0x)
 endif()
 
 # @NOTE: these common flags will be used globally around my repos
