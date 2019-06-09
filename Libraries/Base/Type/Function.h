@@ -1,10 +1,11 @@
-#if !defined(BASE_TYPE_FUNCTION_H_) && !USE_STD_FUNCTION
+#include <Macro.h>
+
+#if !defined(BASE_TYPE_FUNCTION_H_) && (USE_BASE_FUNCTION || APPLE)
 #define BASE_TYPE_FUNCTION_H_
 
 #if __cplusplus
 #include <ABI.h>
 #include <Common.h>
-#include <Macro.h>
 
 namespace Base {
 template <typename T>
