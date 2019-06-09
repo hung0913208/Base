@@ -1,5 +1,6 @@
 #define BASE_REFCOUNT_CC_
 #include <Exception.h>
+#include <Hashtable.h>
 #include <Lock.h>
 #include <Logcat.h>
 #include <Type.h>
@@ -95,6 +96,7 @@ Refcount::Refcount(void (*init)(Refcount* thiz),
   _Count = new Int{0};
   _Init = init;
   _Release = release;
+  _Secure = new Hashtable<Int, Void*>();
 
   Internal::Secure.Circle([&]() {
     if (Internal::RefMasters == None) {
@@ -108,6 +110,7 @@ Refcount::Refcount(void (*init)(Refcount* thiz),
 Refcount::Refcount(void (*release)(Refcount* thiz)): _Status{False} {
   _Count = new Int{0};
   _Release = release;
+  _Secure = new Hashtable<Int, Void*>();
 
   Internal::Secure.Circle([&]() {
     if (Internal::RefMasters == None) {
@@ -122,6 +125,7 @@ Refcount::Refcount(): _Status{False} {
   _Count = new Int{0};
   _Init = None;
   _Release = None;
+  _Secure = new Hashtable<Int, Void*>();
 
   Internal::Secure.Circle([&]() {
     if (Internal::RefMasters == None) {
@@ -331,15 +335,22 @@ void Refcount::Release(Bool safed) {
     }
 
     if (safed) {
+      delete _Secure;
+      _Secure = None;
+
       if (RefMasters->size() == 0) {
         delete RefMasters;
+
         RefMasters = None;
       }
     } else {
       Internal::Secure.Circle([&]() {
+        delete _Secure;
+        _Secure = None;
+
         if (RefMasters->size() == 0) {
           delete RefMasters;
-            RefMasters = None;
+          RefMasters = None;
         }
       });
     }

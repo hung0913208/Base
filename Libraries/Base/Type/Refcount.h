@@ -1,9 +1,13 @@
 #if !defined(BASE_REFCOUNT_H_)
 #define BASE_REFCOUNT_H_
 #include <Common.h>
+#include <Function.h>
 
 #if __cplusplus
 namespace Base {
+template<typename KeyT, typename ValueT, typename IndexT=Int>
+class Hashtable;
+
 class Refcount {
  public:
   /* @NOTE: the destructor */
@@ -40,7 +44,7 @@ class Refcount {
  private:
   void Release(Bool safed);
 
-  Map<Int, Void*> _Secure;
+  Hashtable<Int, Void*>* _Secure;
   Bool _Status;
   Int* _Count;
   Void* _Context;

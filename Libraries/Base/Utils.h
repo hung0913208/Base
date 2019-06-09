@@ -93,8 +93,7 @@ Int BSWriteToFileDescription(Int fd, Bytes buffer, UInt size);
 
 #if __cplusplus
 #include <cxxabi.h>
-#include <cstring>
-#include <string>
+#include <typeinfo>
 
 /* @NOTE: these macros are used like a convenient tools to simplify my code */
 #define RValue(variable) std::forward<decltype(variable)>(variable)
@@ -142,16 +141,14 @@ struct Pair {
 template<typename Type>
 String Nametype() {
   auto& type = typeid(Type);
-  auto  status = 0;
+  auto status = 0;
+  auto result = abi::__cxa_demangle(type.name(), 0, 0, &status);
 
-  std::unique_ptr<char[], void (*)(void*)> result(
-      abi::__cxa_demangle(type.name(), 0, 0, &status), std::free);
-
-  if (result.get()) {
+  if (result) {
 #ifdef BASE_TYPE_STRING_H_
-    return String(result.get()).copy();
+    return String(result).copy();
 #else
-    return String(result.get());
+    return String(result);
 #endif
   } else {
     throw Except(EBadAccess, "it seems c++ can\'t access name of the type");
@@ -165,7 +162,7 @@ Ret Wait(Mutex& locker, Function<Ret(Args...)> run_after_wait, Args... args) {
 }
 
 template <typename T, typename... U>
-ULong GetAddress(std::function<T(U...)> f) {
+ULong GetAddress(Function<T(U...)> f) {
   typedef T(fnType)(U...);
 
   fnType **fnPointer = f.template target<fnType *>();
