@@ -12,6 +12,8 @@ template <typename Type>
 using Atomic = std::atomic<Type>;
 
 #if APPLE
+template <typename Type>
+using Iterator = Type*;
 #else
 #include <list>
 #include <map>
