@@ -40,9 +40,6 @@ using Map = OMap<Key, Value>;
 template <typename Key>
 using Set = std::set<Key>;
 
-template <typename... Args>
-using Tuple = std::tuple<Args...>;
-
 template <typename Type>
 using Vector = std::vector<Type>;
 

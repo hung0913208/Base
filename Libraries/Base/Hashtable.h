@@ -711,7 +711,7 @@ insert_keyval:
   Bool _Style, _Bitwise;
   UInt _Count;
 };
-}  // namespace Base
+} // namespace Base
 #endif  // BASE_HASHTABLE_H_
 
 /* @TODO: class Base::Hashtable

@@ -1,4 +1,4 @@
-// Copyright (c) 2018,  All rights reserved.
+//<> Copyright (c) 2018,  All rights reserved.
 
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -224,6 +224,17 @@ Float ToFloat<String>(String value);
 template <>
 Float ToFloat<CString>(CString value);
 
+template<unsigned Index, typename ...Ts>
+#ifndef BASE_TYPE_TUPLE_H_
+auto Get(Tuple<Ts..>& tuple) {
+  return Base::Get<Index>(tuple);
+}
+#else
+auto Get(Tuple<Ts...>& t) -> decltype(t.template Get<Index>(t)){
+  return t.template Get<Index>(t);
+}
+#endif
+
 template <typename Type>
 Int Find(Iterator<Type> begin, Iterator<Type> end, Type value){
   for (UInt i = 0; i < end - begin; i += 1){
@@ -237,8 +248,8 @@ Int Find(Iterator<Type> begin, Iterator<Type> end, Type value){
 
 template <typename Type>
 Int Find(Type value, Tuple<Iterator<Type>, Iterator<Type>> range){
-  for (UInt i = 0; i < (std::get<1>(range) - std::get<0>(range)); i += 1){
-    if (value == *(std::get<0>(range) + i)){
+  for (UInt i = 0; i < (Base::Get<1>(range) - Base::Get<0>(range)); i += 1){
+    if (value == *(Base::Get<0>(range) + i)){
       return i;
     }
   }
@@ -313,17 +324,27 @@ class Format{
   String Apply(Args... args){
     auto result = String{};
     auto next = Control(result, RValue(_Template), 0);
-    auto index = std::get<0>(next);
-    auto type = std::get<1>(next);
+    auto index = Base::Get<0>(next);
+    auto type = Base::Get<1>(next);
 
     if (index >= 0){
       if (sizeof...(args) > 1) {
         return result +
-          Format::_Apply(std::make_tuple(this, _Template, index, type),
+          Format::_Apply(
+#ifndef BASE_TYPE_TUPLE_H_
+              std::make_tuple(this, _Template, index, type),
+#else
+              Tuple<>::Make(this, _Template, index, type),
+#endif
                          args...);
       } else {
         return result +
-          Format::_Apply(std::make_tuple(this, _Template, index, type),
+          Format::_Apply(
+#ifndef BASE_TYPE_TUPLE_H_
+              std::make_tuple(this, _Template, index, type),
+#else
+              Tuple<>::Make(this, _Template, index, type),
+#endif
                          args...) + _Template.substr(index);
       }
     } else {
@@ -343,10 +364,10 @@ class Format{
   template<typename T, typename ...Args>
   static String _Apply(Tuple<Format*, String, Int, Format::SupportE>&& config,
                        const T &value, const Args&... args){
-    auto thiz = std::get<0>(config);
-    auto format = std::get<1>(config);
-    auto index = std::get<2>(config);
-    auto type = std::get<3>(config);
+    auto thiz = Base::Get<0>(config);
+    auto format = Base::Get<1>(config);
+    auto index = Base::Get<2>(config);
+    auto type = Base::Get<3>(config);
 
     /* @NOTE: this is a tricky way to redirect smartly our arguments to
      * specific apply function using c++'s overload */
@@ -356,15 +377,15 @@ class Format{
       auto next = Format::Control(result, RValue(format), index);
 
       result = Format::_Apply(RValue(config), value) + result;
-      index = std::get<0>(next);
-      type = std::get<1>(next);
+      index = Base::Get<0>(next);
+      type = Base::Get<1>(next);
 
       /* @NOTE: decide whether of not of applying argument to the
        * next part */
       if (index < 0){
         return result;
       } else {
-        return result + Format::_Apply(std::make_tuple(thiz, format, index, type), args...);
+        return result + Format::_Apply(Tuple<>::Make(thiz, format, index, type), args...);
       }
     } else {
       return Format::_Apply(RValue(config), value);
@@ -374,7 +395,7 @@ class Format{
   template<typename T>
   static String _Apply(Tuple<Format*, String, Int, Format::SupportE>&& config,
                        const T& value){
-    auto type = std::get<3>(config);
+    auto type = Base::Get<3>(config);
 
     switch(type){
     case ERaw:
