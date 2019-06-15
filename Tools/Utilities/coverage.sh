@@ -10,6 +10,16 @@ case "${unameOut}" in
 	*)          machine="UNKNOWN:${unameOut}"
 esac
 
+if [[ $machine == "Linux" ]]; then
+	SONARCLOUD_CLI="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-3.3.0.1492-linux.zip"
+	SONARCLOUD_BUILD="https://sonarcloud.io/static/cpp/build-wrapper-linux-x86.zip"
+	BUILD_WARPER="build-wrapper-linux-x86-64"
+elif [[ $machine == "Mac" ]]; then
+	SONARCLOUD_CLI="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-3.3.0.1492-linux.zip"
+	SONARCLOUD_BUILD="https://sonarcloud.io/static/cpp/build-wrapper-macosx-x86.zip"
+	BUILD_WARPER="build-wrapper-macosx-x86"
+fi
+
 if [[ -d $1/Coverage ]]; then
 	ROOT=$(pwd)
 
@@ -45,7 +55,41 @@ if [[ -d $1/Coverage ]]; then
 				echo "[   INFO  ] $REPORT"
 			fi
 		fi
-	else
+	fi
+
+	if [[ ${#SONARCLOUD_TOKEN} -gt 0 ]]; then
+		PATH="$PATH:$(pwd)/sonar/build:$(pwd)/sonar/cli/bin"
+		mkdir -p $(pwd)/sonar/build
+		mkdir -p $(pwd)/sonar/cli
+
+		if [[ ${#SONARCLOUD_CLI} -gt 0 ]]; then
+			unzip $SONARCLOUD_CLI -d $(pwd)/sonar/cli
+		else
+			error "can't find sonarcloud tools"
+		fi
+
+		if [[ ${#SONARCLOUD_BUILD} -gt 0 ]]; then
+			unzip $SONARCLOUD_BUILD -d $(pwd)/sonar/build
+
+			if [ $? = 0 ]; then
+				$BUILD_WARPER --out-dir ./bw-output make clean all
+			fi
+		fi
+
+		KEY=$(python - c "print(\"$SONARCLOUD_TOKEN\".split(':')[0]")
+		TOKEN=$(python - c "print(\"$SONARCLOUD_TOKEN\".split(':')[2]")
+		ORGAN=$(python - c "print(\"$SONARCLOUD_TOKEN\".split(':')[1]")
+
+		sonar-scanner 						 \
+			-Dsonar.projectKey=$KEY				 \
+			-Dsonar.organization=$ORGAN 			 \
+			-Dsonar.sources=$SOURCE 			 \
+			-Dsonar.cfamily.build-wrapper-output=./bw-output \
+			-Dsonar.host.url=https://sonarcloud.io 		 \
+			-Dsonar.login=$TOKEN
+	fi
+
+	if [[ ${#REVIEW} -gt 0 ]]; then
 		if [[ $# -gt 1 ]]; then
 			OUTPUT=$2
 		else
@@ -54,17 +98,15 @@ if [[ -d $1/Coverage ]]; then
 
 		genhtml -o $OUTPUT coverage.info >& /dev/null
 
-		if [[ ${#REVIEW} -gt 0 ]]; then
-			PROTOCOL=$(python -c "print(\"$REVIEW\".split(':')[0])")
-			RPATH=$(python -c "print(\"$REVIEW\".split('/')[-1])")
-			HOST=$(python -c "print(\"$REVIEW\".split('@')[1].split('/')[0])")
-			WEB=$(python -c "print(\".\".join(\"$HOST\".split('.')[1:]))")
-			USER=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[0])")
-			PASSWORD=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[1].split('@')[0])")
+		PROTOCOL=$(python -c "print(\"$REVIEW\".split(':')[0])")
+		RPATH=$(python -c "print(\"$REVIEW\".split('/')[-1])")
+		HOST=$(python -c "print(\"$REVIEW\".split('@')[1].split('/')[0])")
+		WEB=$(python -c "print(\".\".join(\"$HOST\".split('.')[1:]))")
+		USER=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[0])")
+		PASSWORD=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[1].split('@')[0])")
 
-			if [[ ${#RPATH} -eq 0 ]] || [[ ${#USER} -eq 0 ]] || [[ ${#PASSWORD} -eq 0 ]]; then
-				exit -1
-			fi
+		if [[ ${#RPATH} -eq 0 ]] || [[ ${#USER} -eq 0 ]] || [[ ${#PASSWORD} -eq 0 ]]; then
+			exit -1
 		fi
 
 		if [[ "$PROTOCOL" = "ftp" ]] && [ $(which ncftpput) ]; then
