@@ -1,6 +1,21 @@
 #!/bin/bash
 
-set -e
+CURRENT=$(pwd)
+
+if [ -d "$1" ] && [[ $# -gt 1 ]]; then
+	cd "$1"
+	shift
+fi
+
+if [ -d ./$1 ]; then
+	echo "Found old version build --> remove it now"
+
+	if [ -d ./.git ]; then
+		git clean -d -f -x
+	elif [ ! -f ./CMakeLists.txt ]; then
+		rm -fr ./$1/*
+	fi
+fi
 
 if [ "$1" = "Coverage" ]; then
 	unameOut="$(uname -s)"
@@ -15,12 +30,12 @@ if [ "$1" = "Coverage" ]; then
 fi
 
 if [ -z "$VERBOSE" ]; then
-	VERBOSE=OFF
+	VERBOSE=0
 fi
 
 if [ $# == 0 ]; then
-	if [ -f ./CMakeLists.txt ]; then
-		cmake ./
+	if [ -f $CURRENT/CMakeLists.txt ]; then
+		cmake $CURRENT
 
 		if [ $? != 0 ]; then
 			exit -1
@@ -33,40 +48,30 @@ if [ $# == 0 ]; then
 	exit -1
 fi
 
-if [ -d ./$1 ]; then
-	echo "Found old version build --> remove it now"
-
-	if [ -d ./.git ]; then
-		git clean -d -f -x
-	elif [ ! -f ./CMakeLists.txt ]; then
-		rm -fr ./$1/*
-	fi
-fi
-
 mkdir -p ./$1
 cd ./$1
 BUILD_TYPE=$1
 shift
 
-if [ -f ../../CMakeLists.txt ]; then
+if [ -f $CURRENT/../CMakeLists.txt ]; then
 	if [ $# -gt 1 ]; then
-		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" ../..
+		cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" $CURRENT/..
 	else
-		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} ../..
+		cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} $CURRENT/..
 	fi
-elif [ -f ../CMakeLists.txt ]; then
+elif [ -f $CURRENT/CMakeLists.txt ]; then
 	if [ $# -gt 1 ]; then
-		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" ../.
+		cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" $CURRENT/.
 	else
-		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} ../.
+		cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} $CURRENT/.
 	fi
 else
 	CMAKELIST=$2
 	shift
 	if [ $# -gt 0 ]; then
-		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" ${CMAKELIST}
+		cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} -DCMAKE_CXX_FLAGS="'$*'" ${CMAKELIST}
 	else
-		cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=$VERBOSE -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} ${CMAKELIST}
+		cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ${CONFIGURE} ${CMAKELIST}
 	fi
 fi
 
@@ -76,19 +81,19 @@ fi
 
 unameOut="$(uname -s)"
 case "${unameOut}" in
-	Linux*)     make -j $(($(grep -c ^processor /proc/cpuinfo)*2)) VERBOSE=1;;
-	Darwin*)    make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=1;;
-	CYGWIN*)    make VERBOSE=1;;
-	MINGW*)     make VERBOSE=1;;
-	FreeBSD*)   make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=1;;
-	*)          make VERBOSE=1;;
+	Linux*)     make -j $(($(grep -c ^processor /proc/cpuinfo)*2));;
+	Darwin*)    make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2));;
+	CYGWIN*)    make ;;
+	MINGW*)     make ;;
+	FreeBSD*)   make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2));;
+	*)          make;;
 esac
 
 if [ $? -ne 0 ]; then
 	code=-1
 fi
 
-cd ..
+cd "$CURRENT"
 exit $code
 
 
