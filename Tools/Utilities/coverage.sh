@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 unameOut="$(uname -s)"
 case "${unameOut}" in
