@@ -356,8 +356,11 @@ void Case::Fatal(Bool crash) {
   if (crash) {
     INFO << RED(CRASH_LABEL) << " " << Information()
          << " --> exit(255)" << Base::EOL;
-
+#if COVERAGE
+    exit(-1);
+#else
     abort();
+#endif
   } else {
     INFO << YELLOW(IGNORED_LABEL) << " Ignore this fatal" << Base::EOL;
   }
@@ -596,7 +599,7 @@ extern "C" Int BSRunTests() {
     elapsed_suite_milisecs = 1000.0 * (clock() - begin) / CLOCKS_PER_SEC;
 
     /* @NOTE: notice that we finish this test suite */
-    VLOG(EInfo) << GREEN(SPLIT_SUITED) << " " << suite.Left.Information() 
+    VLOG(EInfo) << GREEN(SPLIT_SUITED) << " " << suite.Left.Information()
                 << " ("
                 << Base::ToString(elapsed_suite_milisecs) << " ms)"
                 << Base::EOL;

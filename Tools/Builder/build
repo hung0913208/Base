@@ -219,7 +219,7 @@ if [ $(which git) ]; then
 				$BASE/Tools/Utilities/ctest.sh Coverage
 				CODE=$?
 
-				$BASE/Tools/Utilities/coverage.sh .
+				bash -x $BASE/Tools/Utilities/coverage.sh .
 				exit $CODE
 			fi
 		fi

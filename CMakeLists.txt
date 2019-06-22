@@ -46,6 +46,8 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
 	include(CodeCoverage)
 
+	add_definitions(-DCOVERAGE=1)
+
 	add_cxx_compiler_flag(-Werror)
 	add_cxx_compiler_flag(-Wfatal-errors)
 	add_cxx_compiler_flag(-fprofile-arcs)

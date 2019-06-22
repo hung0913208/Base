@@ -26,35 +26,35 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 
 	# @NOTE: check and set INSTALL tool
 	if [ $(which apt-get) ]; then
-		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp" "expect")
 		$SU apt-get update &> /dev/null
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Ubuntu/Debian"
 		info "Kernel info $(uname -a)"
 	elif [ $(which apt) ]; then
-		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp" "expect")
 		$SU apt update &> /dev/null
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Ubuntu/Debian"
 		info "Kernel info $(uname -a)"
 	elif [ $(which yum) ]; then
-		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp" "expect")
 		$SU yum update
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Fedora/Centos"
 		info "Kernel info $(uname -a)"
 	elif [ $(which zypper) ]; then
-		REQUIRED=("openssh" "python3" "git" "ftp" "ncftp")
+		REQUIRED=("openssh" "python3" "git" "ftp" "ncftp" "expect")
 		$SU zypper update
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Opensuse"
 		info "Kernel info $(uname -a)"
 	elif [ $(which pkg) ]; then
-		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp")
+		REQUIRED=("ssh" "python3" "git" "ftp" "ncftp" "expect")
 		$SU pkg update
 
 		# @NOTE: print infomation of this device
@@ -133,7 +133,7 @@ if [ -d "$ROOT/.recompile.d" ]; then
 
 				info "recompile $REPO now, $BACKGROUND background"
 
-				if [ $BACKGROUND == "show" ]; then
+				if [[ $BACKGROUND == "show" ]]; then
 					$PIPELINE/Libraries/Install.sh $DEFINE
 				else
 					$PIPELINE/Libraries/Install.sh $DEFINE &> /dev/null

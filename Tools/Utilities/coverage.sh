@@ -1,6 +1,5 @@
-#!/bin/bash
+#!/bin/bash -x
 
-set -e
 unameOut="$(uname -s)"
 case "${unameOut}" in
 	Linux*)     machine=Linux;;
@@ -86,7 +85,7 @@ if [[ -d $1/Coverage ]]; then
 			-Dsonar.sources=$SOURCE 			 \
 			-Dsonar.cfamily.build-wrapper-output=./bw-output \
 			-Dsonar.host.url=https://sonarcloud.io 		 \
-			-Dsonar.login=$TOKEN
+			-Dsonar.login="$TOKEN"
 	fi
 
 	if [[ ${#REVIEW} -gt 0 ]]; then
@@ -96,10 +95,10 @@ if [[ -d $1/Coverage ]]; then
 			OUTPUT=$(pwd)/public_html
 		fi
 
-		genhtml -o $OUTPUT coverage.info >& /dev/null
+		genhtml -o "$OUTPUT" coverage.info >& /dev/null
 
 		PROTOCOL=$(python -c "print(\"$REVIEW\".split(':')[0])")
-		RPATH=$(python -c "print(\"$REVIEW\".split('/')[-1])")
+		RPATH=$(python -c "print(\"/\".join(\"$REVIEW\".split('/')[3:]))")
 		HOST=$(python -c "print(\"$REVIEW\".split('@')[1].split('/')[0])")
 		WEB=$(python -c "print(\".\".join(\"$HOST\".split('.')[1:]))")
 		USER=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[0])")
@@ -109,20 +108,19 @@ if [[ -d $1/Coverage ]]; then
 			exit -1
 		fi
 
-		if [[ "$PROTOCOL" = "ftp" ]] && [ $(which ncftpput) ]; then
+		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which ncftpput)" ]; then
 			# @NOTE: Delete remote old code coverage
 			ftp -i -n <<EOF
 open $HOST
 user $USER $PASSWORD
-rmdir $FTP
+rmdir $RPATH
 EOF
 
 			# @NOTE: update the new code coverage
-			ncftpput -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$OUTPUT"
-			if [ $? != 0 ]; then
+			if ncftpput -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$OUTPUT"; then
 				exit $?
 			fi
-		elif [[ "$PROTOCOL" = "scp" ]] && [ $(which scp) ] && [ $(which expect) ]; then
+		elif [[ "$PROTOCOL" = "scp" ]] && [ "$(which scp)" ] && [ "$(which expect)" ]; then
 			expect -c """
 set timeout 1
 spawn scp -r $OUTPUT $USER@$HOST/$RPATH
@@ -135,15 +133,33 @@ sleep 1
 			if [ $? != 0 ]; then
 				exit $?
 			fi
+		elif [[ "$PROTOCOL" = "sftp" ]] && [ "$(which sftp)" ] && [ "$(which expect)" ]; then
+			expect -d -c """
+set timeout 1
+spawn sftp $USER@$HOST
+expect \"Password:\"
+send \"$PASSWORD\n\"
+expect \"sftp>\"
+send \"cd $RPATH\n\"
+expect \"sftp>\"
+send \"put -r $OUTPUT\n\"
+expect \"sftp>\"
+send \"exit\n\"
+interact
+			"""
+
+			if [ $? != 0 ]; then
+				exit $?
+			fi
 		else
 			exit 0
 		fi
 
-		echo "[   INFO  ] Review https://$USER.$WEB/$FTP/index.html"
+		echo "[   INFO  ] Review https://$USER.$WEB/$RPATH/index.html"
 	fi
 
 	cd $ROOT || exit -1
-elif [[ "$CC" =~ "clang" ]] || [[ "$CXX" =~ "clang++" ]] || [[ "$machine" == "Mac" ]]; then
+elif [[ "$CC" =~ 'clang'* ]] || [[ "$CXX" =~ 'clang++'* ]] || [[ "$machine" == "Mac" ]]; then
 	echo "[ WARNING ] The coverage don't support clang or MacOS"
 	exit 0
 fi

@@ -1,8 +1,9 @@
-include_directories(${CMAKE_SOURCE_DIR}/Libraries/Base
-		    ${CMAKE_SOURCE_DIR}/Libraries/Base/Type
-		    ${CMAKE_SOURCE_DIR}/Libraries/Data
-		    ${CMAKE_SOURCE_DIR}/Libraries/Wrapping
-		    ${CMAKE_SOURCE_DIR}/Libraries/Wrapping/Implement)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}
+		${CMAKE_CURRENT_SOURCE_DIR}/../Base
+		${CMAKE_CURRENT_SOURCE_DIR}/../Base/Type
+		${CMAKE_CURRENT_SOURCE_DIR}/../Data
+		${CMAKE_CURRENT_SOURCE_DIR}/../Wrapping
+		${CMAKE_CURRENT_SOURCE_DIR}/../Wrapping/Implement)
 if(COMMAND cmake_policy)
 	cmake_policy(SET CMP0003 NEW)
 endif()

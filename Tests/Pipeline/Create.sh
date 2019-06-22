@@ -137,13 +137,16 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 
 	# @NOTE: install specific packages to support qemu
 	for CMD in "${CMDS[@]}"; do
-		if [ $(install_package $CMD) ]; then
+		install_package $CMD
+
+		if [ $? != 0 ]; then
 			PASSED=0
 		fi
 	done
 
 	for CMD in "${ELFUTILS[@]}"; do
 		install_package $ELFUTILS
+
 		if [ $? = 0 ]; then
 			break;
 		fi

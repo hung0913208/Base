@@ -1,6 +1,6 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
-		    ${CMAKE_SOURCE_DIR}/Libraries/Base
-		    ${CMAKE_SOURCE_DIR}/Libraries/Base/Type)
+		${CMAKE_CURRENT_SOURCE_DIR}/../Base
+		${CMAKE_CURRENT_SOURCE_DIR}/../Base/Type)
 
 file(GLOB HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cc")
