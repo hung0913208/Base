@@ -34,7 +34,7 @@ if [[ -d $1/Coverage ]]; then
 		exit 2
 	fi
 
-	lcov --list coverage.info >& /dev/null
+	lcov --list coverage.info
 	if [ $? != 0 ]; then
 		exit 3
 	fi
@@ -108,16 +108,19 @@ if [[ -d $1/Coverage ]]; then
 			exit -1
 		fi
 
-		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which ncftpput)" ]; then
+		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which ncftpput)" ] && [ "$(which lftp)" ]; then
 			# @NOTE: Delete remote old code coverage
-			ftp -i -n <<EOF
+			lftp -n <<EOF
 open $HOST
 user $USER $PASSWORD
-rmdir $RPATH
+rmdir -r $RPATH
+mkdir $RPATH
 EOF
 
+			cd $OUTPUT || exit -1
+
 			# @NOTE: update the new code coverage
-			if ncftpput -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$OUTPUT"; then
+			if ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" ./; then
 				exit $?
 			fi
 		elif [[ "$PROTOCOL" = "scp" ]] && [ "$(which scp)" ] && [ "$(which expect)" ]; then
@@ -156,6 +159,9 @@ interact
 		fi
 
 		echo "[   INFO  ] Review https://$USER.$WEB/$RPATH/index.html"
+	else
+		genhtml -o "./gcov" coverage.info >& /dev/null
+		exit $?
 	fi
 
 	cd $ROOT || exit -1
