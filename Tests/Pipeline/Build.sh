@@ -20,23 +20,64 @@ info "Your current dir now is $(pwd)"
 if [ $(which git) ]; then
 	# @NOTE: jump to branch's test suite and perform build
 	ROOT="$(git rev-parse --show-toplevel)"
-	PROJECT="$(basename `git config  --get remote.origin.url`)"
+
+	if [[ $# -gt 0 ]]; then
+		PROJECT=$1
+
+		if [ $PROJECT != "$(basename `git config  --get remote.origin.url`)" ]; then
+			REROUTE=1
+		fi
+	else
+		PROJECT="$(basename `git config  --get remote.origin.url`)"
+	fi
 
 	if [[ $PROJECT == 'LibBase' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'LibBase.git' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'base' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'base.git' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'Eevee' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'Eevee.git' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'Eden' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'Eden.git' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ -d "${ROOT}/Base" ]]; then
 		BUILDER="${ROOT}/Base/Tools/Builder/build"

@@ -14,8 +14,8 @@ test_with_ubuntu:
     - apt update >& /dev/null
     - apt upgrade -y >& /dev/null
     - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
-    - ./Tests/Pipeline/Prepare.sh
-    - ./Tests/Pipeline/Build.sh
+    - ./Tests/Pipeline/Prepare.sh LibBase
+    - ./Tests/Pipeline/Build.sh LibBase
   artifacts:
     when: on_failure
     paths:
@@ -29,8 +29,8 @@ test_with_centos:
     - mkdir -p Coredumps
     - yum update -y >& /dev/null
     - yum install -y git curl python3 openssh sudo binutils which >& /dev/null
-    - ./Tests/Pipeline/Prepare.sh
-    - ./Tests/Pipeline/Build.sh
+    - ./Tests/Pipeline/Prepare.sh LibBase
+    - ./Tests/Pipeline/Build.sh LibBase
   allow_failure: true
   artifacts:
     when: on_failure
@@ -45,8 +45,8 @@ test_with_opensuse:
     - mkdir -p Coredumps
     - zypper update -y >& /dev/null
     - zypper install -y  git curl python3 openssh sudo which binutils >& /dev/null
-    - ./Tests/Pipeline/Prepare.sh
-    - ./Tests/Pipeline/Build.sh
+    - ./Tests/Pipeline/Prepare.sh LibBase
+    - ./Tests/Pipeline/Build.sh LibBase
   artifacts:
     when: on_failure
     paths:

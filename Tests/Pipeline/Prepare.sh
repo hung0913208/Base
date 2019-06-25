@@ -12,10 +12,14 @@ source $PIPELINE/Libraries/Package.sh
 SCRIPT="$(basename "$0")"
 
 # @NOTE: prepare our playground
-project_name=$1
-shift
+if [[ $# -gt 0 ]]; then
+	PROJECT=$1
+	shift
+else
+	PROJECT="$(basename `git config  --get remote.origin.url`)"
+fi
 
-info "You have run on machine ${machine} script ${SCRIPT}"
+info "You have run on machine ${machine} script ${SCRIPT} project ${PROJECT}"
 if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 	# @NOTE: show memory status
 	if [ $(which free) ]; then
@@ -194,6 +198,12 @@ elif [[ $PROJECT == "Eden" ]]; then
 	info "Congratulation, you have passed ${SCRIPT}"
 	exit 0
 elif [[ $PROJECT == "Eden.git" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
+elif [[ $PROJECT == "Base" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
+elif [[ $PROJECT == "Base.git" ]]; then
 	info "Congratulation, you have passed ${SCRIPT}"
 	exit 0
 elif [[ $PROJECT == "base" ]]; then
