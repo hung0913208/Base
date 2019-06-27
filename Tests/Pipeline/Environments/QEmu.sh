@@ -326,6 +326,75 @@ function detect_libbase() {
 	fi
 }
 
+function process() {
+	git submodule update --init --recursive
+
+	BASE="$(detect_libbase $WORKSPACE)"
+	mkdir -p "$WORKSPACE/build"
+
+	# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
+	# that we are using Eevee as the tool to deploy this Repo
+	if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
+		KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
+		RAM_FILENAME="$INIT_DIR/initramfs.cpio.gz"
+
+		$BASE/Tests/Pipeline/Prepare.sh
+
+		if [ -f $WORKSPACE/.environment ]; then
+			source $WORKSPACE/.environment
+		fi
+
+		if [ $? != 0 ]; then
+			warning "Fail repo $REPO/$BRANCH"
+			CODE=1
+		else
+			$WORKSPACE/Tests/Pipeline/Build.sh 1
+
+			if [ $? != 0 ]; then
+				warning "Fail repo $REPO/$BRANCH"
+			else
+				# @NOTE: build a new initrd
+
+				if [ ! -f $RAM_FILENAME ]; then
+					compile_busybox
+				fi
+
+				generate_initrd "$WORKSPACE/build"
+			fi
+		fi
+	else
+		warning "repo $REPO don't support usual CI method"
+		CODE=1
+	fi
+
+	cd "$ROOT" || error "can't cd to $ROOT"
+	rm -fr "$WORKSPACE"
+
+	if [ -f "$RAM_FILENAME" ]; then
+		if [ ! -f $KER_FILENAME ]; then
+			compile_linux_kernel
+		fi
+
+		info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 	\
+				-initrd "${RAM_FILENAME}"		\
+				-nographic 				\
+				-smp $(nproc) -m 1G			\
+				$NETWORK				\
+				-append "console=ttyS0 loglevel=8"
+
+		# @TODO: start slave VMs at the same time with master VM using builder
+		# to create a cluster for testing with different kind of network
+
+		rm -fr "$RAM_FILENAME"
+	else
+		warning "i can't start QEmu because i don't see any approviated test suites"
+		CODE=1
+	fi
+
+	echo $CODE
+}
+
 if [ "$MODE" != "isolate" ]; then
 	ETH="$(get_internet_interface)"
 	TAP="$(get_new_bridge "tap")"
@@ -383,80 +452,95 @@ cat './repo.list' | while read DEFINE; do
 	BRANCH=${SPLITED[1]}
 	PROJECT=$(basename $REPO)
 
-	git clone --single-branch --branch $BRANCH $REPO $PROJECT
+	if [[ ${#SPLITED[@]} -gt 2 ]]; then
+		AUTH=${SPLITED[2]}
+	fi
+
+	# @NOTE: clone this Repo, including its submodules
+	git clone --branch $BRANCH $REPO $PROJECT
+
 	if [ $? != 0 ]; then
 		FAIL+=$PROJECT
-	else
-		ROOT=$(pwd)
-		WORKSPACE="$ROOT/$PROJECT"
+		continue
+	fi
 
-		# @NOTE: everything was okey from now, run CI steps
-		cd "$WORKSPACE" || error "can't cd to $WORKSPACE"
-		git submodule update --init --recursive
+	ROOT=$(pwd)
+	WORKSPACE="$ROOT/$PROJECT"
 
-		BASE="$(detect_libbase $WORKSPACE)"
-		mkdir -p "$WORKSPACE/build"
+	# @NOTE: everything was okey from now, run CI steps
+	cd $WORKSPACE
 
-		# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
-		# that we are using Eevee as the tool to deploy this Repo
-		if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
-			KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
-			RAM_FILENAME="$INIT_DIR/initramfs.cpio.gz"
-
-			$BASE/Tests/Pipeline/Prepare.sh
-
-			if [ -f $WORKSPACE/.environment ]; then
-				source $WORKSPACE/.environment
-			fi
-
-			if [ $? != 0 ]; then
-				warning "Fail repo $REPO/$BRANCH"
-				CODE=1
-			else
-				$WORKSPACE/Tests/Pipeline/Build.sh 1
-
-				if [ $? != 0 ]; then
-					warning "Fail repo $REPO/$BRANCH"
-				else
-					# @NOTE: build a new initrd
-
-					if [ ! -f $RAM_FILENAME ]; then
-						compile_busybox
-					fi
-
-					generate_initrd "$WORKSPACE/build"
-				fi
-			fi
+	# @NOTE: detect an authenticate key of gerrit so we will use it
+	# to detect which patch set should be used to build
+	if [[ ${#AUTH} -gt 0 ]]; then
+		if [[ ${#SPLITED[@]} -gt 3 ]]; then
+			COMMIT=${SPLITED[3]}
 		else
-			warning "repo $REPO don't support usual CI method"
-			CODE=1
+			COMMIT=$(git rev-parse HEAD)
 		fi
 
-		cd "$ROOT" || error "can't cd to $ROOT"
-		rm -fr "$WORKSPACE"
-	fi
+		GERRIT=$(python -c """
+uri = '$(git remote get-url --all origin)'.split('/')[2]
+gerrit = uri.split('@')[-1].split(':')[0]
 
-	if [ -f "$RAM_FILENAME" ]; then
-		if [ ! -f $KER_FILENAME ]; then
-			compile_linux_kernel
+print(gerrit)
+""")
+
+		RESP=$(curl -s --request GET -u $AUTH "https://$GERRIT/a/changes/?q=$COMMIT" | cut -d "'" -f 2)
+
+		if [[ ${#RESP} -eq 0 ]]; then
+			FAIL+=$PROJECT
+			continue
 		fi
 
-		info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
-		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 	\
-				-initrd "${RAM_FILENAME}"		\
-				-nographic 				\
-				-smp $(nproc) -m 1G			\
-				$NETWORK				\
-				-append "console=ttyS0 loglevel=8"
+		REVISIONs=($(echo $RESP | python -c """
+import json
+import sys
 
-		# @TODO: start slave VMs at the same time with master VM using builder
-		# to create a cluster for testing with different kind of network
+try:
+	for  resp in json.load(sys.stdin):
+		if resp['branch'] != '$BRANCH':
+			continue
 
-		rm -fr "$RAM_FILENAME"
+		for commit in resp['revisions']:
+			revision = resp['revisions'][commit]
+
+			for parent in revision['commit']['parents']:
+				if parent['commit'] == '$COMMIT':
+					print(revision['ref'])
+					break
+except Exception as error:
+	print(error)
+	sys.exit(-1)
+"""))
+
+
+		if [ $? != 0 ]; then
+			FAIL+=$PROJECT
+			continue
+		fi
+
+		for REVIS in "${REVISIONs[@]}"; do
+			info "The patch-set $REVIS base on $COMMIT"
+
+			# @NOTE: checkout the latest patch-set for testing only
+			git fetch $(git remote get-url --all origin) $REVIS
+			git checkout FETCH_HEAD
+
+			process
+			if [ $? != 0 ]; then
+				FAIL+=$PROJECT
+				break
+			fi
+		done
 	else
-		warning "i can't start QEmu because i don't see any approviated test suites"
-		CODE=1
+		process
+		if [ $? != 0 ]; then
+			FAIL+=$PROJECT
+			break
+		fi
 	fi
+
 done
 
 rm -fr "$INIT_DIR/$BBOX_DIRNAME"

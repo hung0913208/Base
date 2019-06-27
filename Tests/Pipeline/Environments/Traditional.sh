@@ -77,6 +77,39 @@ fi
 
 CODE=0
 
+function process() {
+	git submodule update --init --recursive
+
+	BASE="$(detect_libbase $WORKSPACE)"
+	mkdir -p "$WORKSPACE/build"
+
+	# @TODO: since we will use gerrit to manage revision so i should
+	# consider a new way to report the test result to gerrit too
+
+	# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
+	# that we are using Eevee as the tool to deploy this Repo
+	if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
+		$BASE/Tests/Pipeline/Prepare.sh
+
+		if [ $? != 0 ]; then
+			warning "Fail repo $REPO/$BRANCH"
+			CODE=1
+		else
+			$WORKSPACE/Tests/Pipeline/Build.sh
+
+			if [ $? != 0 ]; then
+				warning "Fail repo $REPO/$BRANCH"
+				CODE=1
+			fi
+		fi
+	else
+		warning "repo $REPO don't support usual CI method"
+		CODE=1
+	fi
+
+	echo $CODE
+}
+
 # @NOTE: perform testing on wire range
 cat './repo.list' | while read DEFINE; do
 	SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
@@ -84,46 +117,99 @@ cat './repo.list' | while read DEFINE; do
 	BRANCH=${SPLITED[1]}
 	PROJECT=$(basename $REPO)
 
+	if [[ ${#SPLITED[@]} -gt 2 ]]; then
+		AUTH=${SPLITED[2]}
+	fi
+
 	# @NOTE: clone this Repo, including its submodules
-	git clone --single-branch --branch $BRANCH $REPO $PROJECT
+	git clone --branch $BRANCH $REPO $PROJECT
+
 	if [ $? != 0 ]; then
 		FAIL+=$PROJECT
-	else
-		ROOT=$(pwd)
-		WORKSPACE="$ROOT/$PROJECT"
+		continue
+	fi
 
-		# @NOTE: everything was okey from now, run CI steps
-		cd $WORKSPACE
-		git submodule update --init --recursive
+	ROOT=$(pwd)
+	WORKSPACE="$ROOT/$PROJECT"
 
-		BASE="$(detect_libbase $WORKSPACE)"
-		mkdir -p "$WORKSPACE/build"
+	# @NOTE: everything was okey from now, run CI steps
+	cd $WORKSPACE
 
-		# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
-		# that we are using Eevee as the tool to deploy this Repo
-		if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
-			$BASE/Tests/Pipeline/Prepare.sh
-
-			if [ $? != 0 ]; then
-				warning "Fail repo $REPO/$BRANCH"
-				CODE=1
-			else
-				$WORKSPACE/Tests/Pipeline/Build.sh
-
-				if [ $? != 0 ]; then
-					warning "Fail repo $REPO/$BRANCH"
-					CODE=1
-				fi
-			fi
+	# @NOTE: detect an authenticate key of gerrit so we will use it
+	# to detect which patch set should be used to build
+	if [[ ${#AUTH} -gt 0 ]]; then
+		if [[ ${#SPLITED[@]} -gt 3 ]]; then
+			COMMIT=${SPLITED[3]}
 		else
-			warning "repo $REPO don't support usual CI method"
-			CODE=1
+			COMMIT=$(git rev-parse HEAD)
 		fi
 
-		# @NOTE: back to the root before jumping to another Repos
-		cd $ROOT
-		rm -fr $WORKSPACE
+		GERRIT=$(python -c """
+uri = '$(git remote get-url --all origin)'.split('/')[2]
+gerrit = uri.split('@')[-1].split(':')[0]
+
+print(gerrit)
+""")
+
+		QUERY="https://$GERRIT/a/changes/?q=is:open+owner:self&o=CURRENT_REVISION&o=CURRENT_COMMIT"
+		RESP=$(curl -s --request GET -u $AUTH "$QUERY" | cut -d "'" -f 2)
+
+		if [[ ${#RESP} -eq 0 ]]; then
+			FAIL+=$PROJECT
+			continue
+		fi
+
+		REVISIONs=($(echo $RESP | python -c """
+import json
+import sys
+
+try:
+	for  resp in json.load(sys.stdin):
+		if resp['branch'] != '$BRANCH':
+			continue
+
+		for commit in resp['revisions']:
+			revision = resp['revisions'][commit]
+
+			for parent in revision['commit']['parents']:
+				if parent['commit'] == '$COMMIT':
+					print(revision['ref'])
+					break
+except Exception as error:
+	print(error)
+	sys.exit(-1)
+"""))
+
+		if [ $? != 0 ]; then
+			FAIL+=$PROJECT
+			continue
+		fi
+
+		for REVIS in "${REVISIONs[@]}"; do
+			info "The patch-set $REVIS base on $COMMIT"
+
+			# @NOTE: checkout the latest patch-set for testing only
+			git fetch "$(git remote get-url --all origin)" "$REVIS"
+			git checkout FETCH_HEAD
+
+			process
+			if [ $? != 0 ]; then
+				FAIL+=$PROJECT
+				break
+			fi
+		done
+	else
+		process
+		if [ $? != 0 ]; then
+			FAIL+=$PROJECT
+			break
+		fi
 	fi
+
+
+	# @NOTE: back to the root before jumping to another Repos
+	cd $ROOT
+	rm -fr $WORKSPACE
 done
 
 exit $CODE
