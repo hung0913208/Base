@@ -381,7 +381,7 @@ function process() {
 				-nographic 				\
 				-smp $(nproc) -m 1G			\
 				$NETWORK				\
-				-append "console=ttyS0 loglevel=8"
+				-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
 
 		# @TODO: start slave VMs at the same time with master VM using builder
 		# to create a cluster for testing with different kind of network
