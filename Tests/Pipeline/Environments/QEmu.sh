@@ -1,5 +1,4 @@
 #!/bin/bash
-
 MODE=$3
 REPO=$4
 METHOD=$1
@@ -43,6 +42,7 @@ if [ $? != 0 ]; then
 		git fetch >& /dev/null
 		git checkout -b "Pipeline/QEmu" "origin/Pipeline/QEmu"
 		if [ $? = 0 ]; then
+			cd $CURRENT || error "can't cd to $CURRENT"
 			"$0" $METHOD $PIPELINE $MODE $REPO $BRANCH
 		fi
 
@@ -221,10 +221,13 @@ function generate_initrd() {
 		fi
 	done
 
-	if [ $COUNT != 0  ]; then
+	if [ $COUNT != 0  ] || [ $FORCE != 0 ]; then
 		# @NOTE: add footer of the initscript
 		echo "sleep 80" >> initramfs/init
-		echo "poweroff -f" >> initramfs/init
+
+		if [[ ${#DEBUG} -eq 0 ]]; then
+			echo "poweroff -f" >> initramfs/init
+		fi
 
 		# @NOTE: okey, everything is done from host machine, from now we should
 		# pack everything into a initramfs.cpio.gz. We will use it to deploy a
@@ -330,6 +333,10 @@ function process() {
 	git submodule update --init --recursive
 
 	BASE="$(detect_libbase $WORKSPACE)"
+	CPU=$HOST
+	DEBUG=""
+	FORCE=0
+
 	mkdir -p "$WORKSPACE/build"
 
 	# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
@@ -368,20 +375,35 @@ function process() {
 	fi
 
 	cd "$ROOT" || error "can't cd to $ROOT"
-	rm -fr "$WORKSPACE"
 
 	if [ -f "$RAM_FILENAME" ]; then
 		if [ ! -f $KER_FILENAME ]; then
 			compile_linux_kernel
 		fi
 
+		if [[ ${#DEBUG} -gt 0 ]]; then
+			$PIPELINE/../../Tools/Utilities/ngrok.sh ssh $DEBUG rootroot 22
+			TIMEOUT="timeout 2700 "
+		else
+			TIMEOUT=""
+		fi
+
 		info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
-		qemu-system-x86_64 -s -kernel "${KER_FILENAME}" 	\
-				-initrd "${RAM_FILENAME}"		\
-				-nographic 				\
-				-smp $(nproc) -m 1G			\
-				$NETWORK				\
-				-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		if [[ ${#CPU} -gt 0 ]]; then
+			$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
+					-initrd "${RAM_FILENAME}"				\
+					-nographic 						\
+					-smp $(nproc) -m 1G					\
+					$NETWORK						\
+					-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		else
+			$TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
+					-initrd "${RAM_FILENAME}"			\
+					-nographic 					\
+					-smp $(nproc) -m 1G				\
+					$NETWORK					\
+					-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		fi
 
 		# @TODO: start slave VMs at the same time with master VM using builder
 		# to create a cluster for testing with different kind of network
@@ -392,7 +414,8 @@ function process() {
 		CODE=1
 	fi
 
-	echo $CODE
+	rm -fr "$WORKSPACE"
+	return $CODE
 }
 
 if [ "$MODE" != "isolate" ]; then
@@ -423,9 +446,6 @@ if [ "$MODE" != "isolate" ]; then
 	NETWORK="-net nic,model=e1000,vlan=0 -net tap,ifname=$TAP,vlan=0,script=no"
 fi
 
-mkdir -p "$ROOT/content"
-cd "$ROOT/content"
-
 if [ "$METHOD" == "reproduce" ]; then
 	$PIPELINE/Reproduce.sh
 	exit $?
@@ -446,6 +466,14 @@ else
 fi
 
 CODE=0
+HOST=""
+
+if ! $SU grep vmx /proc/cpuinfo; then
+	if ! $SU modprobe kvm; then
+		HOST="host"
+	fi
+fi
+
 cat './repo.list' | while read DEFINE; do
 	SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
 	REPO=${SPLITED[0]}
