@@ -58,7 +58,9 @@ esac
 # avoid rebuild again since rebuild take so much time
 
 # @NOTE: cloning step
-git clone --recurse-submodules -j"$PARALLEL" "$1" &> /dev/null
+if ! git clone --recurse-submodules -j"$PARALLEL" "$1" &> /dev/null; then
+	error "can't clone repo $1"
+fi
 
 # @NOTE: install step
 cd "$CURRENT/$(basename "$1")" || error "cannot jump to $CURRENT/$(basename "$1")"

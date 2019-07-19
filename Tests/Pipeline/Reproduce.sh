@@ -10,6 +10,7 @@ SCRIPT="$(basename "$0")"
 ROOT="$(git rev-parse --show-toplevel)"
 CODE=0
 
+install_package screen
 
 if [[ ${#HOOK} -gt 0 ]]; then
 	printf "$HOOK" >> ./HOOK
@@ -20,8 +21,9 @@ if [[ ${#HOOK} -gt 0 ]]; then
 	fi
 fi
 
-echo "JOB: $JOB"
 if [[ ${#JOB} -gt 0 ]]; then
+	echo "JOB: $JOB"
+
 	if [[ "$JOB" == "build" ]]; then
 		$PIPELINE/Create.sh
 		exit $?
@@ -59,6 +61,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 		REPO=${SPLITED[2]}
 		SPEC=${SPLITED[3]}
 		EMAIL=${SPLITED[4]}
+		IDX=0
 		CODE=0
 
 		"$PIPELINE/Libraries/Reproduce.sh" clone "$ISSUE" "$REPO" "$ROOT" "$SPEC"
@@ -67,18 +70,23 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 			continue
 		elif [ -d "$ROOT/.reproduce.d/$ISSUE" ]; then
 			FOUND=0
-			"$PIPELINE/Libraries/Reproduce.sh" prepare "$ISSUE" "$ROOT"
-
-			if [ $? != 0 ]; then
-				FOUND=1
+			
+			if ! "$PIPELINE/Libraries/Reproduce.sh" prepare "$ISSUE" "$ROOT"; then
+				warning "Fail on preparing the issue $ISSUE"
+				continue
 			fi
 
-			for IDX in $(seq 0 $STEP); do
-				info "Begin reproducing turn $IDX"
+			while [[ $IDX -lt $STEP ]] || [[  $STEP -lt 0 ]]; do
+				info "reproducing turn $IDX" | tr -d '\n'
 
 				if [ $FOUND = 0 ]; then
 					rm -fr "$LOG/$ISSUE"
 					touch "$LOG/$ISSUE"
+				fi
+
+				"$PIPELINE/Libraries/Reproduce.sh" inject "$ISSUE" "$ROOT" "$CODE"
+				if [ $? != 0 ]; then
+					error "fait to inject reproducing scripts"
 				fi
 
 				"$PIPELINE/Libraries/Reproduce.sh" reproduce "$ISSUE" "$ROOT" &> "$LOG/$ISSUE"
@@ -91,15 +99,23 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 						FOUND=1
 						break
 					else
-						info "Fail reproducing turn $IDX"
+						echo " -> fail"
 					fi
 				else
-					info "Fail reproducing turn $IDX"
+					echo " -> fail"
 				fi
+
+				IDX=$((IDX+1))
 			done
 
 			if [ $FOUND != 0 ]; then
-				warning "reproduce success the issue $ISSUE"
+				echo " -> success. Here is the log"
+				echo ""
+
+				cat "$LOG/$ISSUE"
+				echo "---------------------------------------------------------------------------------"
+				echo ""
+				echo ""
 
 				$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$EMAIL"
 				if [ ! -e "$ROOT/BUG" ]; then
