@@ -1,9 +1,9 @@
 #!/bin/bash
 
-PORT=$2
-TOKEN=$3
-PASSWORD=$4
-WAIT=$5
+TOKEN=$2
+PASS=$3
+WAIT=$4
+PORT=$5
 
 # @NOTE: print log error and exit immediatedly
 error(){
@@ -19,12 +19,31 @@ if [[ ${#WAIT} -eq 0 ]]; then
 	WAIT=0
 fi
 
-if [ ! -e ./ngrok-stable-libnux-amd64.zip ]; then
-	wget -q -c -nc https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+if [ ! -f ./ngrok-stable-libnux-amd64.zip ]; then
+	timeout 30 wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+
+	if [ $? != 0 ]; then
+		if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
+			timeout 30 wget ftp://${USERNAME}:${PASSWORD}@ftp.drivehq.com/Repsitory/ngrok-stable-linux-amd64.zip
+		else
+			exit -1
+		fi
+	fi
+
+	if [[ $? -ne 0 ]]; then
+		exit -1
+	fi
 fi
 
-if [ ! -e ./ngrok ]; then
+screen -ls "ngrok.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
+
+if [ ! -f ./ngrok ]; then
 	unzip -qq -n ngrok-stable-linux-amd64.zip
+fi
+
+PID="$(pgrep -d "," ngrok)"
+if [[ ${#PID} -gt 0 ]]; then
+	kill -9 $PID >& /dev/null
 fi
 
 if [ "$1" = "ssh" ]; then
@@ -41,38 +60,85 @@ if [ "$1" = "ssh" ]; then
 		fi
 	fi
 
-	$SU echo root:$PASSWORD | chpasswd >& /dev/null
+	echo root:$PASS | $SU chpasswd >& /dev/null
 	$SU mkdir -p /var/run/sshd
 
-	$SU echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
-	$SU echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
-	$SU echo "LD_LIBRARY_PATH=/usr/lib64-nvidia" >> /root/.bashrc
-	$SU echo "export LD_LIBRARY_PATH" >> /root/.bashrc
+	echo "PermitRootLogin yes" | $SU tee -a /etc/ssh/sshd_config >& /dev/null
+	echo "PasswordAuthentication yes" | $SU tee -a /etc/ssh/sshd_config >& /dev/null
+	echo "LD_LIBRARY_PATH=/usr/lib64-nvidia" | $SU tee -a /root/.bashrc  >& /dev/null
+	echo "export LD_LIBRARY_PATH" | $SU tee -a /root/.bashrc >& /dev/null
 
-	./ngrok authtoken $TOKEN >& /dev/null
+	if netstat -tunlp | grep sshd; then
+		PORT=$(netstat -tunlp | grep sshd | awk '{ print $4; }' | awk -F":" '{ print $2; }')
+	else
+		if which sshd; then
+			if [ ${#PORT} = 0 ]; then
+				read LOWER UPPER < /proc/sys/net/ipv4/ip_local_port_range
+
+				for (( PORT = LOWER ; PORT <= UPPER ; PORT++ )); do
+					timeout 1 nc -l -p "$PORT"
+
+					if [ $? = 124 ]; then
+						break
+					fi
+				done	       
+			fi
+			screen -S "ngrok.pid" -md $(which sshd) -p $PORT
+		fi
+	fi
+elif [ "$1" = "netcat" ]; then
+	PID="$(pgrep -d "," nc.traditional)"
+	WAIT=$4
+
+	if [[ ${#PID} -gt 0 ]]; then
+		kill -9 $PID >& /dev/null
+	fi
+
+	if which nc.traditional; then
+		(nohup $(which nc.traditional) -vv -o ./$PORT.log -lek -q -1 -i -1 -w -1 -c /bin/bash -r)&
+	fi
+
+	sleep 1
+	PORT=$(netstat -tunlp | grep nc.traditional | awk '{ print $4; }' | awk -F":" '{ print $2; }')
+fi
+
+./ngrok authtoken $TOKEN >& /dev/null
+if [[ $WAIT -gt 0 ]]; then
 	./ngrok tcp $PORT &
 	PID=$!
+else
+	screen -S "ngrok.pid" -dm $(pwd)/ngrok tcp $PORT
+fi
 
-	sleep 10
+sleep 3
+
+if netstat -tunlp | grep ngrok; then
 	curl -s http://localhost:4040/api/tunnels | python3 -c \
 		"import sys, json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])"
-
-elif [ "$1" = "netcat" ]; then
-	cat /tmp/netcat | /bin/sh -i 2>&1 | nc -l 127.0.0.1 $PORT > /tmp/netcat
-	WAIT=0
+else
+	exit -1
 fi
 
 if [[ $WAIT -gt 0 ]]; then
-	for IDX in {0..4}; do
+	for IDX in {0..40}; do
 		echo "this message is showed to prevent ci hanging"
 
 		kill -0 $PID >& /dev/null
 		if [ $? != 0 ]; then
 			break
 		else
-			sleep 600
+			sleep 60
 		fi
 	done
 
 	kill -9 $PID
+
+	if [ "$1" = "netcat" ]; then
+		PID="$(pgrep -d "," nc.traditional)"
+	
+		if [[ ${#PID} -gt 0 ]]; then
+			kill -9 $PID >& /dev/null
+		fi
+	fi
 fi
+
