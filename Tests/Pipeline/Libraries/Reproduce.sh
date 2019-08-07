@@ -11,10 +11,29 @@ SCRIPT="$(basename "$0")"
 ISSUE=$2
 ROOT=$3
 
+function clean() {
+	if [ "$1" = "inject" ]; then
+		install_package screen
+		screen -ls "reproduce" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
+
+		cat > /tmp/Inject.conf << EOF
+logfile /tmp/Inject.log
+logfile flush 1
+log on
+logtstamp after 1
+	logtstamp string \"[ %t: %Y-%m-%d %c:%s ]\012\"
+logtstamp on
+EOF
+	fi
+}
+
 if [ "$1" = "clone" ]; then
+	COMMIT=$7
+	PATCH=$8
 	REPO=$ROOT
 	ROOT=$4
 	SPEC=$5
+	AUTH=$6
 
 	if [ ! -d "$ROOT/.reproduce.d" ]; then
 		mkdir -p "$ROOT/.reproduce.d"
@@ -22,7 +41,78 @@ if [ "$1" = "clone" ]; then
 
 	git clone "$REPO" "$ROOT/.reproduce.d/$ISSUE"
 
-	if [ $# -gt 3 ]; then
+	if [[ ${#AUTH} -gt 0 ]]; then
+		CURRENT=$(pwd)
+		if [[ ${#COMMIT} -eq 0 ]]; then
+			COMMIT=$(git rev-parse HEAD)
+		fi
+
+		cd "$ROOT/.reproduce.d/$ISSUE"
+		GERRIT=$(python -c """
+uri = '$(git remote get-url --all origin)'.split('/')[2]
+gerrit = uri.split('@')[-1].split(':')[0]
+
+print(gerrit)
+""")
+
+		QUERY="https://$GERRIT/a/changes/?q=is:open+owner:self&o=CURRENT_REVISION&o=CURRENT_COMMIT"
+		RESP=$(curl -s --request GET -u $AUTH "$QUERY" | cut -d "'" -f 2)
+
+		if [[ ${#RESP} -eq 0 ]]; then
+			cd "$CURRENT" || error "can't cd $CURRENT"
+			exit -1
+		fi
+		
+		REVISIONs=($(echo $RESP | python -c """
+import json
+import sys
+
+try:
+	for resp in json.load(sys.stdin):
+		if resp['branch'].encode('utf-8') != '$SPEC':
+			continue
+
+		for commit in resp['revisions']:
+			revision = resp['revisions'][commit]
+
+			for parent in revision['commit']['parents']:
+				if parent['commit'].encode('utf-8') == '$COMMIT':
+					print(revision['ref'])
+					break
+except Exception as error:
+	print(error)
+	sys.exit(-1)
+"""))
+
+		if [ $? != 0 ]; then
+			cd "$CURRENT" || error "can't cd $CURRENT"
+			exit -1
+		fi
+
+		DONE=-1
+		for REVIS in "${REVISIONs[@]}"; do
+			if [[ ${#PATCH} -eq 0 ]]; then
+				info "The patch-set $REVIS base on $COMMIT"
+
+				# @NOTE: checkout the latest patch-set for testing only
+				git fetch "$(git remote get-url --all origin)" "$REVIS" >& /dev/null
+				git checkout FETCH_HEAD >& /dev/null
+				DONE=$?
+			elif [[ $(python -c "print('$REVIS'.split('/')[-1])") -eq $PATCH ]]; then
+				info "The patch-set $REVIS base on $COMMIT"
+
+				# @NOTE: checkout the latest patch-set for testing only
+				git fetch "$(git remote get-url --all origin)" "$REVIS" >& /dev/null
+				git checkout FETCH_HEAD >& /dev/null
+				DONE=$?
+			fi
+		done
+
+		cd "$CURRENT" || error "can't cd $CURRENT"
+		if [[ $DONE -ne 0 ]]; then
+			error "Can't find the patch-set $PATCH"
+		fi
+	elif [ $# -gt 3 ]; then
 		cd "$ROOT/.reproduce.d/$ISSUE" || error "can't cd $ROOT/.reproduce.d/$ISSUE"
 
 		if [[ $(grep "$SPEC" <<< $(git branch -a)) ]]; then
@@ -59,7 +149,7 @@ elif [ "$1" = "prepare" ]; then
 			install_package $PACKAGE
 
 			if [ $? != 0 ]; then
-				exit $?
+				warning "problem with install $PACKAGE"
 			fi
 		done
 	fi
@@ -69,7 +159,7 @@ elif [ "$1" = "prepare" ]; then
 			install_package $PACKAGE
 
 			if [ $? != 0 ]; then
-				exit $?
+				warning "problem with install $PACKAGE"
 			fi
 		done
 	fi
@@ -231,20 +321,12 @@ elif [ "$1" = "verify" ]; then
 	exit 0
 elif [ "$1" = "inject" ]; then
 	CURRENT=$(pwd)
-	screen -ls "reproduce" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
 
-	cat > /tmp/Inject.conf << EOF
-logfile /tmp/Inject.log
-logfile flush 1
-log on
-logtstamp after 1
-	logtstamp string \"[ %t: %Y-%m-%d %c:%s ]\012\"
-logtstamp on
-EOF
 	if [ $4 != 0 ] && [ $4 != 1 ]; then
 		exit $4
 	elif [ -f "$ROOT/.reproduce.d/$ISSUE/inject.sh" ]; then
 		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		clean "inject"
 		screen -c /tmp/Inject.conf -L -S "reproduce" -md $ROOT/.reproduce.d/$ISSUE/inject.sh
 		CODE=$?
 
@@ -254,6 +336,7 @@ EOF
 		fi
 	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Inject.sh" ]; then
 		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		clean "inject"
 		screen -c /tmp/Inject.conf -L -S "reproduce" -md $ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Inject.sh
 		CODE=$?
 
@@ -262,6 +345,8 @@ EOF
 			exit -1
 		fi
 	elif [ -d "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Inject" ]; then
+		clean "inject"
+
 		for SCRIPT in $ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Inject/*.sh; do
 			cat > /tmp/$(basename $SCRIPT).conf << EOF
 logfile /tmp/$(basename $SCRIPT).log

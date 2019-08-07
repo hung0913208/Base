@@ -33,7 +33,7 @@ if [[ ${#JOB} -gt 0 ]]; then
 fi
 
 if [[ $# -gt 1 ]]; then
-	echo "$1 $2 $3 $4 $5" >> './repo.list'
+	echo "$1 $2 $3 $4 $5 $6 $7 $8" >> './repo.list'
 elif [ ! -f "$ROOT/repo.list" ]; then
 	if [ $# = 1 ]; then
 		curl -k --insecure $REPO -o './repo.list' >> /dev/null
@@ -56,15 +56,18 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 
 	cat "./repo.list" | while read -r DEFINE; do
 		SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
-		STEP=${SPLITED[1]}
-		ISSUE=${SPLITED[0]}
-		REPO=${SPLITED[2]}
-		SPEC=${SPLITED[3]}
-		EMAIL=${SPLITED[4]}
+		STEP="${SPLITED[1]}"
+		ISSUE="${SPLITED[0]}"
+		REPO="${SPLITED[2]}"
+		SPEC="${SPLITED[3]}"
+		EMAIL="${SPLITED[4]}"
+		AUTH="${SPLITED[5]}"
+		COMMIT="${SPLITED[6]}"
+		REVS="${SPLITED[7]}"
 		IDX=0
 		CODE=0
 
-		"$PIPELINE/Libraries/Reproduce.sh" clone "$ISSUE" "$REPO" "$ROOT" "$SPEC"
+		"$PIPELINE/Libraries/Reproduce.sh" clone "$ISSUE" "$REPO" "$ROOT" "$SPEC" "$AUTH" "$COMMIT" "$REVS"
 		if [ $? != 0 ]; then
 			CODE=$?
 			continue
