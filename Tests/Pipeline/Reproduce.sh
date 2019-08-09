@@ -126,6 +126,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 				fi
 			fi
 
+			$PIPELINE/../../Tools/Utilities/fsend.sh report "$ISSUE" "$LOG/$ISSUE"
 		else
 			warning "Fail on preparing the issue $ISSUE"
 		fi

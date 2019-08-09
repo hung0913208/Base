@@ -370,6 +370,17 @@ EOF
 		fi
 	fi
 	exit 0
+elif [ "$1" = "report" ]; then
+	if [ -f "$ROOT/.reproduce.d/$ISSUE/report.sh" ]; then
+		"$ROOT/.reproduce.d/$ISSUE/report.sh" $3
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report.sh" ]; then
+		"$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report.sh" $3
+	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report" ]; then
+		for REPORT in $ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report/*.sh; do
+			$REPORT $3
+		done
+	fi
+	exit 0
 else
 	error "no support $1"
 fi
