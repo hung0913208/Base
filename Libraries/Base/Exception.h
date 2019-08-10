@@ -5,6 +5,7 @@
 
 #define Except(code, message) \
   Base::Exception { code, message, __FUNCTION__, __FILE__, __LINE__ }
+
 #define Abort(code)                 \
 {                                   \
   FATAL << "Abort with code "       \
@@ -16,7 +17,7 @@
         << ":"                      \
         << Base::ToString(__LINE__) \
         << Base::EOL;               \
-  ABI::KillMe();                    \
+  abort();                          \
 }
 #define Bug(code, message)           \
 {                                    \
@@ -31,7 +32,7 @@
         << ":"                       \
         << Base::ToString(__LINE__)  \
         << Base::EOL;                \
-  ABI::KillMe();                     \
+  abort();                           \
 }
 
 namespace Base {
