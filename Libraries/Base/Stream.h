@@ -32,6 +32,7 @@
 
 namespace Base {
 const String EOL = "\n";
+const String TAB = "\t";
 
 class Stream {
  public:
