@@ -231,6 +231,10 @@ class Watch {
 
     _Main = GetUUID();
     _Status = Unlocked;
+    _Size = 0;
+    _Solved = 0;
+    _Rested = 0;
+    _Spawned = 0;
 
     if (MUTEX(&_Lock[0])) {
       throw Except(EBadLogic, "Can\'t init _Lock[0]");
