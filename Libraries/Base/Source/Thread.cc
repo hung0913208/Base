@@ -8,7 +8,6 @@
 namespace Base {
 namespace Internal {
 void WatchStopper(Thread& thread);
-void UnwatchStopper(Thread& thread);
 }  // namespace Internal
 
 Thread::Thread(Bool daemon) : _ThreadId{0}, _Status{Unknown} {
@@ -95,7 +94,6 @@ Thread::~Thread() {
     }
 
 finish:
-    Internal::UnwatchStopper(*this);
     delete _Count;
   } else {
     (*_Count)--;

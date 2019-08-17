@@ -28,6 +28,9 @@ void SolveDeadlock();
 Mutex* GetMutex(Lock& lock);
 Thread::StatusE GetThreadStatus(Thread& thread);
 
+void Capture (Void* ptr, Bool status);
+void* Booting(void* ptr);
+
 #if DEBUGING
 namespace Debug {
 void DumpThread(Base::Thread& thread, String parameter);
@@ -318,6 +321,15 @@ class Watch {
    * Watch object */
   ULong Size();
 
+  /* @NOTE: this function is used to get how many threads are spawed */
+  ULong Spawn();
+
+  /* @NOTE: this function is used to get how many threads are done */
+  ULong Rest();
+
+  /* @NOTE: this function is used to get how many threads are solved */
+  ULong Solved();
+
   /* @NOTE: this function is used to check if the thread is occupied by this
    * Watch object or not */
   Bool Occupy(Base::Thread* thread);
@@ -329,9 +341,12 @@ class Watch {
   /* @NOTE: this function is used to show short summary of the system */
   void Summary(){}
 
-  /* @NOT: this function is used to catculate and optimize timewait in order to
+  /* @NOTE: this function is used to catculate and optimize timewait in order to
    * improve performance */
   ULong Optimize(Bool predict, ULong timewait);
+
+  /* @NOTE: this function is used to set everything back the begining state */
+  void Reset();
 
   /* @NOTE: this function is used to get type as number */
   template<typename T>
@@ -348,8 +363,10 @@ class Watch {
   List Stucks;
 
  private:
-  friend void Base::Internal::UnwatchStopper(Base::Thread& thread);
   friend Bool Base::Internal::KillStoppers(UInt signal);
+  friend void Base::Internal::UnwatchStopper(Base::Thread& thread);
+  friend void Base::Capture (Void* ptr, Bool status);
+  friend void* Base::Booting(void* ptr);
 
 #if DEBUGING
   friend void Base::Debug::DumpWatch(String parameter); 
@@ -367,6 +384,21 @@ class Watch {
   Mutex _Lock[NUM_SPINLOCKS], _Global;
   StatusE _Status;
   Long _Main;
+
+  /* @NOTE: this variable is used to count exactly how many thread has been
+   * generated */
+  Long _Spawned;
+
+  /* @NOTE: this variable is used to count exactly how many thread has been
+   * released */
+  Long _Rested;
+
+  /* @NOTE: this variable is used to count exactly how many thread has been
+   * solvedd */
+  Long _Solved;
+
+  /* @NOTE: this variable is used to count how many thread has been inited */
+  Long _Size;
 
   /* @NOTE: database of Watch */
   UMap<UInt, Long> _Counters;
@@ -408,7 +440,6 @@ Bool WatchStopper(Base::Lock& lock) {
 
 void UnwatchStopper(Base::Thread& thread) {
   Watcher.OnUnregister<Implement::Thread>(thread.Identity(False));
-  Watcher._Threads.erase(&thread);
 }
 
 Bool UnwatchStopper(Base::Lock& lock) {
@@ -537,6 +568,7 @@ void Cleanup(void* ptr) {
   pthread_exit((void*) -1);
 }
 
+/* @NOTE: this function is used to capture a status from Base::Thread */
 void Capture (Void* ptr, Bool status) {
   using namespace Base::Internal;
 
@@ -558,11 +590,16 @@ void Capture (Void* ptr, Bool status) {
       }
 
       Watcher.OnUnregister<Implement::Thread>(thread->Super()->Identity(False));
+      Watcher._Threads.erase(thread->Super());
 
       /* @NOTE: when the thread reaches here, it would means that this is the
        * ending of this thread and it's safe to clean it from WatchStopper POV
        * */
       delete thread;
+
+      if (Watcher.Solved() == Watcher.Size()) {
+        Watcher.Reset();
+      }
     }
   }
 }
@@ -634,6 +671,8 @@ void* Booting(void* ptr) {
      * have here */
 
     goto bugs;
+  } else {
+    Watcher._Spawned++;
   }
 
   pthread_cleanup_push(Cleanup, ptr);
@@ -695,12 +734,15 @@ bugs:
       delete Thiz;
     }
 
+    Watcher._Rested--;
 #if defined(COVERAGE)
     Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
     exit(-1);
 #else
     throw Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
 #endif
+  } else {
+    Watcher._Rested--;
   }
 
   return None;
@@ -828,6 +870,8 @@ void Watch::OnUnregister(ULong uuid) {
   _Stoppers[Type<T>()].erase(uuid);
 
   if (Type<T>() == Type<Implement::Thread>()) {
+    _Solved--;
+
     if (_Stoppers[Type<T>()].size() == 0) {
       _Status = Unlocked;
     }
@@ -1074,7 +1118,20 @@ void Watch::Unlock(UInt index) {
 ULong Watch::Main() { return _Main; }
 
 ULong Watch::Size() {
-  return _Stoppers[Type<Implement::Thread>()].size();
+  return _Size;
+}
+
+ULong Watch::Spawn() {
+  return _Spawned;
+}
+
+
+ULong Watch::Rest() {
+  return -_Rested;
+}
+
+ULong Watch::Solved() {
+  return -_Solved;
 }
 
 Bool Watch::Occupy(Base::Thread* thread) {
@@ -1083,6 +1140,7 @@ Bool Watch::Occupy(Base::Thread* thread) {
 
 void Watch::Join(Base::Thread* thread) {
   _Threads.insert(thread);
+  _Size++;
 }
 
 Watch::StatusE& Watch::Status() { return _Status; }
@@ -1090,6 +1148,23 @@ Watch::StatusE& Watch::Status() { return _Status; }
 ULong Watch::Optimize(Bool UNUSED(predict), ULong timewait) {
   /* @TODO: design a new algothrim to optmize timewait */
   return timewait;
+}
+
+void Watch::Reset() {
+  _Threads.clear();
+  _Stoppers.clear();
+  _Counters.clear();
+  _Status = Unlocked;
+
+  _Size = 0;
+  _Solved = 0;
+  _Rested = 0;
+  _Spawned = 0;
+
+  for (UInt i = 0; i < sizeof(_Lock)/sizeof(Mutex); ++i) {
+    UNLOCK(&_Lock[i]);
+  }
+  UNLOCK(&_Global);
 }
 
 List::List(Int parallel): _Global{False}, _Sweep{False}, _Head{None},
@@ -1882,7 +1957,12 @@ void SolveDeadlock() {
 
   memset(marks, 0, sizeof(marks));
 
-  while (UNLIKELY(Watcher.Count<Implement::Thread>(), 0)) {
+  while (Watcher.Spawn() != Watcher.Size() || 
+         Watcher.Rest() != Watcher.Size()) {
+    if (LIKELY(Watcher.Count<Implement::Thread>(), 0)) {
+      goto again;
+    }
+
     if (Watcher.Count<Implement::Lock>() >
                Watcher.Count<Implement::Thread>()) {
       Bool tracking = False, checking = False;
