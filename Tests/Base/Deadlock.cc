@@ -24,7 +24,7 @@ TEST(DeadLock, TestLocker){
 
 TEST(DeadLock, ReuseStopper0) {
   Base::Lock locks[NUM_OF_THREAD];
-  UInt counter{0};
+  Int counter{0};
 
   auto perform = [&]() {
     /* @NOTE:  be carefull with lock since we are working on parallel so
@@ -82,7 +82,7 @@ TEST(DeadLock, ReuseStopper0) {
 
 TEST(DeadLock, ReuseStopper1) {
   Base::Lock locks[NUM_OF_THREAD];
-  UInt counter{0};
+  Int counter{0};
 
 #if DEBUGING
   CRASHDUMP({
@@ -122,7 +122,7 @@ TEST(DeadLock, ReuseStopper1) {
 
 TEST(DeadLock, ReuseStopper2) {
   Base::Lock lock{};
-  UInt counter{0};
+  Int counter{0};
 
 #if DEBUGING
   CRASHDUMP({
@@ -158,7 +158,7 @@ TEST(DeadLock, ReuseStopper2) {
 
 TEST(DeadLock, ReuseStopper3) {
   Base::Lock lock{True};
-  UInt counter{0};
+  Int counter{0};
 
 #if DEBUGING
   CRASHDUMP({
@@ -197,7 +197,7 @@ TEST(DeadLock, ReuseStopper3) {
 
 TEST(DeadLock, ReuseStopper4) {
   Base::Lock locks[NUM_OF_THREAD];
-  UInt counter{0};
+  Int counter{0};
 
 #if DEBUGING
   CRASHDUMP({
