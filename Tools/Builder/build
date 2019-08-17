@@ -154,6 +154,11 @@ if [ $(which git) ]; then
 			error "Can' parse $BASE/Tools/Builder/build $@"
 		fi
 
+		if [ $machine = "Mac" ]; then
+			export CC=$(which clang)
+			export CXX=$(which clang++)
+		fi
+
 		while [ $# -gt 0 ]; do
 			case $1 in
 				--root)		ROOT="$2"; shift;;
@@ -182,7 +187,16 @@ if [ $(which git) ]; then
 		exec 2>&-
 		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Debug $ROOT 2>&1 | tee /dev/fd/2)"
 
-		if [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+		if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
+			exec 2>&1
+			warning "fail configure CMakeLists.txt on Debug mode, please check console log bellow"
+			echo "================================================================================="
+			echo ""
+			echo "$OUTPUT"
+			echo "---------------------------------------------------------------------------------"
+			exit -1
+		elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+			exec 2>&1
 			warning "fail build on Debug mode, please check console log bellow"
 			echo "================================================================================="
 			echo ""
@@ -191,9 +205,18 @@ if [ $(which git) ]; then
 			exit -1
 		fi
 
+		exec 2>&-
 		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Release $ROOT 2>&1 | tee /dev/fd/2)"
 
-		if [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+		if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
+			exec 2>&1
+			warning "fail configure CMakeLists.txt on Release mode, please check console log bellow"
+			echo "================================================================================="
+			echo ""
+			echo "$OUTPUT"
+			echo "---------------------------------------------------------------------------------"
+			exit -1
+		elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 			exec 2>&1
 			warning "fail build on Release mode, please check console log bellow"
 			echo "================================================================================="
@@ -204,9 +227,18 @@ if [ $(which git) ]; then
 		fi
 
 		if [ $MODE != 1 ]; then
+			exec 2>&-
 			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Coverage $ROOT 2>&1 | tee /dev/fd/2)"
 
-			if [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+			if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
+				exec 2>&1
+				warning "fail configure CMakeLists.txt on Coverage mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				echo "$OUTPUT"
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 				exec 2>&1
 				warning "fail build on Coverage mode, please check console log bellow"
 				echo "================================================================================="
@@ -219,7 +251,7 @@ if [ $(which git) ]; then
 				$BASE/Tools/Utilities/ctest.sh Coverage
 				CODE=$?
 
-				bash -x $BASE/Tools/Utilities/coverage.sh .
+				bash $BASE/Tools/Utilities/coverage.sh .
 				exit $CODE
 			fi
 		fi
