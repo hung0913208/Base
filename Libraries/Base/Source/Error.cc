@@ -1,80 +1,10 @@
+#include <Config.h>
 #include <Logcat.h>
 #include <Utils.h>
 #include <Vertex.h>
 #include <iostream>
 
 namespace Base {
-namespace Internal {
-ULong GetUniqueId();
-Mutex* CreateMutex();
-
-static UMap<ULong, Error*> Logcats{};
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
-                                  [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
-                                  CreateMutex());
-
-void DumpPendingError();
-
-namespace Logcat {
-void Assign(Error* logcat) {
-  auto UNUSED(guranteer) = Secure.generate();
-  auto thread_id = GetUniqueId();
-
-  if (Logcats.find(thread_id) != Logcats.end()) {
-    /* @NOTE: it seems current thread has been ceased by another Logcat, force
-     * print it now and overwrite with our new logcat */
-    if (Logcats[thread_id]) {
-      Logcats[thread_id]->Print(True);
-    }
-  } else {
-    /* @NOTE: sometime we can use a tricky way like Assign same logcat on
-     * different Thread and cause our system confuse and crash unexpectedly. So
-     * we must check again to make sure everything is Okey.
-     */
-    auto found_it = thread_id;
-
-    for (auto item : Logcats) {
-      if (std::get<1>(item) == logcat) {
-        found_it = std::get<0>(item);
-        break;
-      }
-    }
-
-    if (found_it != thread_id) {
-      Logcats[found_it]->Print();
-      Logcats[thread_id]->Print();
-      Logcats[found_it] = None;
-    }
-  }
-
-  Logcats[thread_id] = logcat;
-}
-
-void Decline(Error* logcat) {
-  auto UNUSED(guranteer) = Secure.generate();
-  auto thread_id = ULong{0};
-
-  /* @NOTE: sometime we can use a tricky way like Assign same logcat on
-   * different Thread and cause our system confuse and crash unexpectedly. So
-   * we must check again to make sure everything is Okey.
-   */
-
-  for (auto item : Logcats) {
-    thread_id = std::get<0>(item);
-
-    if (std::get<1>(item) == logcat) {
-      std::get<1>(item)->Print(True);
-      break;
-    }
-  }
-
-  if (thread_id > 0) {
-    Logcats[thread_id] = None;
-  }
-}
-}  // namespace Logcat
-}  // namespace Internal
-
 Error::Error(ErrorCodeE code, String message, String function, String file,
              int line, ErrorLevelE level)
     : Stream(),
@@ -91,9 +21,6 @@ Error::Error(ErrorCodeE code, String message, String function, String file,
   _Code = code;
   _IsRef = False;
   _IsPrinted = False;
-
-  /* @NOTE: assign this logcat now since we finish its definition */
-  Internal::Logcat::Assign(this);
 }
 
 Error::Error(String message)
@@ -110,9 +37,6 @@ Error::Error(String message)
   _IsPrinted = False;
   _File = "";
   _Line = -1;
-
-  /* @NOTE: assign this logcat now since we finish its definition */
-  Internal::Logcat::Assign(this);
 }
 
 Error::Error(Error&& error)
@@ -147,7 +71,7 @@ Error::Error(Error& error)
   _IsPrinted = True;
 }
 
-Error::~Error() { Internal::Logcat::Decline(this); }
+Error::~Error() { }
 
 Error& Error::operator<<(String message) {
   Bool print_now = False;
@@ -178,11 +102,6 @@ Error& Error::operator()(String message) {
 }
 
 Error& Error::operator=(Error& error) {
-  /* @NOTE: remove this logcat now since we will link it to be a reference,
-   * force to print message to console no matter it's finish or not
-   */
-  Internal::Logcat::Decline(this);
-
   _Function = error._Function;
   _Message = error._Message;
   _Code = error._Code;
@@ -195,10 +114,6 @@ Error& Error::operator=(Error& error) {
 }
 
 Error& Error::operator=(Error&& error) {
-  /* @NOTE: remove this logcat now since we will link it to be a reference,
-   * force to print message to console no matter it's finish or not
-   */
-  Internal::Logcat::Decline(this);
 
   _Function = error._Function;
   _Message = error._Message;
@@ -212,24 +127,6 @@ Error& Error::operator=(Error&& error) {
 }
 
 Error::operator bool() { return _Level == EError && _Code != ENoError; }
-
-void Error::Print(bool force) {
-  /* @NOTE: print basic information about this error */
-
-
-  /* @NOTE: call lambda with or without safeguard */
-  if (!force) {
-    auto UNUSED(guranteer) = Internal::Secure.generate();
-
-    _Print();
-  } else {
-    _Print();
-  }
-
-  /* @NOTE: since we are going to force to print */
-  if (!force) Internal::Logcat::Decline(this);
-}
-
 
 Error& Error::Info() {
   _Level = EInfo;
@@ -246,8 +143,11 @@ Error& Error::Fatal() {
   return *this;
 }
 
-void Error::_Print() {
-  if (!_IsPrinted) {
+void Error::Print(Bool force) {
+  if (!_IsPrinted || force) {
+    Vertex<void> excaping{[](){ LOCK(&Config::Locks::Error); },
+                          [](){ UNLOCK(&Config::Locks::Error); }};
+
     if (_Code != ENoError) {
       auto color =
         _Level == EError ? RED : (_Level == EWarning ? YELLOW : GREEN);

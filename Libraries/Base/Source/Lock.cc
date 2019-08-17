@@ -8,44 +8,13 @@ namespace Base {
 namespace Internal {
 void WatchStopper(Base::Lock& lock);
 void UnwatchStopper(Base::Lock& lock);
-
-Mutex* CreateMutex() {
-#if UNIX
-  auto result = (Mutex*)ABI::Calloc(1, sizeof(Mutex));
-
-  if (!result) {
-    throw Except(EDrainMem, "`ABI::Malloc` place to contain `Mutex`");
-  } else if (pthread_mutex_init(result, None)) {
-    switch (errno) {
-      case EAGAIN:
-        throw Except(EDoAgain, "");
-
-      case ENOMEM:
-        throw Except(EDrainMem, "");
-
-      case EPERM:
-        throw Except(EWatchErrno,
-                     "The caller does not have the provilege to"
-                     " perform the operation.");
-    }
-  }
-
-  return result;
-#elif WINDOW
-  throw Except(ENoSupport, "");
-#else
-  throw Except(ENoSupport, "");
-#endif
-}
-
-void RemoveMutex(Mutex* mutex) {
-  pthread_mutex_destroy(mutex);
-  free(mutex);
-}
+void RemoveMutex(Mutex* mutex);
+Mutex* CreateMutex();
 }  // namespace Internal
 
 Lock::Lock(Bool locked) : _Lock{Internal::CreateMutex()} {
   _Count = new Int{0};
+  _Context = None;
 
   if (_Count) {
     Internal::WatchStopper(*this);
@@ -70,6 +39,7 @@ Lock::~Lock() {
 Lock::Lock(const Lock& src){
   _Lock = src._Lock;
   _Count = src._Count;
+  _Context = src._Context;
 
   (*_Count)++;
 }
@@ -77,6 +47,7 @@ Lock::Lock(const Lock& src){
 Lock& Lock::operator=(const Lock& UNUSED(src)) {
   _Lock = src._Lock;
   _Count = src._Count;
+  _Context = src._Context;
 
   (*_Count)++;
   return *this;
@@ -85,6 +56,7 @@ Lock& Lock::operator=(const Lock& UNUSED(src)) {
 Lock& Lock::operator=(Lock&& UNUSED(src)) {
   _Lock = src._Lock;
   _Count = src._Count;
+  _Context = src._Context;
 
   (*_Count)++;
   return *this;
@@ -140,7 +112,7 @@ void Lock::Wait(Function<Bool()> event, Function<void()> react) {
    * do everything again */
 
   do {
-    Locker::Lock(*_Lock, True);
+    Locker::Lock(*_Lock);
   } while (!event());
 
   /* @NOTE: when an event has been trigger successful, we will call react

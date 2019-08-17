@@ -1,3 +1,4 @@
+#include <Config.h>
 #include <Exception.h>
 #include <Logcat.h>
 #include <Macro.h>
@@ -7,63 +8,11 @@
 #include <unistd.h>
 
 namespace Base {
-namespace Internal {
-void CatchSignal(UInt signal, Function<void(siginfo_t *)> callback);
-Mutex* CreateMutex();
-
-static Vector<Exception*> Exceptions;
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
-                                  [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
-                                  CreateMutex());
-
-namespace Exception{
-void HandleSigsegv(siginfo_t*);
-
-void Assign(Base::Exception* except){
-  auto UNUSED(gurantee){Secure.generate()};
-
-  CatchSignal(SIGSEGV, HandleSigsegv);
-  for (UInt i = 0; i < Exceptions.size(); ++i){
-    if (Exceptions[i] == None) {
-      Exceptions[i] = except;
-      return;
-    }
-  }
-
-  Exceptions.push_back(except);
-}
-
-void Decline(Base::Exception* except){
-  auto UNUSED(gurantee){Secure.generate()};
-
-  for (UInt i = 0; i < Exceptions.size(); ++i){
-    if (Exceptions[i] == except){
-      Exceptions[i] = None;
-      break;
-    }
-  }
-}
-
-void HandleSigsegv(siginfo_t*) {
-  auto UNUSED(gurantee){Secure.generate()};
-
-  for (auto exception: Exceptions){
-    if (exception){
-      exception->Print();
-    }
-  }
-
-  sleep(30);
-}
-}  // namespace Exception
-}  // namespace Internal
-
 Exception::Exception(Error& error) : Stream{}, _Printed{True} {
   error.Print(True);
 
   _Message = error.message();
   _Code = error.code();
-  Internal::Exception::Decline(this);
 }
 
 Exception::Exception(ErrorCodeE code)
@@ -72,7 +21,6 @@ Exception::Exception(ErrorCodeE code)
 Exception::Exception(ErrorCodeE code, const CString message, Bool autodel)
     : Stream{}, _Printed{False}, _Message{message}, _Code{code} {
   if (autodel) free(const_cast<CString>(message));
-  Internal::Exception::Assign(this);
 }
 
 Exception::Exception(const CString message, Bool autodel, String function,
@@ -88,7 +36,10 @@ Exception::Exception(const CString message, Bool autodel, String function,
         .append("\n");
   }
   if (autodel) free(const_cast<CString>(message));
-  Internal::Exception::Assign(this);
+
+#if defined(COVERAGE)
+  Print();
+#endif
 }
 
 Exception::Exception(String message, String function, String file, Int line)
@@ -102,7 +53,9 @@ Exception::Exception(String message, String function, String file, Int line)
         .append(ToString(line))
         .append("\n");
   }
-  Internal::Exception::Assign(this);
+#if defined(COVERAGE)
+  Print();
+#endif
 }
 
 Exception::Exception(ErrorCodeE code, String message, String function,
@@ -117,15 +70,15 @@ Exception::Exception(ErrorCodeE code, String message, String function,
         .append(ToString(line))
         .append("\n");
   }
-  Internal::Exception::Assign(this);
+#if defined(COVERAGE)
+  Print();
+#endif
 }
 
 Exception::Exception(const Exception& src): Stream{src} {
   _Code = src._Code;
   _Printed = True;
   _Message = src._Message;
-
-  Internal::Exception::Decline(this);
 }
 
 Exception::Exception(Exception& src): Stream{src} {
@@ -134,7 +87,6 @@ Exception::Exception(Exception& src): Stream{src} {
   _Message = src._Message;
 
   src.Ignore();
-  Internal::Exception::Decline(&src);
 }
 
 Exception::~Exception() { Print(); }
@@ -147,7 +99,8 @@ void Exception::Print() {
   /* @NOTE: generate a locker who will protect this function */
 
   if (_Code != ENoError && !_Printed) {
-    auto UNUSED(guranteer){Internal::Secure.generate()};
+    Vertex<void> excaping{[](){ LOCK(&Config::Locks::Error); },
+                          [](){ UNLOCK(&Config::Locks::Error); }};
 
     /* @NOTE: print basic information about this error */
 #if READABLE
@@ -169,8 +122,6 @@ void Exception::Print() {
     /* @NOTE: mark this exception has been printed */
     _Printed = True;
   }
-
-  Internal::Exception::Decline(this);
 }
 
 void Exception::Ignore() { _Printed = True; }

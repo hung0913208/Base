@@ -381,12 +381,6 @@ Float ToFloat<CString>(CString value) {
   return atof(value);
 }
 namespace Locker {
-bool IsLocked(Mutex& locker) {
-  auto is_locked = pthread_mutex_trylock(&locker);
-
-  if (!is_locked) pthread_mutex_unlock(&locker);
-  return is_locked;
-}
 }  // namespace Locker
 
 void Wait(Mutex& locker) {

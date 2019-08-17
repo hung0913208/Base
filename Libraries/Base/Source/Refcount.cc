@@ -10,10 +10,9 @@ namespace Internal {
 Mutex* CreateMutex();
 
 static Vector<ULong>* RefMasters{None};
-static Vertex<Mutex, True> Secure(
-    [](Mutex* mutex) { pthread_mutex_lock(mutex); },
-    [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
-    CreateMutex());
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { LOCK(mutex); },
+                                  [](Mutex* mutex) { UNLOCK(mutex); },
+                                  CreateMutex());
 } // namespace Internal
 
 Refcount::~Refcount() { Release(); }
