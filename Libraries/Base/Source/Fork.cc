@@ -11,7 +11,7 @@ static Vector<Fork*> Forks;
 Bool IsPipeAlive(Int pipe) {
   Bool result = False;
 
-  Configs::Locks::Global.Safe([&]() {
+  Config::Locks::Global.Safe([&]() {
     for (auto& fork: Forks) {
       if ((fork->Input() != pipe) && (fork->Output() != pipe) &&
           (fork->Error() != pipe)) {
@@ -29,7 +29,7 @@ Bool IsPipeAlive(Int pipe) {
 Bool IsPipeWaiting(Int pipe) {
   Bool result = False;
 
-  Configs::Locks::Global.Safe([&]() {
+  Config::Locks::Global.Safe([&]() {
     for (auto& fork: Forks) {
       if ((fork->Output() != pipe) && (fork->Error() != pipe)) {
         continue;
@@ -121,7 +121,7 @@ Fork::~Fork() {
   /* @NOTE: just to make sure everything is safe from a single process POV, i
    * need to secure the cleaning process here with the highest lock */
 
-  Configs::Locks::Global.Safe([&]() {
+  Config::Locks::Global.Safe([&]() {
     for (UInt i = 0; i < Internal::Forks.size(); ++i) {
       /* @NOTE: search the fork on our database and clean it now to prevent bad
        * access if another threads try to access the deadly fork like this */
