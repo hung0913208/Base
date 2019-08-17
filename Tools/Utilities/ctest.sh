@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT="$(basename "$0")"
+ROOT="$(dirname "$0")"
 
 # @NOTE: print log info
 info(){
@@ -194,7 +195,7 @@ if [ -d "./$1" ]; then
 			done
 		fi
 
-		if [ $? -ne 0 ]; then
+		if [[ $CODE -ne 0 ]]; then
 			EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
 			CODE=-1
 
@@ -210,7 +211,7 @@ if [ -d "./$1" ]; then
 			echo ""
 		fi
 
-		if [[ $# -ge 3 ]]; then
+		if [[ $# -gt 3 ]]; then
 			if [ $2 == "symbolize" ]; then
 				export ASAN_OPTIONS=symbolize=1
 				echo "Run with ASAN_SYMBOLIZER"
