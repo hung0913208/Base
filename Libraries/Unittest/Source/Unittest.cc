@@ -82,6 +82,10 @@ Vector<Pair<Pair<Long, ULong>, Vector<ULong>>> Testing;
 extern void AtExit(Function<void()> callback);
 extern void CatchSignal(UInt signal, Function<void(siginfo_t*)> callback);
 
+namespace Dump {
+  extern void (*Finisher)();
+} // namespace Dump
+
 namespace Summary{
 void WatchStopper();
 void Milestone();
@@ -354,13 +358,13 @@ void Case::Fatal(Bool crash) {
   }
 
   if (crash) {
-    INFO << RED(CRASH_LABEL) << " " << Information()
-         << " --> exit(255)" << Base::EOL;
+    VLOG(EInfo) << RED(CRASH_LABEL) << " " << Information()
 #if COVERAGE
-    exit(-1);
+         << " --> exit(255)" << Base::EOL;
 #else
-    abort();
+         << " --> abort()" << Base::EOL;
 #endif
+    ABI::KillMe();
   } else {
     INFO << YELLOW(IGNORED_LABEL) << " Ignore this fatal" << Base::EOL;
   }
@@ -520,6 +524,7 @@ extern "C" Int BSRunTests() {
   using namespace Base::Internal;
   using Session = Pair<Pair<Long, ULong>, Vector<ULong>>;
 
+  Vector<String> fail_cases{};
   Bool did_everything_pass = True;
   ULong index = 0;
 
@@ -577,6 +582,7 @@ extern "C" Int BSRunTests() {
         VLOG(EInfo) << RED(FAIL_LABEL) << " " << test->Information() << " ("
                     << Base::ToString(elapsed_test_milisecs) << " ms)"
                     << Base::EOL;
+        fail_cases.push_back(test->Information());
       } else if (test->Status() == Base::Unit::EFatal) {
         did_everything_pass = False;
         VLOG(EInfo) << RED(FAIL_LABEL) << " " << test->Information() << " ("
@@ -584,7 +590,7 @@ extern "C" Int BSRunTests() {
                     << Base::EOL;
 
         /* @NOTE: with fatal errors we must abandon remaining tests */
-        break;
+        goto fatal;
       } else if (test->Status() == Base::Unit::EIgnored) {
         VLOG(EInfo) << YELLOW(IGNORED_LABEL) << " " << test->Information()
                     << Base::EOL;
@@ -593,6 +599,14 @@ extern "C" Int BSRunTests() {
                     << Base::ToString(elapsed_test_milisecs) << " ms)"
                     << Base::EOL;
       }
+
+      /* @NOTE: dump information at the time the testcase finishing */
+      if (Base::Internal::Dump::Finisher) {
+        Base::Internal::Dump::Finisher();
+      }
+
+      /* @NOTE: clear dumpers after finish a testcase */
+      Base::Unit::Dump::Clear();
     }
 
     /* @NOTE: calculate how many time has been passed with this test suite */
@@ -607,6 +621,13 @@ extern "C" Int BSRunTests() {
     /* @NOTE: notify that we are passing the suite */
     suite.Left.OnPassing(index);
   }
+  goto finish;
+  
+fatal:
+  VLOG(EInfo) << RED(CRASH_LABEL)
+              << "Your test case is crashed duo to the fatal error"
+              << Base::EOL;
+  goto ending;
 
 finish:
   /* @TODO: export Test result, I will use JUnit format since it's widely used

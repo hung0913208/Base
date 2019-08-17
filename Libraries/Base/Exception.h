@@ -17,13 +17,15 @@
         << ":"                      \
         << Base::ToString(__LINE__) \
         << Base::EOL;               \
+  ABI::KillMe();                    \
   abort();                          \
 }
-#define Bug(code, message)           \
+
+#define Notice(code, message)        \
 {                                    \
-  FATAL << "[  BUG - "               \
+  FATAL << "SUSPECT - "              \
         << Base::ToString(code)      \
-        << " ]"                      \
+        << ": "                      \
         << Base::ToString((message)) \
         << " at "                    \
         << __FUNCTION__              \
@@ -32,6 +34,22 @@
         << ":"                       \
         << Base::ToString(__LINE__)  \
         << Base::EOL;                \
+}
+
+#define Bug(code, message)           \
+{                                    \
+  FATAL << "BUG - "                  \
+        << Base::ToString(code)      \
+        << ": "                      \
+        << Base::ToString((message)) \
+        << " at "                    \
+        << __FUNCTION__              \
+        << " "                       \
+        << __FILE__                  \
+        << ":"                       \
+        << Base::ToString(__LINE__)  \
+        << Base::EOL;                \
+  ABI::KillMe();                     \
   abort();                           \
 }
 
