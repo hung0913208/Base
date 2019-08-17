@@ -4,7 +4,13 @@ namespace Base {
 namespace Internal {
 static Vector<Function<void()>>* _ExitCallbacks{None};
 
-static void ExitCallbackWrapper() {
+namespace Hook {
+void ExitCallbackWrapper(void (*hook)()) {
+  atexit(hook);
+}
+} // namespace Hook
+
+void ExitCallbackWrapper() {
   for (UInt i = 0; i < _ExitCallbacks->size(); ++i) {
     (*_ExitCallbacks)[i]();
   }
@@ -15,9 +21,10 @@ static void ExitCallbackWrapper() {
 void AtExit(Function<void()> callback) {
   if (_ExitCallbacks == None) {
     _ExitCallbacks = new Vector<Function<void()>>();
+  
+    Hook::ExitCallbackWrapper(ExitCallbackWrapper);
   }
 
-  if (_ExitCallbacks->size() == 0) atexit(ExitCallbackWrapper);
   _ExitCallbacks->push_back(callback);
 }
 }  // namespace Internal

@@ -14,28 +14,45 @@ namespace Internal {
 Mutex* CreateMutex();
 
 static Map<UInt, Vector<Function<void(siginfo_t *)>>> *_SignalCallbacks{None};
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { pthread_mutex_lock(mutex); },
-                                  [](Mutex* mutex) { pthread_mutex_unlock(mutex); },
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { LOCK(mutex); },
+                                  [](Mutex* mutex) { UNLOCK(mutex); },
                                   CreateMutex());
+namespace Hook {
+void SigCallbackWrapper(int signal, void (*hook)(int, siginfo_t*, void*)) {
+  struct sigaction act;
 
-static void SigCallbackWrapper(int signum, siginfo_t *siginfo,
-                               void *UNUSED(context)) {
-  Map<UInt, Vector<Function<void(siginfo_t *)>>> callbacks;
+  memset(&act, '\0', sizeof(act));
 
+  act.sa_sigaction = hook;
+  act.sa_flags = SA_SIGINFO;
+
+  if (sigaction(signal, &act, None) < 0) {
+    throw Exception(
+          EWatchErrno,
+          BSFormat("Can\'t register signal %d with sigaction", signal), True);
+  } else if (_SignalCallbacks->find(signal) == _SignalCallbacks->end()) {
+    (*_SignalCallbacks)[signal] = Vector<Function<void(siginfo_t *)>>();
+  }
+}
+} // namespace Hook
+
+void SigCallbackWrapper(int signum, siginfo_t *siginfo, void *UNUSED(context)) {
+  Map<UInt, Vector<Function<void(siginfo_t*)>>> callbacks;
+ 
   Secure.Circle([&]() { 
-    if (_SignalCallbacks) callbacks = *_SignalCallbacks; 
+    callbacks = *_SignalCallbacks;;
   });
 
   if (callbacks.find(signum) != callbacks.end()) {
-    for (UInt i = 0; i < callbacks[signum].size(); ++i) {
-      callbacks[signum][i](siginfo);
+    for (UInt i = 0; i < (*_SignalCallbacks)[signum].size(); ++i) {
+      (*_SignalCallbacks)[signum][i](siginfo);
     }
 
     if (signum != SIGALRM) {
       /* @NOTE: this is the trick: it will trigger the core dump */
 
       if (signum == SIGKILL || signum == SIGSEGV) {
-        kill(getpid(), signum);
+        ABI::KillMe();
       } else {
         exit(signum);
       }
@@ -61,20 +78,7 @@ void CatchSignal(UInt signal, Function<void(siginfo_t *)> callback) {
   }
 
   if (_SignalCallbacks->find(signal) == _SignalCallbacks->end()) {
-    struct sigaction act;
-
-    memset(&act, '\0', sizeof(act));
-
-    act.sa_sigaction = &SigCallbackWrapper;
-    act.sa_flags = SA_SIGINFO;
-
-    if (sigaction(signal, &act, None) < 0) {
-      throw Exception(
-          EWatchErrno,
-          BSFormat("Can\'t register signal %d with sigaction", signal), True);
-    } else {
-      (*_SignalCallbacks)[signal] = Vector<Function<void(siginfo_t *)>>();
-    }
+    Hook::SigCallbackWrapper(signal, SigCallbackWrapper);
   }
 
   for (UInt i = 0; i < (*_SignalCallbacks)[signal].size(); ++i) {
@@ -100,5 +104,5 @@ void DemolishSignal(UInt signal, Function<void(siginfo_t *)> callback) {
                                       index);
   }
 }
-}  // namespace Internal
-}  // namespace Base
+} // namespace Internal
+} // namespace Base
