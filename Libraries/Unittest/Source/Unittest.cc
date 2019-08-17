@@ -37,7 +37,8 @@
 #define RUN_LABEL "[ RUN      ]"
 #define FAIL_LABEL "[     FAIL ]"
 #define PASS_LABEL "[     PASS ]"
-#define CRASH_LABEL "[    CRASH ]"
+#define CRASH_LABEL  "[    CRASH ]"
+#define REPORT_LABEL "[   REPORT ]"
 #define ASSERT_LABEL "[   ASSERT ]"
 #define IGNORED_LABEL "[  IGNORED ]"
 #define EXCEPTION_LABEL "[   EXCEPT ]"
@@ -534,7 +535,9 @@ extern "C" Int BSRunTests() {
    * etc ...
    */
   CatchSignal(SIGSEGV, [](siginfo_t* UNUSED(si)) {
-
+    VLOG(EInfo) << RED(CRASH_LABEL)
+                << "Your test case is crashed duo to receive signal SIGSEV"
+                << Base::EOL;
   });
 
   if (Units) {
@@ -637,7 +640,20 @@ finish:
    * thing with Python, including testing on many platforms and system
    */
 
+ending: 
   delete Units;
+
+  VLOG(EInfo) << Base::EOL;
+
+  if (!did_everything_pass) {
+    VLOG(EInfo) << YELLOW(REPORT_LABEL)
+                << " Overall, your test suite didn't pass cases:"
+                << Base::EOL;
+
+    for (auto name: fail_cases) {
+      VLOG(EInfo) << name << Base::EOL;
+    }
+  }
   return did_everything_pass ? 0 : 255;
 }
 
