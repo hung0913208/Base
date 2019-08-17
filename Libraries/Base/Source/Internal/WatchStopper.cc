@@ -349,6 +349,7 @@ class Watch {
 
  private:
   friend void Base::Internal::UnwatchStopper(Base::Thread& thread);
+  friend Bool Base::Internal::KillStoppers(UInt signal);
 
 #if DEBUGING
   friend void Base::Debug::DumpWatch(String parameter); 
@@ -419,6 +420,18 @@ Bool UnwatchStopper(Base::Lock& lock) {
   }
 
   return False;
+}
+
+Bool KillStoppers(UInt signal) {
+  Bool result{True};
+
+  for (auto thread: Watcher._Threads) {
+    if (!pthread_kill(thread->Identity(), signal)) {
+      result = False;
+    }
+  }
+
+  return result;
 }
 
 /* @NOTE: this function is used to get UUID of the current thread */
