@@ -1,6 +1,10 @@
 #ifndef BASE_MACRO_H_
 #define BASE_MACRO_H_
 
+#if defined(COVERAGE) || !defined(NDEBUG)
+#define DEBUGING 1
+#endif
+
 #ifndef SUPPRESS_UNUSED_ATTRIBUE
 #if defined(__GNUC__) && defined(__clang__)
 #define UNUSED(x) x __attribute__((__unused__))
