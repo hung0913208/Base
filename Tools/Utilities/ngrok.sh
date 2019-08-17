@@ -19,7 +19,7 @@ if [[ ${#WAIT} -eq 0 ]]; then
 	WAIT=0
 fi
 
-if [ ! -f ./ngrok-stable-libnux-amd64.zip ]; then
+if [ ! -f ./ngrok-stable-linux-amd64.zip ]; then
 	timeout 30 wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
 
 	if [ $? != 0 ]; then
@@ -36,14 +36,8 @@ if [ ! -f ./ngrok-stable-libnux-amd64.zip ]; then
 fi
 
 screen -ls "ngrok.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
-
 if [ ! -f ./ngrok ]; then
 	unzip -qq -n ngrok-stable-linux-amd64.zip
-fi
-
-PID="$(pgrep -d "," ngrok)"
-if [[ ${#PID} -gt 0 ]]; then
-	kill -9 $PID >& /dev/null
 fi
 
 if [ "$1" = "ssh" ]; then
@@ -53,37 +47,41 @@ if [ "$1" = "ssh" ]; then
 			error "Sudo is needed but you aren't on root and can't access to root"
 		fi
 
-		if sudo -S -p "" echo -n < /dev/null 2> /dev/null ; then
+		if sudo -S -p "" echo -n < /dev/null; then
 			SU="sudo"
 		else
 			error "Sudo is not enabled"
 		fi
 	fi
 
-	echo root:$PASS | $SU chpasswd >& /dev/null
+	echo root:$PASS | $SU chpasswd
 	$SU mkdir -p /var/run/sshd
 
 	echo "PermitRootLogin yes" | $SU tee -a /etc/ssh/sshd_config >& /dev/null
 	echo "PasswordAuthentication yes" | $SU tee -a /etc/ssh/sshd_config >& /dev/null
-	echo "LD_LIBRARY_PATH=/usr/lib64-nvidia" | $SU tee -a /root/.bashrc  >& /dev/null
+	echo "LD_LIBRARY_PATH=/usr/lib64-nvidia" | $SU tee -a /root/.bashrc >& /dev/null
 	echo "export LD_LIBRARY_PATH" | $SU tee -a /root/.bashrc >& /dev/null
 
+
 	if netstat -tunlp | grep sshd; then
-		PORT=$(netstat -tunlp | grep sshd | awk '{ print $4; }' | awk -F":" '{ print $2; }')
+		PORT=$(netstat -tunlp | grep sshd | awk '{ print $4; }' | awk -F":" '{ print $2; }') >& /dev/null
 	else
-		if which sshd; then
+		SSHD=$(which sshd) >& /dev/null
+
+		if which sshd >& /dev/null; then
 			if [ ${#PORT} = 0 ]; then
 				read LOWER UPPER < /proc/sys/net/ipv4/ip_local_port_range
 
-				for (( PORT = LOWER ; PORT <= UPPER ; PORT++ )); do
+				for (( PORT = 1 ; PORT <= LOWER ; PORT++ )); do
 					timeout 1 nc -l -p "$PORT"
 
 					if [ $? = 124 ]; then
 						break
 					fi
-				done	       
+				done
 			fi
-			screen -S "ngrok.pid" -md $(which sshd) -p $PORT
+
+			$SSHD -E /tmp/sshd.log -p $PORT
 		fi
 	fi
 elif [ "$1" = "netcat" ]; then
@@ -99,7 +97,7 @@ elif [ "$1" = "netcat" ]; then
 	fi
 
 	sleep 1
-	PORT=$(netstat -tunlp | grep nc.traditional | awk '{ print $4; }' | awk -F":" '{ print $2; }')
+	PORT=$(netstat -tunlp | grep nc.traditional | awk '{ print $4; }' | awk -F":" '{ print $2; }') >& /dev/null
 fi
 
 ./ngrok authtoken $TOKEN >& /dev/null
@@ -112,7 +110,7 @@ fi
 
 sleep 3
 
-if netstat -tunlp | grep ngrok; then
+if netstat -tunlp | grep ngrok >& /dev/null; then
 	curl -s http://localhost:4040/api/tunnels | python3 -c \
 		"import sys, json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])"
 else
