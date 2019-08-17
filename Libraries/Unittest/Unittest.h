@@ -466,6 +466,33 @@ class Timeout : Trap {
   ULong _Seconds;
   Bool _Bypass;
 };
+
+class Dump : Trap {
+ public:
+  enum TypeE {
+    EThrowing = 0,
+    EExiting = 1,
+    ECrashing = 2,
+    EFinishing = 3
+  };
+
+  explicit Dump(Case* testcase, UInt type);
+  virtual ~Dump();
+
+  static void Register(Shared<Dump> dumper);
+  static void Clear();
+
+  void operator<<(Function<void()> callback) final;
+
+  void Assign(String name, Base::Auto object);
+  void Preview();
+
+ protected:
+
+  Map<String, Auto> _Variables;
+  Function<void()> _Handler;
+  UInt _Type;
+};
 }  // namespace Unit
 }  // namespace Base
 #endif
@@ -523,6 +550,34 @@ class Timeout : Trap {
                                 [&](){ THIS->Ignore(False); }}; \
                                                                 \
     Block;                                                      \
+  }
+
+/* @NOTE: this macro will be used to dump infomation at crashing time */
+#define CRASHDUMP(Process)                                        \
+  {                                                               \
+    using namespace Base::Unit;                                   \
+                                                                  \
+    auto dumper = std::make_shared<Dump>(this, Dump::ECrashing);  \
+                                                                  \
+    Dump::Register(dumper);                                       \
+    (*dumper) << [&]() { Process; };                              \
+  }
+
+/* @NOTE: this macro will be used to dump infomation at finishing time of testcases */
+#define FINISHDUMP(Process)                                       \
+  {                                                               \
+    using namespace Base::Unit;                                   \
+                                                                  \
+    auto dumper = std::make_shared<Dump>(this, Dump::EFinishing); \
+                                                                  \
+    Dump::Register(dumper);                                       \
+    (*dumper) << [&]() { Process; };                              \
+  }
+
+/* @NOTE: this macro will be used to dump infomation at exiting time */
+#define EXITDUMP(Process)                                                       \
+  {                                                                             \
+    Base::Unit::Dump{this, Base::Unit::Dump::EExiting} << [&]() { Process; };   \
   }
 
 #define EXPECT_TRUE(condition) \
