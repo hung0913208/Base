@@ -377,7 +377,7 @@ elif [ "$1" = "report" ]; then
 		"$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report.sh" $3
 	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report" ]; then
 		for REPORT in $ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report/*.sh; do
-			$REPORT $3
+			$REPORT $4
 		done
 	fi
 	exit 0

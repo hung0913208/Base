@@ -116,9 +116,6 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 				echo ""
 
 				cat "$LOG/$ISSUE"
-				echo "---------------------------------------------------------------------------------"
-				echo ""
-				echo ""
 
 				if [[ $EMAIL =~ 'ftp://' ]]; then
 					RPATH=$(python -c "print(\"/\".join(\"$REVIEW\".split('/')[3:]))")
@@ -131,12 +128,11 @@ open $HOST
 user $USER $PASSWORD
 rmdir -f $RPATH/$ISSUE
 EOF
-
-					# @NOTE: update the new code coverage
-					if ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$LOG/$ISSUE"; then
-						exit $?
-					fi
+					ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$LOG/$ISSUE" >& /dev/null
 				else
+					echo "---------------------------------------------------------------------------------"
+					echo ""
+					echo ""
 					$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$EMAIL"
 				fi
 	
@@ -145,7 +141,7 @@ EOF
 				fi
 			fi
 
-			$PIPELINE/Libraries/Reproduce.sh report "$ISSUE" "$LOG/$ISSUE"
+			$PIPELINE/Libraries/Reproduce.sh report "$ISSUE" "$ROOT" "$LOG/$ISSUE"
 		else
 			warning "Fail on preparing the issue $ISSUE"
 		fi
