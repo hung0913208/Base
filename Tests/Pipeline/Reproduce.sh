@@ -120,7 +120,26 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 				echo ""
 				echo ""
 
-				$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$EMAIL"
+				if [[ $EMAIL =~ 'ftp://' ]]; then
+					RPATH=$(python -c "print(\"/\".join(\"$REVIEW\".split('/')[3:]))")
+					HOST=$(python -c "print(\"$REVIEW\".split('@')[1].split('/')[0])")
+					USER=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[0])")
+					PASSWORD=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[1].split('@')[0])")
+	
+					lftp <<EOF
+open $HOST
+user $USER $PASSWORD
+rmdir -f $RPATH/$ISSUE
+EOF
+
+					# @NOTE: update the new code coverage
+					if ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$LOG/$ISSUE"; then
+						exit $?
+					fi
+				else
+					$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$EMAIL"
+				fi
+	
 				if [ ! -e "$ROOT/BUG" ]; then
 					touch "$ROOT/BUG"
 				fi
