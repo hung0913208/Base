@@ -371,6 +371,9 @@ EOF
 	fi
 	exit 0
 elif [ "$1" = "report" ]; then
+	CURRENT=$(pwd)
+	cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+
 	if [ -f "$ROOT/.reproduce.d/$ISSUE/report.sh" ]; then
 		"$ROOT/.reproduce.d/$ISSUE/report.sh" $3
 	elif [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report.sh" ]; then
@@ -380,6 +383,9 @@ elif [ "$1" = "report" ]; then
 			$REPORT $4
 		done
 	fi
+
+
+	cd $CURRENT || error "can't cd to $CURRENT"
 	exit 0
 else
 	error "no support $1"
