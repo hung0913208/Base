@@ -18,7 +18,7 @@ upload() {
 	stream=$(echo $session | python -c "import sys, json; print(json.load(sys.stdin)['location'])")
 
 	# @NOTE: upload file to fsend server
-	curl --progress-bar -X POST -o result.txt -T "$1" $stream
+	curl -X POST -o result.txt -T "$1" $stream
 
 	if [ $? == 0 ]; then
 		# @NOTE: remove result.txt since we finish uploading
@@ -55,7 +55,7 @@ download() {
 if [ $1 == "upload" ]; then
 	if [ ! -e $2 ]; then
 		exit -1
-	elif [ $(wc -c < $2) > 2147483648 ]; then
+	elif [[ $(wc -c < $2) -gt 2147483648 ]]; then
 		NAME=$(basename $2)
 		EXT=${NAME##*.}
 		ROOT=$(pwd)
