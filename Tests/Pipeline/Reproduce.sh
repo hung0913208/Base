@@ -126,9 +126,12 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 					lftp <<EOF
 open $HOST
 user $USER $PASSWORD
-rmdir -f $RPATH/$ISSUE
+rmdir -f $RPATH/$ISSUE.txt
 EOF
-					ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$LOG/$ISSUE" >& /dev/null
+					cp "$LOG/$ISSUE" "$LOG/$ISSUE.txt"
+
+					ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$LOG/$ISSUE.txt" >& /dev/null
+					rm -fr "$LOG/$ISSUE.txt"
 				else
 					echo "---------------------------------------------------------------------------------"
 					echo ""
