@@ -145,7 +145,7 @@ EOF
 				fi
 			fi
 
-			$PIPELINE/../../Tools/Utilities/fsend.sh report "$ISSUE" "$LOG/$ISSUE"
+			$PIPELINE/Libraries/Reproduce.sh report "$ISSUE" "$LOG/$ISSUE"
 		else
 			warning "Fail on preparing the issue $ISSUE"
 		fi
