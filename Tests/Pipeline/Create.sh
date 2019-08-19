@@ -105,6 +105,10 @@ for IDX in {0..256}; do
 done
 
 if [ -f ./HOOK ]; then
+	echo "\n" >> ./HOOK
+fi
+
+if [ -f ./HOOK ]; then
 	$SU chmod +x ./HOOK
 
 	if [ $? = 0 ]; then
@@ -116,6 +120,8 @@ if [ -f ./HOOK ]; then
 
 			rm -fr ./HOOK
 		fi
+	else
+		error "can't change $(pwd)/HOOK to be executed"
 	fi
 fi
 
