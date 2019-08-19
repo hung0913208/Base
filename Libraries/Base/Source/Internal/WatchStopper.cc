@@ -715,26 +715,19 @@ void* Booting(void* ptr) {
   if (error && error != EDoNothing) {
 bugs:
     /* @NOTE: we should unlock this mutex in the case we facing any issue from
-     * thread side inorder to unlock main-thread */
+     * thread side in order to unlock main-thread */
 
-    while (True) {
-      /* @NOTE: after finish register our thread, we should release this
-       * lock to notify main-thread to check and verify the status */
-
-      if (CMPXCHG(&thread->_Registering, True, False)) {
-        break;
-      } else {
-        BARRIER();
-      }
-    }
+    thread->_Registering = False;
 
     /* @NOTE: the implementer got ending state and we should remove it now to
      * prevent memory leak */
+
     if (Thiz) {
       delete Thiz;
     }
 
     Watcher._Rested--;
+
 #if defined(COVERAGE)
     Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
     exit(-1);
@@ -1002,7 +995,7 @@ Bool Watch::Increase(Stopper* stopper) {
     _Counters[Type<T>()] += 1;
   }
 
-  if (_Main == GetUUID()) {
+  if (_Main == (Long)GetUUID() || Type<T>() == Type<Implement::Thread>()) {
     return True;
   } else {
     return Thiz? Thiz->SwitchTo(Unlocked) == 0: True;
@@ -1023,7 +1016,7 @@ Bool Watch::Decrease(Stopper* stopper) {
     _Counters[Type<T>()] -= 1;
   }
 
-  if (_Main == GetUUID()) {
+  if (_Main == (Long)GetUUID() || Type<T>() == Type<Implement::Thread>()) {
     return True;
   } else {
     return Thiz? Thiz->SwitchTo(Unlocked) == 0: True;
