@@ -48,6 +48,7 @@ fi
 
 # @NOTE: okey now, reproducing is comming
 if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
+	BEGIN=$(date +%s)
 	LOG="$ROOT/Logs"
 
 	if [ ! -d $LOG ]; then
@@ -81,7 +82,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 
 			while [[ $IDX -lt $STEP ]] || [[  $STEP -lt 0 ]]; do
 				info "reproducing turn $IDX" | tr -d '\n'
-
+				
 				if [ $FOUND = 0 ]; then
 					rm -fr "$LOG/$ISSUE"
 					touch "$LOG/$ISSUE"
@@ -108,7 +109,13 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 					echo " -> fail"
 				fi
 
-				IDX=$((IDX+1))
+				END=$(date +%s)
+
+				if [[ ${#TIMEOUT} -gt 0 ]] && [[ $((END-BEGIN)) -gt $TIMEOUT ]]; then
+					break
+				else
+					IDX=$((IDX+1))
+				fi
 			done
 
 			if [ $FOUND != 0 ]; then
@@ -148,8 +155,13 @@ EOF
 		else
 			warning "Fail on preparing the issue $ISSUE"
 		fi
+		
+		END=$(date +%s)
 
 		rm -fr "$ROOT/.reproduce.d/$ISSUE"
+		if [[ ${#TIMEOUT} -gt 0 ]] && [[ $((END-BEGIN)) -gt $TIMEOUT ]]; then
+			break
+		fi
 	done
 fi
 
