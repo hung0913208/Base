@@ -460,7 +460,7 @@ Bool UnwatchStopper(Base::Lock& lock) {
 }
 
 Bool KillStoppers(UInt signal) {
-  Bool result{True};
+  Bool result{False};
 
   for (auto thread: Watcher._Threads) {
     if (!pthread_kill(thread->Identity(), signal)) {
@@ -1921,18 +1921,18 @@ ULong Time() {
 
 Int TimeLock(Mutex* mutex, Long timeout, Bool* halt) {
   TimeSpec spec{.tv_sec=0, .tv_nsec=10};
-  Bool pass{False};
+  Bool passed{False};
   Long clock{0};
   Int result{0};
 
-  while ((!halt || (pass = *halt)) && (timeout < 0 || clock < timeout)) { 
+  while ((!halt || !(passed = *halt)) && (timeout < 0 || clock < timeout)) { 
     if (timeout >= 0) {
       clock += spec.tv_nsec;
     }
 
     switch (TRYLOCK(mutex)) {
       case 0:
-        return 0;
+        goto finish;
 
       case EBUSY:
         result = ETIMEDOUT;
@@ -1945,7 +1945,11 @@ Int TimeLock(Mutex* mutex, Long timeout, Bool* halt) {
     nanosleep(&spec, None);
   }
 
-  return pass? 0: result;
+finish:
+  if (passed) {
+    UNLOCK(mutex);
+  }
+  return passed? 0: result;
 }
 
 void SolveDeadlock() {
