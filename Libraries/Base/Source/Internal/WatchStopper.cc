@@ -40,6 +40,9 @@ void DumpWatch(String parameter);
 #endif // DEBUG
 
 namespace Internal {
+void UnwatchStopper(Base::Thread& thread);
+Bool KillStoppers(UInt signal);
+
 namespace Implement {
 class Thread;
 class Lock;
