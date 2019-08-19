@@ -16,7 +16,11 @@ static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
 Auto::Auto()
     : Variable{[&]() -> Any& { return _Context; },
                [&](Any) { throw Except(ENoSupport, ""); }} {
-  memset(&_Context, 0, sizeof(_Context));
+  _Context.Context = None;
+  _Context.Type = None;
+  _Context.Reference = None;
+  _Context.Del = None;
+  _Context.Clone = None;
 }
 
 Auto::~Auto() { Clear(); }
@@ -24,13 +28,22 @@ Auto::~Auto() { Clear(); }
 Auto::Auto(std::nullptr_t)
     : Variable{[&]() -> Any& { return _Context; },
                [&](Any) { throw Except(ENoSupport, ""); }} {
-  memset(&_Context, 0, sizeof(_Context));
+  _Context.Context = None;
+  _Context.Type = None;
+  _Context.Reference = None;
+  _Context.Del = None;
+  _Context.Clone = None;
 }
 
 Auto::Auto(const Any& src)
     : Variable{[&]() -> Any& { return _Context; },
                [&](Any) { throw Except(ENoSupport, ""); }} {
-  memset(&_Context, 0, sizeof(_Context));
+  _Context.Context = None;
+  _Context.Type = None;
+  _Context.Reference = None;
+  _Context.Del = None;
+  _Context.Clone = None;
+
   if (&src != &_Context) {
     (*this) = const_cast<Any&>(src);
   }
@@ -39,7 +52,12 @@ Auto::Auto(const Any& src)
 Auto::Auto(const Auto& src)
     : Variable{[&]() -> Any& { return _Context; },
                [&](Any) { throw Except(ENoSupport, ""); }} {
-  memset(&_Context, 0, sizeof(_Context));
+  _Context.Context = None;
+  _Context.Type = None;
+  _Context.Reference = None;
+  _Context.Del = None;
+  _Context.Clone = None;
+
   if (&src != this) {
     (*this) = const_cast<Auto&>(src);
   }
@@ -48,7 +66,12 @@ Auto::Auto(const Auto& src)
 Auto::Auto(Auto&& src)
     : Variable{[&]() -> Any& { return _Context; },
                [&](Any) { throw Except(ENoSupport, ""); }} {
-  memset(&_Context, 0, sizeof(_Context));
+  _Context.Context = None;
+  _Context.Type = None;
+  _Context.Reference = None;
+  _Context.Del = None;
+  _Context.Clone = None;
+
   if (&src != this) {
     (*this) = RValue(src);
   }

@@ -295,8 +295,6 @@ ErrorCodeE Json::Parse(UInt index, Byte c) {
       Vector<StageE> next{};
       String samples{};
 
-      DEBUG(Stage());
-
       switch(stage) {
       case Initial:
         next = {stage, stage, stage, ParseDict, ParseList};
@@ -606,8 +604,7 @@ ErrorCodeE Json::ExportString() {
   auto& str = _Pending.top().Sentence;
   auto result = Any{};
 
-  Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
-                        [&]() { BSNone2Any(&result); });
+  Vertex<void> escaping([&]() { }, [&]() { BSNone2Any(&result); });
 
   if (str.Caching) {
     auto begin = str.Value.v1.Begin;
@@ -615,15 +612,11 @@ ErrorCodeE Json::ExportString() {
     auto value = new String{_Stream->Cache().c_str() + begin,
                             end - begin};
 
-    DEBUG(Format{"Use caching {}"}.Apply(*value));
-
     /* @NOTE: assign String to Any */
     BSAssign2Any(&result, value, CTYPE(String),
                  [](void* content) { delete (String*)content; });
   } else if (str.Value.v2.Data) {
     auto value = new String{str.Value.v2.Data, str.Value.v2.Size};
-
-    DEBUG(Format{"Use cloning {}"}.Apply(*value));
 
     /* @NOTE: assign String to Any */
     BSAssign2Any(&result, value, CTYPE(String),
@@ -645,8 +638,7 @@ ErrorCodeE Json::ExportNumber() {
   auto& num = _Pending.top().Number;
   auto result = Any{};
 
-  Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
-                        [&]() { BSNone2Any(&result); });
+  Vertex<void> escaping([&]() { }, [&]() { BSNone2Any(&result); });
 
   if (num.Floating) {
     Double sign = num.Sign? 1.0: -1.0;
@@ -676,9 +668,7 @@ ErrorCodeE Json::ExportNumber() {
 ErrorCodeE Json::ExportBoolean() {
   auto result = Any{};
 
-  Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
-                        [&]() { BSNone2Any(&result); });
-  DEBUG(ToString(_Pending.top().Boolean.Value));
+  Vertex<void> escaping([&]() { }, [&]() { BSNone2Any(&result); });
 
   /* @NOTE: assign Bool to Any */
   BSAssign2Any(&result,
@@ -699,9 +689,7 @@ ErrorCodeE Json::ExportList() {
   Data::List* list = _Pending.top().List;
   Any result = Any{};
 
-  Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
-                        [&]() { BSNone2Any(&result); });
-  DEBUG(Format{"with {} element(s)"}.Apply(list->Size()));
+  Vertex<void> escaping([&]() { }, [&]() { BSNone2Any(&result); });
 
   /* @NOTE: revert to previous stage */
   if (!Change(Revert)) {
@@ -720,9 +708,7 @@ ErrorCodeE Json::ExportDict() {
   Data::Dict* dict = _Pending.top().Dict;
   Any result = Any{};
 
-  Vertex<void> escaping([&]() { memset(&result, 0, sizeof(result)); },
-                        [&]() { BSNone2Any(&result); });
-  DEBUG(Format{"with {} element(s)"}.Apply(dict->Size()));
+  Vertex<void> escaping([&]() { }, [&]() { BSNone2Any(&result); });
 
   /* @NOTE: revert to previous stage */
   if (!Change(Revert)) {
@@ -754,8 +740,6 @@ ErrorCodeE Json::AddToContent(Any value){
 
     if (!_Result) {
       return BadLogic("release requires value").code();
-    } else {
-      DEBUG(Format{"release with stage {}"}.Apply(Stage()));
     }
     break;
 
