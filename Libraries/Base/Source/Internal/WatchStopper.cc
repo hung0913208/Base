@@ -999,10 +999,14 @@ Bool Watch::Increase(Stopper* stopper) {
    if (_Counters.find(Type<T>()) == _Counters.end()) {
     _Counters[Type<T>()] = 1;
   } else if (stopper->Increase()) {
-    _Counters[Type<T>()]++;
+    _Counters[Type<T>()] += 1;
   }
 
-  return True;
+  if (_Main == GetUUID()) {
+    return True;
+  } else {
+    return Thiz? Thiz->SwitchTo(Unlocked) == 0: True;
+  }
 }
 
 template <typename T>
@@ -1016,10 +1020,14 @@ Bool Watch::Decrease(Stopper* stopper) {
     Bug(EBadLogic, "decrease an undefined type");
 #endif
   } else if (stopper->Decrease()) {
-    _Counters[Type<T>()]--;
+    _Counters[Type<T>()] -= 1;
   }
 
-  return True;
+  if (_Main == GetUUID()) {
+    return True;
+  } else {
+    return Thiz? Thiz->SwitchTo(Unlocked) == 0: True;
+  }
 }
 
 ErrorCodeE Watch::OnWatching(Stopper* stopper) {
@@ -1779,6 +1787,7 @@ finish:
   if (CMP(&_Count, 1)) {
     goto lock;
   }
+
 
 done:
   return ENoError;
