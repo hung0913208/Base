@@ -995,7 +995,9 @@ Bool Watch::Increase(Stopper* stopper) {
 
    if (_Counters.find(Type<T>()) == _Counters.end()) {
     _Counters[Type<T>()] = 1;
-  } else if (stopper->Increase()) {
+  }
+   
+  if (stopper->Increase()) {
     _Counters[Type<T>()] += 1;
   }
 
@@ -1016,7 +1018,9 @@ Bool Watch::Decrease(Stopper* stopper) {
 #else
     Bug(EBadLogic, "decrease an undefined type");
 #endif
-  } else if (stopper->Decrease()) {
+  }
+  
+  if (stopper->Decrease()) {
     _Counters[Type<T>()] -= 1;
   }
 
@@ -1849,7 +1853,6 @@ Bool Lock::Decrease() {
     }
   }
 
-
   /* @NOTE: wow, i can detect the silence state here. Of course, this state is very
    * unstable but i believe that it should be very useful in the future */
 
@@ -1988,10 +1991,12 @@ void SolveDeadlock() {
         /* @NOTE: do nothing so we should increase timeout in order to prevent
          * performance impact causes by running this function too much*/
 
-        // timeout *= 10;
+        timeout *= 10;
+      } else {
+        timeout /= 10;
       }
     } else {
-      // timeout *= 10;
+      timeout *= 10;
     }
 
 again:
