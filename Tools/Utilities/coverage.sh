@@ -108,13 +108,10 @@ if [[ -d $1/Coverage ]]; then
 			exit -1
 		fi
 
-		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which ncftpput)" ] && [ "$(which lftp)" ]; then
+		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which lftp)" ]; then
 			# @NOTE: Delete remote old code coverage
-			lftp -n <<EOF
-open $HOST
-user $USER $PASSWORD
-rmdir -r $RPATH
-mkdir $RPATH
+			lftp $HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no;" <<EOF
+rm -f $RPATH/*
 EOF
 
 			cd $OUTPUT || exit -1

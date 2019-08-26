@@ -84,7 +84,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 		ISSUE="${SPLITED[0]}"
 		REPO="${SPLITED[2]}"
 		SPEC="${SPLITED[3]}"
-		EMAIL="${SPLITED[4]}"
+		INTERVIEW="${SPLITED[4]}"
 		AUTH="${SPLITED[5]}"
 		COMMIT="${SPLITED[6]}"
 		REVS="${SPLITED[7]}"
@@ -147,11 +147,11 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 
 				cat "$LOG/$ISSUE"
 
-				if [[ $EMAIL =~ 'ftp://' ]]; then
-					RPATH=$(python -c "print(\"/\".join(\"$REVIEW\".split('/')[3:]))")
-					HOST=$(python -c "print(\"$REVIEW\".split('@')[1].split('/')[0])")
-					USER=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[0])")
-					PASSWORD=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[1].split('@')[0])")
+				if [[ $INTERVIEW =~ 'ftp://' ]]; then
+					RPATH=$(python -c "print(\"/\".join(\"$INTERVIEW\".split('/')[3:]))")
+					HOST=$(python -c "print(\"$INTERVIEW\".split('@')[1].split('/')[0])")
+					USER=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[0])")
+					PASSWORD=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[1].split('@')[0])")
 	
 					lftp $HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no;" <<EOF
 put -O $RPATH $LOG/$ISSUE
@@ -161,7 +161,7 @@ EOF
 					echo "---------------------------------------------------------------------------------"
 					echo ""
 					echo ""
-					$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$EMAIL"
+					$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$INTERVIEW"
 				fi
 	
 				if [ ! -e "$ROOT/BUG" ]; then
