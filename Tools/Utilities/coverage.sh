@@ -117,8 +117,11 @@ EOF
 			cd $OUTPUT || exit -1
 
 			# @NOTE: update the new code coverage
-			if ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" ./; then
+			if ! ncftpput -d /tmp/coverage.log -DD -R -V -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" ./; then
+				cat /tmp/coverage.log && rm -fr /tmp/coverage.log
 				exit $?
+			else
+				rm -fr /tmp/coverage.log
 			fi
 		elif [[ "$PROTOCOL" = "scp" ]] && [ "$(which scp)" ] && [ "$(which expect)" ]; then
 			expect -c """
