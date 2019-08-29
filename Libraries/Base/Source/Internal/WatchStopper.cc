@@ -29,6 +29,7 @@ Mutex* GetMutex(Lock& lock);
 Thread::StatusE GetThreadStatus(Thread& thread);
 
 void Capture (Void* ptr, Bool status);
+void Cleanup(void* ptr);
 void* Booting(void* ptr);
 
 #if DEBUGING
@@ -368,6 +369,7 @@ class Watch {
   friend Bool Base::Internal::KillStoppers(UInt signal);
   friend void Base::Internal::UnwatchStopper(Base::Thread& thread);
   friend void Base::Capture (Void* ptr, Bool status);
+  friend void Base::Cleanup(void* ptr);
   friend void* Base::Booting(void* ptr);
 
 #if DEBUGING
@@ -554,11 +556,14 @@ void SetThreadStatus(Thread& thread, Int status) {
 }
 
 void Cleanup(void* ptr) {
+  using namespace Base::Internal;
+  using namespace Base;
+
   if (ptr) {
-    Base::Thread* thiz{reinterpret_cast<Base::Thread*>(ptr)};
-    Base::Internal::Implement::Thread* impl =
-      reinterpret_cast<Base::Internal::Implement::Thread*>(Context(*thiz));
-    ErrorCodeE error;
+    Thread* thiz = reinterpret_cast<Thread*>(ptr);
+    ErrorCodeE error = ENoError;
+    Implement::Thread* impl =
+      reinterpret_cast<Implement::Thread*>(Context(*thiz));
 
     do {
       if (error == EDoAgain) {
@@ -567,6 +572,8 @@ void Cleanup(void* ptr) {
 
       error = Base::Internal::Watcher.OnExpiring(impl);
     } while (error == EDoAgain);
+
+    Watcher._Rested--;
   }
 
   pthread_exit((void*) -1);
