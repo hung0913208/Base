@@ -12,6 +12,29 @@ CODE=0
 
 install_package screen
 
+function progress() {
+	case "$((IDX%18))" in
+		0)	python -c "import sys; sys.stdout.write('\\r[*        ]: $2'); sys.stdout.flush();";;
+		1)	python -c "import sys; sys.stdout.write('\\r[**       ]: $2'); sys.stdout.flush();";;
+		2)	python -c "import sys; sys.stdout.write('\\r[***      ]: $2'); sys.stdout.flush();";;
+		3)	python -c "import sys; sys.stdout.write('\\r[****     ]: $2'); sys.stdout.flush();";;
+		4)	python -c "import sys; sys.stdout.write('\\r[*****    ]: $2'); sys.stdout.flush();";;
+		5)	python -c "import sys; sys.stdout.write('\\r[******   ]: $2'); sys.stdout.flush();";;
+		6)	python -c "import sys; sys.stdout.write('\\r[*******  ]: $2'); sys.stdout.flush();";;
+		7)	python -c "import sys; sys.stdout.write('\\r[******** ]: $2'); sys.stdout.flush();";;
+		8)	python -c "import sys; sys.stdout.write('\\r[*********]: $2'); sys.stdout.flush();";;
+		9)	python -c "import sys; sys.stdout.write('\\r[******** ]: $2'); sys.stdout.flush();";;
+		10)	python -c "import sys; sys.stdout.write('\\r[*******  ]: $2'); sys.stdout.flush();";;
+		11)	python -c "import sys; sys.stdout.write('\\r[******   ]: $2'); sys.stdout.flush();";;
+		12)	python -c "import sys; sys.stdout.write('\\r[*****    ]: $2'); sys.stdout.flush();";;
+		13)	python -c "import sys; sys.stdout.write('\\r[****     ]: $2'); sys.stdout.flush();";;
+		14)	python -c "import sys; sys.stdout.write('\\r[***      ]: $2'); sys.stdout.flush();";;
+		15)	python -c "import sys; sys.stdout.write('\\r[**       ]: $2'); sys.stdout.flush();";;
+		16)	python -c "import sys; sys.stdout.write('\\r[*        ]: $2'); sys.stdout.flush();";;
+		17)	python -c "import sys; sys.stdout.write('\\r[         ]: $2'); sys.stdout.flush();";;
+	esac
+}
+
 if [[ ${#HOOK} -gt 0 ]]; then
 	printf "$HOOK" >> ./HOOK
 	$SU chmod +x ./HOOK
@@ -81,7 +104,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 			fi
 
 			while [[ $IDX -lt $STEP ]] || [[  $STEP -lt 0 ]]; do
-				info "reproducing turn $IDX" | tr -d '\n'
+				progress $IDX "Preproducing ->"
 				
 				if [ $FOUND = 0 ]; then
 					rm -fr "$LOG/$ISSUE"
@@ -103,10 +126,10 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 						FOUND=1
 						break
 					else
-						echo " -> fail"
+						echo ' fail' | tr -d '\n'
 					fi
 				else
-					echo " -> fail"
+					echo ' fail' | tr -d '\n'
 				fi
 
 				END=$(date +%s)
@@ -119,7 +142,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 			done
 
 			if [ $FOUND != 0 ]; then
-				echo " -> success. Here is the log"
+				echo " success. Here is the log"
 				echo ""
 
 				cat "$LOG/$ISSUE"
@@ -130,15 +153,10 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 					USER=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[0])")
 					PASSWORD=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[1].split('@')[0])")
 	
-					lftp <<EOF
-open $HOST
-user $USER $PASSWORD
-rmdir -f $RPATH/$ISSUE.txt
+					lftp $HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no;" <<EOF
+put -O $RPATH $LOG/$ISSUE
 EOF
-					cp "$LOG/$ISSUE" "$LOG/$ISSUE.txt"
 
-					ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" "$LOG/$ISSUE.txt" >& /dev/null
-					rm -fr "$LOG/$ISSUE.txt"
 				else
 					echo "---------------------------------------------------------------------------------"
 					echo ""
