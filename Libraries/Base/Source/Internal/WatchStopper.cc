@@ -238,10 +238,8 @@ class Watch {
     if (MUTEX(&_Lock[1])) {
       throw Except(EBadLogic, "Can\'t init _Lock[1]");
     }
-#if DEV
-    if (MUTEX(&_Checking)) {
-      throw Except(EBadLogic, "Can\'t init _Checking");
-    }
+
+#if DEBUGING
     memset(_Owner, 0, sizeof(_Owner));
 #endif
   }
@@ -253,9 +251,6 @@ class Watch {
 
     DESTROY(&_Lock[0]);
     DESTROY(&_Lock[1]);
-#if DEV
-    DESTROY(&_Checking);
-#endif
   }
 
   /* @NOTE: this function is used to add a stopper to ignoring list */
@@ -373,11 +368,9 @@ class Watch {
 
 #if DEBUGING
   friend void Base::Debug::DumpWatch(String parameter); 
-#endif
 
-#if DEV
   ULong _Owner[NUM_SPINLOCKS];
-  Mutex _Checking;
+  UMap<UInt, Set<ULong>> _Stoppers;
 #endif
 
   /* @NOTE: this variable indicate if we are in safed zone or not */
@@ -406,7 +399,7 @@ class Watch {
   /* @NOTE: database of Watch */
   UMap<UInt, Long> _Counters;
   Set<Base::Thread*> _Threads;
-  UMap<UInt, Set<ULong>> _Ignores, _Stoppers;
+  UMap<UInt, Set<ULong>> _Ignores;
 };
 }  // namespace Internal
 }  // namespace Base
@@ -443,6 +436,10 @@ Bool WatchStopper(Base::Lock& lock) {
 
 void UnwatchStopper(Base::Thread& thread) {
   Watcher.OnUnregister<Implement::Thread>(thread.Identity(False));
+
+#if DEBUGING
+  Watcher._Threads.erase(&thread);
+#endif
 }
 
 Bool UnwatchStopper(Base::Lock& lock) {
@@ -859,23 +856,27 @@ template <typename T>
 void Watch::OnRegister(ULong uuid) {
   Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
 
+#if DEBUGING
   if (_Stoppers.find(Type<T>()) == _Stoppers.end()) {
     _Stoppers[Type<T>()] = Set<ULong>{};
   }
 
   _Stoppers[Type<T>()].insert(uuid);
+#endif
 }
 
 template <typename T>
 void Watch::OnUnregister(ULong uuid) {
   Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
 
+#if DEBUGING
   _Stoppers[Type<T>()].erase(uuid);
+#endif
 
   if (Type<T>() == Type<Implement::Thread>()) {
     _Solved--;
 
-    if (_Stoppers[Type<T>()].size() == 0) {
+    if (_Size == -_Solved) {
       _Status = Unlocked;
     }
   }
@@ -1063,41 +1064,16 @@ ErrorCodeE Watch::OnExpiring(Stopper* stopper) {
 }
 
 void Watch::Lock(UInt index) {
-#if DEV
-  Bool state{True};
-  Vertex<void> escaping{[&]() { LOCK(&_Checking); },
-                        [&]() { if (state) UNLOCK(&_Checking); }};
-
+#if DEBUGING
   if (sizeof(_Owner)/sizeof(index) <= index) {
     Bug(EBadLogic, "use unknown spinlock");
-  }
-#endif
-
-#if DEV
-  if (ISLOCKED(&_Lock[index])) {
-    /* @NOTE: check to see if the thread is on deadlock here, if that is True,
-     * it should be our own bug and we should crash ourself here to collect
-     * coredump */
-
-    if (GetUUID() == (ULong)_Owner[index]) {
-      Bug(EBadLogic, "found issue `double spinlock`");
-    } else {
-      state = False;
-
-      /* @NOTE: we are going to face a waiting lock so we must unlock this first
-       * before doing anything */
-      UNLOCK(&_Global);
-    }
-  } else {
-    goto update;
   }
 #endif
 
   /* @NOTE: lock the spinlock */
   _Safed[index] = !LOCK(&_Lock[index]);
 
-#if DEV
- update:
+#if DEBUGING
   /* @NOTE: update the new owner of this lock, this only indicate that which one
    * is locking this spinlock */
   _Owner[index] = GetUUID();
@@ -1105,7 +1081,7 @@ void Watch::Lock(UInt index) {
 }
 
 void Watch::Unlock(UInt index) {
-#if DEV
+#if DEBUGING
   if (sizeof(_Owner)/sizeof(index) <= index) {
     Bug(EBadLogic, "use unknown spinlock");
   }
@@ -1154,8 +1130,11 @@ ULong Watch::Optimize(Bool UNUSED(predict), ULong timewait) {
 }
 
 void Watch::Reset() {
-  _Threads.clear();
+#if DEBUGING
   _Stoppers.clear();
+#endif
+
+  _Threads.clear();
   _Counters.clear();
   _Status = Unlocked;
 
@@ -2096,6 +2075,11 @@ void DumpWatch(String parameter) {
     VERBOSE << Format{" - Count<Implement::Lock>() = {}"}
                   .Apply(Watcher.Count<Implement::Lock>()) << EOL; 
   } else if (parameter == "Stucs.Unlock") {
+    VERBOSE << Format{" - Spawn() = {}"}.Apply(Watcher.Spawn()) << EOL;
+    VERBOSE << Format{" - Size() = {}"}.Apply(Watcher.Size()) << EOL;
+    VERBOSE << Format{" - Solved() = {}"}.Apply(Watcher.Solved()) << EOL;
+    VERBOSE << Format{" - Rest() = {}"}.Apply(Watcher.Rest()) << EOL;
+  } else if (parameter == "Stucks.Unlock") {
     for (ULong i = 0; i < Watcher.Stucks._Size[1]; ++i) {
       auto& barrier = Watcher.Stucks._Barriers[i];
 
