@@ -66,7 +66,37 @@ exec_with_timeout(){
 		CODE=1
 	fi
 
-	COREFILE=$(find . -maxdepth 1 -name "core-$(basename "$FILE").*" | head -n 1)
+	PATTERN=$(python -c """
+import os
+
+pattern = '$($SU cat /proc/sys/kernel/core_pattern)'
+result = ''
+check = False
+same = False
+
+for c in pattern:
+	if c == '%':
+		check = True
+	elif check is True:
+		check = False
+
+		if c == 'e':
+			result += '$(basename "$FILE")'
+			same = False
+		elif c == 'E':
+			result += '!'.join(os.path.realpath('$FILE').split('/'))
+			same = False
+		elif same is False:
+			result += '*'
+			same = True
+	else:
+		result += c
+		same = False
+else:
+	print(result)
+""")
+
+	COREFILE=$(find . -maxdepth 1 -name "$PATTERN" | head -n 1)
 	if [[ -f "$COREFILE" ]]; then
 		echo "[  ERROR  ] found cordump during runing $2:"
 		coredump $FILE
@@ -96,7 +126,36 @@ compress_coredump(){
 
 coredump(){
 	FILE=$1
-	COREFILE=$(find . -maxdepth 1 -name "core-$(basename "$FILE").*" | head -n 1)
+	PATTERN=$(python -c """
+import os
+
+pattern = '$($SU cat /proc/sys/kernel/core_pattern)'
+result = ''
+check = False
+same = False
+
+for c in pattern:
+	if c == '%':
+		check = True
+	elif check is True:
+		check = False
+
+		if c == 'e':
+			result += '$(basename "$FILE")'
+			same = False
+		elif c == 'E':
+			result += '!'.join(os.path.realpath('$FILE').split('/'))
+			same = False
+		elif same is False:
+			result += '*'
+			same = True
+	else:
+		result += c
+		same = False
+else:
+	print(result)
+""")
+	COREFILE=$(find . -maxdepth 1 -name "$PATTERN" | head -n 1)
 
 	if [[ -f "$COREFILE" ]]; then
 		info "check coredump of $FILE -> found $COREFILE"
