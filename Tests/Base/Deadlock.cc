@@ -1,3 +1,4 @@
+#include <Atomic.h>
 #include <Lock.h>
 #include <Thread.h>
 #include <Unittest.h>
@@ -46,7 +47,7 @@ TEST(DeadLock, ReuseStopper0) {
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([i, locks, &counter]() {
         (locks[i])();
-        counter++;
+        INC(&counter);
       });
 
       EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
@@ -112,7 +113,7 @@ TEST(DeadLock, ReuseStopper1) {
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([i, locks, &counter]() {
         locks[i](True);
-        counter++;
+        INC(&counter);
       });
     }
   });
@@ -148,7 +149,7 @@ TEST(DeadLock, ReuseStopper2) {
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([&counter, lock]() {
         lock();
-        counter++;
+        INC(&counter);
       });
     }
   });
@@ -185,7 +186,7 @@ TEST(DeadLock, ReuseStopper3) {
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([lock, &counter]() {
         lock(True);
-        counter++;
+        INC(&counter);
       });
     }
 
@@ -232,7 +233,7 @@ TEST(DeadLock, ReuseStopper4) {
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start<Base::Lock*>([&counter](Base::Lock* lock) {
         (*lock)(True);
-        counter++;
+        INC(&counter);
       }, &locks[i]);
     }
   });
