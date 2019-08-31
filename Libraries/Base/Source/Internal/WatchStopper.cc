@@ -573,7 +573,7 @@ void Cleanup(void* ptr) {
       error = Base::Internal::Watcher.OnExpiring(impl);
     } while (error == EDoAgain);
 
-    Watcher._Rested--;
+    INC(&Watcher._Rested);
   }
 
   pthread_exit((void*) -1);
@@ -683,7 +683,7 @@ void* Booting(void* ptr) {
 
     goto bugs;
   } else {
-    Watcher._Spawned++;
+    INC(&Watcher._Spawned);
   }
 
   pthread_cleanup_push(Cleanup, ptr);
@@ -737,7 +737,7 @@ bugs:
       delete Thiz;
     }
 
-    Watcher._Rested--;
+    INC(&Watcher._Rested);
 
 #if defined(COVERAGE)
     Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
@@ -746,7 +746,7 @@ bugs:
     throw Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
 #endif
   } else {
-    Watcher._Rested--;
+    INC(&Watcher._Rested);
   }
 
   return None;
@@ -878,9 +878,9 @@ void Watch::OnUnregister(ULong uuid) {
 #endif
 
   if (Type<T>() == Type<Implement::Thread>()) {
-    _Solved--;
+    INC(&_Solved);
 
-    if (_Size == -_Solved) {
+    if (_Size == _Solved) {
       _Status = Unlocked;
     }
   }
@@ -1124,11 +1124,11 @@ ULong Watch::Spawn() {
 
 
 ULong Watch::Rest() {
-  return -_Rested;
+  return _Rested;
 }
 
 ULong Watch::Solved() {
-  return -_Solved;
+  return _Solved;
 }
 
 Bool Watch::Occupy(Base::Thread* thread) {
