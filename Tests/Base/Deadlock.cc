@@ -174,7 +174,7 @@ TEST(DeadLock, ReuseStopper3) {
   });
 #endif
 
-  TIMEOUT(10, {
+  TIMEOUT(60, {
     /* @NOTE:  be carefull with lock since we are working on parallel so
      * it may take race condition if we use lambda recklessly */
     Base::Thread threads[NUM_OF_THREAD];
@@ -213,7 +213,7 @@ TEST(DeadLock, ReuseStopper4) {
   });
 #endif
 
-  TIMEOUT(10, {
+  TIMEOUT(100, {
     /* @NOTE:  be carefull with lock since we are working on parallel so
      * it may take race condition if we use lambda recklessly */
     Base::Thread threads[NUM_OF_THREAD];
