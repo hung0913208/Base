@@ -5,6 +5,14 @@
 namespace Base {
 class Lock {
  public:
+  enum StatusE {
+    Unknown = 0,
+    Locked = 3,
+    Unlocked = 2,
+    Unlocking = 4,
+    Released = 5
+  };
+
   explicit Lock(Bool locked = False);
   virtual ~Lock();
 
@@ -24,10 +32,15 @@ class Lock {
   void Wait(Function<Bool()> event);
   void Safe(Function<void()> callback);
   ULong Identity();
+  StatusE Status();
 
  private:
+  friend Void* Context(Lock& lock);
   friend Mutex* GetMutex(Lock& lock);
-  Int* _Count; 
+  friend void Register(Lock& lock, Void* context);
+
+  Int* _Count;
+  Void* _Context;
   Mutex* _Lock;
 };
 }  // namespace Base

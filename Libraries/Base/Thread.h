@@ -14,9 +14,11 @@ class Thread {
     Unknown = 0,
     Initing = 1,
     Running = 2,
-    Waiting = 3,
-    Expiring = 4
+    Halting = 4,
+    Expiring = 5
   };
+
+  typedef Void(*Notify)(Void* context, Bool status);
 
   explicit Thread(bool daemon = False);
   explicit Thread(const Thread& src);
@@ -46,16 +48,26 @@ class Thread {
   }
 
   Bool Start(Function<void()> delegate = None);
-  ULong Identity();
+  Bool Daemonize(Bool value);
+
+  ULong Identity(Bool uuid = True);
+  Bool Daemon();
+  StatusE Status();
 
  private:
+  friend Void* Context(Thread& thread);
+  friend void Register(Thread& thread, Void* context);
   friend void* Booting(void* thiz);
   friend StatusE GetThreadStatus(Thread& thread);
+  friend void SetThreadStatus(Thread& thread, Int status);
 
-  Function<void(Bool)> _Watcher;
   Function<void()> _Delegate;
+  Notify _Watcher;
   PThread _ThreadId;
   StatusE _Status;
+  ULong _UUID;
+  Void* _Context;
+  Bool _Registering, _Daemon;
   Int* _Count;
 };
 }  // namespace Base

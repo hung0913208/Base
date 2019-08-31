@@ -1,3 +1,4 @@
+#include <Atomic.h>
 #include <Lock.h>
 #include <Logcat.h>
 #include <Macro.h>
@@ -5,1371 +6,2031 @@
 #include <Type.h>
 #include <Vertex.h>
 #include <Utils.h>
+
 #include <signal.h>
+#include <thread>
 
-#if LINUX
-#include <sys/syscall.h>
-#include <unistd.h>
+#define NUM_SPINLOCKS 2
+#define TIMELOCK TimeLock
 
-#ifdef SYS_gettid
-#define GetID() static_cast<ULong>(syscall(SYS_gettid))
-#else
-#error "SYS_gettid unavailable on this system"
-#endif
-#elif APPLE || BSD
-#include <sys/syscall.h>
-#include <sys/types.h>
-
-ULong GetID() {
-  uint64_t tid;
-
-  ptinhread_threadid_np(None, &tid);
-  return tid;
-}
-
-Int pthread_mutex_timedlock(Mutex* mutex, struct timespec* timeout) {
-  pthread_mutex_trylock(mutex);
-  nanosleep(timeout, None);
-
-  if (!pthread_mutex_trylock(mutex)){
-    return 0;
-  } else if (errno == EBUSY){
-    return ETIMEDOUT;
-  } else {
-    return errno;
-  }
-}
-
-#elif WINDOW
-#include <windows.h>
-
-#define GetID GetCurrentThreadId
-#else
-#error "Unknow system, WatchStopper can't protect you"
-#endif
-
-#if USE_TID
-#define GetTID() GetID()
-#define GetMID() GetID()
-#else
-#define GetTID() pthread_self()
-#define GetMID GetID
-#endif
-
-/* @NOTE: define built-in function SYNC_FETCH_ADD */
-#if WINDOW
-#define SYNC_FECTH_ADD(a, b) *a += b
-#else
-#define SYNC_FETCH_ADD __sync_fetch_and_add
-#endif
-
-#define MUTEX 0
-#define THREAD 1
-#define IOSYNC 2
-
-/* @NOTE: this function will help to convert Timespec to String */
-#define TIME_FMT sizeof("2012-12-31 12:59:59.123456789")
-
-ErrorCodeE Timespec2String(CString buf, Int len, struct timespec *ts) {
-  struct tm t;
-
-  tzset();
-
-  if (localtime_r(&(ts->tv_sec), &t) == NULL) {
-    return EBadAccess;
-  }
-
-  if (!strftime(buf, len, "%F %T", &t)) {
-    return EBadLogic;
-  }
-
-  len -= strlen(buf) - 1;
-  if (snprintf(&buf[strlen(buf)], len, ".%09ld", ts->tv_nsec) >= len) {
-    return EOutOfRange;
-  }
-
-  return ENoError;
-}
+using TimeSpec = struct timespec;
 
 namespace Base {
+void Register(Base::Lock& lock, Void* context);
+void Register(Base::Thread& thread, Void* context);
+
+Void* Context(Base::Thread& thread);
+Void* Context(Base::Lock& lock);
+
+Int TimeLock(Mutex* mutex, Long timeout = -1, Bool* halt = None);
+void SolveDeadlock();
+
 Mutex* GetMutex(Lock& lock);
 Thread::StatusE GetThreadStatus(Thread& thread);
 
-namespace Internal {
-class Stopper {
- protected:
-  enum LockT{ EUnknown = 0, EMutex = 1, EIOSync = 2, EJoin = 3 };
+#if DEBUGING
+namespace Debug {
+void DumpThread(Base::Thread& thread, String parameter);
+void DumpLock(Base::Lock& lock, String parameter);
+void DumpWatch(String parameter);
+} // namespace Debug
+#endif // DEBUG
 
+namespace Internal {
+namespace Implement {
+class Thread;
+class Lock;
+} // namespace Implement
+
+class List {
+ private:
+  enum ActionE { ERead = 0, ELModify, ERModify, ERemove, EEnd };
+  using Barrier = Pair<ULong*, Mutex>;
+
+ public:
+  List(Int parallel = 0);
+  ~List();
+
+  template<typename T> T* At(ULong index);
+
+  ULong Size();
+  ULong Add(Void* ptr);
+  Bool  Del(ULong index, Void* ptr);
+
+ private:
+  struct Item {
+    Void* _Ptr;
+    ULong _Index;
+    Item *_Next, *_Prev;
+
+    Item(): _Ptr{None}, _Index{0}, _Next{None}, _Prev{None} {}
+  };
+
+#if DEBUGING
+  friend void Base::Debug::DumpWatch(String parameter);
+#endif
+
+  ULong Add(Item* prev, Void* ptr);
+  Item* Access(ActionE action, Item* node);
+  Item* Access(ActionE action, ULong index, Bool counting = False);
+  Bool Unlock(Item* item);
+  Bool Unlock(ULong ticket);
+
+  Bool _Global, _Sweep;
+  Item *_Head, *_Curr;
+  Barrier* _Barriers;
+  ULong _Size[2], _Parallel, _Count;
+};
+
+class Stopper {
  public:
   virtual ~Stopper() {}
 
-  /* @NOTE: these functions are used to check or update status of the
-   * stopper */
-  virtual Bool Unlocked() = 0;
-  virtual Bool Expired() = 0;
+  /* @NOTE: this function is used to get the stopper's identify */
+  virtual ULong Identity() = 0;
+
+  /* @NOTE: this function is used to get the stopper's context */
+  virtual void* Context() = 0;
+
+  /* @NOTE: this function is used to unlock a stopper automatically */
+  virtual Bool Unlock() = 0;
+
+  /* @NOTE: this function is used to get status of this stopper */
   virtual Int Status() = 0;
 
-  /* @NOTE: use to notify who has caused this stopper to be locked */
-  Bool LockedBy(UInt name, ULong id);
+  /* @NOTE: this function is used to verify the status of this stopper */
+  virtual Bool IsStatus(Int status) = 0;
 
- protected:
-  UInt _Type;
-  LockT _LockType;
-  ULong _LockId;
+  /* @NOTE: this function is used to update status of the stopper */
+  virtual ErrorCodeE SwitchTo(Int next) = 0;
+
+  /* @NOTE: this function is used to lock a stoper from itself POV */
+  virtual ErrorCodeE OnLocking(Implement::Thread* thread) = 0;
+
+  /* @NOTE: this function is used to unlock a stoper from itself POV */
+  virtual ErrorCodeE OnUnlocking(Implement::Thread* thread) = 0;
+
+  /* @NOTE: this function is used to increase counters */
+  virtual Bool Increase() = 0;
+
+  /* @NOTE: this function is used to decrease counters */
+  virtual Bool Decrease() = 0;
 };
+
+#if DEBUGING
+namespace Debug {
+void DumpLock(Implement::Lock& lock, String parameter);
+void DumpLock(Implement::Thread& thread, String parameter);
+} // namespace Debug
+#endif  // DEBUG
 
 namespace Implement {
+
 class Thread : public Base::Internal::Stopper {
  public:
-  Thread(Base::Thread& thread) : Stopper(), _Thread{&thread} {
-    _Type = THREAD;
-  }
+  explicit Thread(Base::Thread& thread) : Stopper(), _First{True},
+           _Thread{&thread}, _Locker{None}{ }
 
-  Thread(Base::Thread* thread) : Stopper(), _Thread{thread} {
-    _Type = THREAD;
-  }
+  explicit Thread(Base::Thread* thread) : Stopper(), _First{True},
+           _Thread{thread}, _Locker{None} { }
 
-  virtual ~Thread() {}
+  ULong Identity() final;
+  void* Context() final;
+  Bool Unlock() final;
+  Int Status() final;
 
-  Int Status() override { return GetThreadStatus(*_Thread); }
+  Bool IsStatus(Int status) final;
 
-  /* @NOTE: unlock thread automatically */
-  Bool Unlocked() override;
-  Bool Expired() override;
+  ErrorCodeE SwitchTo(Int next) final;
+  ErrorCodeE OnLocking(Implement::Thread* thread) final;
+  ErrorCodeE OnUnlocking(Implement::Thread* thread) final;
+
+  ErrorCodeE LockedBy(Stopper* locker);
+  ErrorCodeE UnlockedBy(Stopper* locker);
+
+  Bool Increase() final;
+  Bool Decrease() final;
+
+  Base::Thread* Super();
 
  private:
+  Bool _First;
   Base::Thread* _Thread;
+  Internal::Stopper* _Locker;
 };
 
-class Lock : public Stopper {
+class Lock : public Base::Internal::Stopper {
  public:
-  Lock(Base::Lock& lock) : Stopper() {
-    _Type = MUTEX;
-    _Mutex = Base::GetMutex(lock);
+#ifdef DEBUG
+  explicit Lock(Base::Lock& lock) : Stopper(), _Mutex{Base::GetMutex(lock)},
+           _Ticket{0}, _Count{0}, _Halt{False} {
+#else
+  explicit Lock(Base::Lock& lock) : Stopper(), _Lock{&lock},
+          _Mutex{Base::GetMutex(lock)},  _Ticket{0}, _Count{0}, _Halt{False} {
+#endif
   }
 
-  Lock(Mutex& mutex) : Stopper(), _Mutex{&mutex}{}
+  explicit Lock(Mutex& mutex) : Stopper(), _Mutex{&mutex}, _Ticket{0},
+           _Count{0}, _Halt{False} {
+  }
 
-  /* @NOTE: these functions are used to check or update status of the
-   * stopper */
-  Bool Unlocked() final { return False; }
-  Bool Expired() final { return True; }
-  Int Status() final { return Locker::IsLocked(*_Mutex); }
+  ULong Count();
+  Bool* Halt();
+
+  ULong Identity() final;
+  void* Context() final;
+  Bool Unlock() final;
+  Int Status() final;
+
+  Bool IsStatus(Int status) final;
+
+  ErrorCodeE SwitchTo(Int next) final;
+  ErrorCodeE OnLocking(Implement::Thread* thread) final;
+  ErrorCodeE OnUnlocking(Implement::Thread* thread) final;
+
+  Bool Increase() final;
+  Bool Decrease() final;
 
  private:
-  Vector<ULong> _Stoppers;
+#if DEBUGING
+  friend void Base::Debug::DumpWatch(String parameter);
+  friend void Debug::DumpLock(Implement::Lock& lock, String parameter);
+
+  Base::Lock* _Lock;
+#endif
+
   Mutex* _Mutex;
-};
-
-class IOSync : public Stopper {
- public:
-  IOSync() : Stopper() {
-    _Type = IOSYNC;
-  }
-
-  Bool Unlocked() final {
-    throw Except(EBadAccess, "Can\'t unlock a iosync");
-  }
-
-  Bool Expired() final {
-    throw Except(EBadAccess, "Can\'t expire a iosync");
-  }
-};
-
-class Main : public Implement::Thread {
- public:
-  Main() : Thread(None) {}
-
-  Int Status(){ return 0; }
-
-  /* @NOTE: unlock main automatically */
-  Bool Expired() final;
+  ULong _Ticket;
+  Long _Count;
+  Bool _Halt;
 };
 }  // namespace Implement
 
 class Watch {
  private:
-#ifdef BASE_TYPE_STRING_H_
-  using Context = OMap<ULong, Unique<Stopper>>;
-#else
   using Context = UMap<ULong, Unique<Stopper>>;
-#endif
 
  public:
-  enum StatusE{ Unlocked = 0, Locked = 1, Waiting = 2, Released = 3 };
+  enum StatusE {
+    Unknown = 0,
+    Initing = 1,
+    Unlocked = 2,
+    Locked = 3,
+    Waiting = 4,
+    Released = 5
+  };
 
-  Atomic<Bool> _Crash;
+  Watch() {
+    UInt name = Type<Implement::Thread>();
 
-  Watch(){
-    UInt name = TypeId<Implement::Thread>();
-    ULong thread_id = GetMID();
+    _Main = GetUUID();
+    _Status = Unlocked;
 
-    _Stoppers[name] = Context{};
-    _Stoppers[name][thread_id] = Unique<Stopper>(new Implement::Main());
-    _Status[thread_id] = Unlocked;
-
-    _Pending = 0;
-    _Main = False;
-    _Crash = False;
-
-    pthread_mutex_init(&_Lock[0], None);
-    pthread_mutex_init(&_Lock[1], None);
+    if (MUTEX(&_Lock[0])) {
+      throw Except(EBadLogic, "Can\'t init _Lock[0]");
+    }
+    if (MUTEX(&_Lock[1])) {
+      throw Except(EBadLogic, "Can\'t init _Lock[1]");
+    }
+#if DEV
+    if (MUTEX(&_Checking)) {
+      throw Except(EBadLogic, "Can\'t init _Checking");
+    }
+    memset(_Owner, 0, sizeof(_Owner));
+#endif
   }
 
   ~Watch() {
-    /* @NOTE: try to resolve problems to prevent deadlock at the ending */
+    /* @NOTE: try to resolve problems to prevent deadlock at the ending, we are
+     * facing another issue with pthread_mutex_destroy. It seems on highloaded
+     * system, we can't destroy the locks immediately */
 
-    pthread_mutex_destroy(&_Lock[0]);
-    pthread_mutex_destroy(&_Lock[1]);
+    DESTROY(&_Lock[0]);
+    DESTROY(&_Lock[1]);
+#if DEV
+    DESTROY(&_Checking);
+#endif
   }
 
-  Bool Main(){ return _Main; }
+  /* @NOTE: this function is used to add a stopper to ignoring list */
+  template <typename Type> Bool Ignore(Stopper* stopper);
 
-  OMap<ULong, StatusE>& Status(){ return _Status; }
+  /* @NOTE: this function is used to count thread with specific condition */
+  template <typename Type> Int Count();
 
-  Unique<Stopper>& Get(UInt name, ULong id, Bool safed = True) {
-    if (_Stoppers.find(name) == _Stoppers.end()) {
-      if (safed) UnlockMutex(0);
+  /* @NOTE: this functions is used to get basic information of stoppers */
+  template <typename Type> Pair<Int, ULong> Next();
 
-      /* @NOTE: not found this object type, should never reach */
-      throw Except(EBadAccess,
-                   Format{"Not found object type {}"}.Apply(name));
-    } else if (_Stoppers[name].find(id) == _Stoppers[name].end()) {
-      if (safed) UnlockMutex(0);
+  /* @NOTE: this function is used to access the stopper, this is non-safed
+   * function and you should use it inside safed-areas */
+  template <typename Type> Type* Get(ULong uuid);
 
-      /* @NOTE: not found the object, should never reach */
-      throw Except(EBadAccess, Format{"Not found object {}"}.Apply(id));
-    } else {
-      return _Stoppers[name][id];
-    }
-  }
+  /* @NOTE: this function is used to check if the stopper is marked to be
+   * ignored */
+  template <typename T> Bool IsIgnored(Stopper* stopper);
 
-  Bool Spinlock(Int index) {
-    if (index < 2) {
-      return Locker::IsLocked(_Lock[index]);
-    } else {
-      return False;
-    }
-  }
+  /* @NOTE: this function is used to register a new stopper's uuid and it
+   * should run on main-thread to prevent race-condition */
+  template <typename T> void OnRegister(ULong uuid);
 
+  /* @NOTE: this function is used to unregister a new stopper's uuid and it
+   * should run on main-thread to prevent race-condition */
+  template <typename T> void OnUnregister(ULong uuid);
+
+  /* @NOTE: this function is used to notify that the stopper is on locking */
   template <typename Type>
-  Bool Reset(){
-    UInt name = TypeId<Type>();
+  Bool OnLocking(Stopper* stopper, Function<Void()> actor);
 
-    _Crash = False;
-    _Pending = 0;
-
-    if (IsMain()){
-      Vertex<void> escaping{[&](){ LockMutex(0); },
-                            [&](){ UnlockMutex(0); }};
-
-      /* @NOTE: clear everything now since we expect everything was done */
-      if (typeid(Type) == typeid(Implement::Thread)){
-        for (auto& item: _Status) {
-          if (std::get<0>(item) == GetMID()) {
-            continue;
-          } else if (std::get<1>(item) != Released) {
-            return False;
-          } else {
-            _Stoppers[name].erase(std::get<0>(item));
-          }
-        }
-        _Status.clear();
-
-        /* @NOTE: update status of main thread */
-        _Status[GetMID()] = Unlocked;
-        _Main = False;
-      } else if (_Stoppers.find(name) != _Stoppers.end()) {
-        _Stoppers[name].clear();
-      }
-      return True;
-    }
-
-    return False;
-  }
-
-  Bool IsMain(Bool safed = False){ return IsMain(GetMID(), safed); }
-
-  ULong GetThreadId(Bool safed = False){
-    return IsMain(safed)? GetMID(): ULong(GetTID());
-  }
-
-  void Summary(UInt type = 0) {
-    UInt unlocked{0}, locked{0};
-
-    for (auto& item: _Status) {
-      auto tid = std::get<0>(item);
-      auto status = std::get<1>(item);
-
-      switch (type) {
-      default:
-        if (status) {
-          INFO << Format{"thread {} has been locked"}.Apply(tid)
-               << Base::EOL;
-        }
-        break;
-
-      case 1:
-        if (std::get<1>(item) == Unlocked) {
-          unlocked++;
-        } else if (std::get<1>(item) == Locked) {
-          locked++;
-        }
-        break;
-      }
-    }
-
-    switch(type) {
-    case 1:
-      INFO << Format{"Unlocked/Locked: {}/{}"}.Apply(unlocked, locked)
-           << Base::EOL;
-      break;
-
-    default:
-      break;
-    }
-  }
-
-  ErrorCodeE OnWatching() {
-    ULong thread_id = GetThreadId();;
-    Vertex<void> escaping{[&](){ LockMutex(0); },
-                          [&](){ UnlockMutex(0); }};
-
-    if (!IsExist<Implement::Thread>(thread_id, True)) {
-      return (NotFound << Format{"thread {}"}.Apply(thread_id)).code();
-    }
-
-    return ENoError;
-  }
-
-  ErrorCodeE OnExpiring() {
-    ULong thread_id = GetThreadId();
-
-    Vertex<void> escaping{[&](){ LockMutex(0); },
-                          [&](){ UnlockMutex(0); }};
-
-    if (!IsExist<Implement::Thread>(thread_id, True)) {
-      return (NotFound << Format("thread {}").Apply(thread_id)).code();
-    }
-
-    /* @NOTE: remove current thread out of watching now */
-    if (!Unregister<Implement::Thread>(thread_id, True, True)) {
-      return DoAgain.code();
-    }
-
-    /* @NOTE: solve deadlock only happen on threads */
-    if (!IsMain(True)){
-      SolveDeadlock<Implement::Thread>(True);
-    }
-
-    return ENoError;
-  }
-
+  /* @NOTE: this function is used to notify that the stopper is on unlocking */
   template <typename Type>
-  void OnLocking(ULong id, Function<void()> callback, Bool force = False,
-                 Bool safed = False) {
-    ULong tid = GetThreadId(safed);
-    UInt name = TypeId<Type>();
-    UInt thread_t = TypeId<Implement::Thread>();
+  Bool OnUnlocking(Stopper* stopper, Function<Void()> actor);
 
-    if (Find(_Ignores.begin(), _Ignores.end(), id) >= 0) {
-      callback();
-    } else if (!std::is_base_of<Base::Internal::Stopper, Type>::value) {
-      throw Except(ENoSupport, typeid(Type).name());
-    } else {
-      if (_Stoppers.find(name) == _Stoppers.end()) {
-        _Stoppers[name] = Context{};
-      }
+  /* @NOTE: this function is used to increase the counter of Watch */
+  template <typename Type> Bool Increase(Stopper* stopper);
 
-      Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                            [&](){ if (!safed) UnlockMutex(0); }};
+  /* @NOTE: this function is used to decrease the counter of Watch */
+  template <typename Type> Bool Decrease(Stopper* stopper);
 
-      if (force || !IsDeadlock(name, id, True)){
-        if (name == TypeId<Implement::Thread>()) {
-          Stopper* stopper = _Stoppers[thread_t][tid].get();
+  /* @NOTE: this function is used to notify that we are killing threads and
+   * and don't want to watch any one */
+  ErrorCodeE OnWatching(Stopper* stopper);
 
-          if (!IsMain(True)) {
-            /* @NOTE: usually, this line will never reach, but i'm not sure
-             * it will be true on the far future */
+  /* @NOTE: this function is used to notify that this current thread is on
+   * expiring */
+  ErrorCodeE OnExpiring(Stopper* stopper);
 
-            if (!Update(tid, Waiting, True)) {
-              Abort(EBadLogic);
-            }
-          }
+  /* @NOTE: this function is used to check status of Watch */
+  StatusE& Status();
 
-          if (stopper) {
-            /* @NOTE: usually, this callback must do nothing but it will not
-             * true if i change my ideal, call it would be better than none
-             * */
-            Vertex<void> escaping{[&](){ UnlockMutex(0); },
-                                  [&](){ LockMutex(0); }};
+  /* @NOTE: this function is used to lock Watch to protect database during
+   * updating or editing. Coredump might happen if it found that the double lock
+   * happen which means you are calling this function more than one in the same
+   * thread */
+  void Lock(UInt index);
 
-            callback();
-          }
-        } else {
-          Bool keep = True;
+  /* @NOTE: this function is used to unlock Watch to run on multi-threads */
+  void Unlock(UInt index);
 
-          if (_Stoppers[name][id]->Status()) {
-            Stopper* stopper = _Stoppers[thread_t][tid].get();
+  /* @NOTE: this function is used to get main thread's UUID */
+  ULong Main();
 
-            if (Update(tid, Locked, True)) {
-              if (!stopper || !stopper->LockedBy(name, id)){
-                keep = False;
-              }
-            } else {
-              keep = False;
-            }
-          }
+  /* @NOTE: this function is used to get how many threads are managed by this
+   * Watch object */
+  ULong Size();
 
-          if (keep) {
-            Vertex<void> escaping{
-              [&](){ UnlockMutex(0); },
-              [&](){
-                LockMutex(0);
+  /* @NOTE: this function is used to check if the thread is occupied by this
+   * Watch object or not */
+  Bool Occupy(Base::Thread* thread);
 
-                if (!Update(tid, Unlocked, True)) {
-                  VERBOSE << "Found an unknown bug caused by updating to Unlocked"
-                          << Base::EOL;
-                }
-              }};
+  /* @NOTE: this function is used to notice the Watch object to only accept exact
+   * threads */
+  void Join(Base::Thread* thread);
 
-            callback();
-          } else {
-              VERBOSE << "Unknown error cause checking status fail"
-                      << Base::EOL;
-          }
-        }
-      }
-    }
-  }
+  /* @NOTE: this function is used to show short summary of the system */
+  void Summary(){}
 
-  template <typename Type>
-  Bool OnUnlocking(ULong id, Function<void()> callback,
-                   Bool force = False, Bool safed = False) {
-    UInt name = TypeId<Type>();
+  /* @NOT: this function is used to catculate and optimize timewait in order to
+   * improve performance */
+  ULong Optimize(Bool predict, ULong timewait);
 
-    if (Find(_Ignores.begin(), _Ignores.end(), id) >= 0){
-      return True;
-    } else if (!std::is_base_of<Base::Internal::Stopper, Type>::value) {
-      throw Except(ENoSupport, typeid(Type).name());
-    } else if (_Stoppers.find(name) == _Stoppers.end()) {
-      throw Except(EBadLogic, ToString(name) + " must exist");
-    }
-
-    Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                          [&](){ if (!safed) UnlockMutex(0); }};
-
-    if (IsMain(True) && name == TypeId<Implement::Thread>()){
-      /* @NOTE: do release at here in safed place to make sure our database always
-       * keep updating */
-
-      callback();
-
-      /* @NOTE: clear everything now since we expect everything was done */
-      for (auto& item: _Status) {
-        if (std::get<0>(item) == GetMID()) {
-          continue;
-        } else if (std::get<1>(item) != Released) {
-          return False;
-        } else {
-          _Stoppers[name].erase(std::get<0>(item));
-        }
-      }
-      _Status.clear();
-
-      /* @NOTE: update status of main thread */
-      _Status[GetMID()] = Unlocked;
-      _Main = False;
-
-      /* @NOTE: we might release now since we don't have anything to do more */
-      return True;
-    }
-
-    /* @NOTE: perform update database */
-    if (!IsExist<Type>(id, True)) {
-      /* @NOTE: there still be an unharm race condition here, just warning
-       * and ignore this issue */
-
-      UnlockMutex(0);
-      BadLogic.Warn() << Format{"{} must exist before doing "
-                                "unlocking"}.Apply(id);
-      return False;
-    } else if (!force && IsDoubleUnlock(name, id, True)) {
-      return False;
-    } else {
-      /* @NOTE: unlock will only affect to the thread that ownes the lock so we
-       * will update the status of the remote threads from here */
-
-      Unique<Stopper>& locker = _Stoppers[name][id];
-
-      /* @NOTE: do release at here in safed place to make sure our database always
-       * keep updating */
-      do {
-        callback();
-
-        if (!force && locker->Status()) {
-          return False;
-        }
-      } while(force && locker->Status());
-
-      /* @NOTE: unlock completely a bundle of threads, for now, the locker should
-       * be released and no thread was locked by this locker recently */
-      return True;
-    }
-  }
-
-  template <typename Type>
-  void Register(ULong id, Type* value, Bool safed = False) {
-    UInt name = TypeId<Type>();
-
-    if (!std::is_base_of<Base::Internal::Stopper, Type>::value) {
-      throw Except(ENoSupport, typeid(value).name());
-    } else {
-      Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                            [&](){ if (!safed) UnlockMutex(0); }};
-
-      if (_Stoppers.size() == 0 || _Stoppers.find(name) == _Stoppers.end()) {
-        _Stoppers[name] = Context{};
-      }
-
-      if (_Stoppers[name].find(id) == _Stoppers[name].end()) {
-        _Stoppers[name][id] = Unique<Base::Internal::Stopper>(value);
-
-        if (name == TypeId<Implement::Thread>()) {
-          _Status[id] = Unlocked;
-
-          /* @NOTE: increase pending if a new thread applies */
-          SYNC_FETCH_ADD(&_Pending, 1);
-        }
-      } else {
-        /* @TODO: duplicated installation, what do we do next? */
-      }
-    }
-  }
-
-  template <typename Type>
-  Bool Unregister(ULong id, Bool safed = False, Bool force = False) {
-    UInt name = TypeId<Type>();
-
-    if (!std::is_base_of<Base::Internal::Stopper, Type>::value) {
-      throw Except(ENoSupport, typeid(Type).name());
-    } else if (_Stoppers.find(name) != _Stoppers.end()) {
-      Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                            [&](){ if (!safed) UnlockMutex(0); }};
-      Int ignored = Find(_Ignores.begin(), _Ignores.end(), id);
-
-      if (ignored >= 0){
-        _Ignores.erase(_Ignores.begin() + ignored);
-      }
-
-      if (typeid(Type) == typeid(Implement::Thread)){
-        if (Update(id, Released, True, force)){
-          _Stoppers[name][id] = None;
-
-          /* @NOTE: decrease pending if a thread is closed */
-          SYNC_FETCH_ADD(&_Pending, -1);
-        } else {
-          UnlockMutex(0);
-          safed = True;
-
-          return !(BadLogic << Format{"Can\'t unregister "
-                                      "the thread {}"}.Apply(id));
-        }
-      } else if (_Stoppers[name].find(id) != _Stoppers[name].end()){
-        _Stoppers[name].erase(id);
-      }
-
-      return True;
-    } else {
-      return !(BadLogic << Format{"Can\'t unregister the stopper {}"}.Apply(id));
-    }
-  }
-
-  template <typename Type>
-  Bool IsExist(ULong id, Bool safed = False) {
-    if (!std::is_base_of<Base::Internal::Stopper, Type>::value) {
-      throw Except(ENoSupport, typeid(Type).name());
-    } else {
-      Vertex<void> escaping{[&](){ if(!safed) LockMutex(0); },
-                            [&](){ if(!safed) UnlockMutex(0); }};
-      UInt name = TypeId<Type>();
-
-      if (_Stoppers.size() == 0) {
-        return False;
-      } else if (_Stoppers.find(name) == _Stoppers.end()) {
-        return False;
-      } else {
-        return _Stoppers[name].find(id) != _Stoppers[name].end();
-      }
-    }
-  }
-
-  template <typename Type>
-  UInt Count() {
-    UInt name = TypeId<Type>();
-    UInt result = 0;
-
-    if (!std::is_base_of<Base::Internal::Stopper, Type>::value) {
-      throw Except(ENoSupport, typeid(Type).name());
-    }
-
-    for (auto& item: _Stoppers[name]){
-      if (std::get<1>(item)) result++;
-    }
-
-    return result;
-  }
-
-  template <typename Type>
-  Bool Ignore(ULong id){
-    UInt name = TypeId<Type>();
-
-    if (Find(_Ignores.begin(), _Ignores.end(), id) >= 0){
-      return True;
-    } else {
-      _Ignores.push_back(id);
-    }
-
-    if (IsExist<Type>(id)){
-      if (name == TypeId<Implement::Thread>()){
-        /* @NOTE: it very dangerous to ignore a stopper recklessly since
-         * it would lead our system into Deadlock state or corruption
-         * so we must simmulate the whole system to make sure everything
-         * works fine */
-
-        if (!IsDeadlock()){
-          _Ignores.erase(_Ignores.begin() + _Ignores.size());
-          return False;
-        }
-      }
-
-      if (!Unregister<Type>(id)) {
-        return False;
-      }
-    }
-
-    return True;
-  }
-
-  template <typename Type>
-  Type* GetStopper(ULong id){
-    UInt name{};
-
-    if (typeid(Type) == typeid(Base::Thread)){
-      name = TypeId<Implement::Thread>();
-    } else if (typeid(Type) == typeid(Base::Lock)){
-      name = TypeId<Implement::Lock>();
-    } else {
-      return None;
-    }
-
-    if (IsMain(id)){
-      return None;
-    } else if (_Stoppers[name].find(id) != _Stoppers[name].end()){
-      return dynamic_cast<Type*>(_Stoppers[name][id].get());
-    } else {
-      return None;
-    }
-  }
-
-  void LockMutex(UInt index) {
-    if (index < 2 && !_Crash.load()) {
-      /* @NOTE: DState will indicate that we are on internal deadlock
-       * because of using OnLocking */
-
-      pthread_mutex_lock(&_Lock[index]);
-    } else {
-      _Crash = True;
-      throw Except(ENotFound, Format{"inner mutex {}"} << index);
-    }
-  }
-
-  void UnlockMutex(UInt index) {
-    if (index < 2 && !_Crash.load()) {
-      pthread_mutex_unlock(&_Lock[index]);
-    } else {
-      _Crash = True;
-      throw Except(ENotFound, Format{"inner mutex {}"} << index);
-    }
-  }
-
-  template<typename Type>
-  static UInt TypeId(){
-    if (typeid(Type) == typeid(Implement::Thread)) {
+  /* @NOTE: this function is used to get type as number */
+  template<typename T>
+  static UInt Type() {
+    if (typeid(T) == typeid(Implement::Thread)) {
       return 1;
-    } else if (typeid(Type) == typeid(Implement::Lock)) {
+    } else if (typeid(T) == typeid(Implement::Lock)) {
       return 2;
-    } else if (typeid(Type) == typeid(Implement::IOSync)) {
-      return 3;
-    } else if (typeid(Type) == typeid(Implement::Main)) {
-      return 4;
     } else {
       return 0;
     }
   }
+
+  List Stucks;
 
  private:
-  Bool Update(ULong id, StatusE status, Bool safed = False, Bool force = False) {
-    UInt name{TypeId<Implement::Thread>()};
-    Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                          [&](){ if (!safed) UnlockMutex(0); }
-      };
+  friend void Base::Internal::UnwatchStopper(Base::Thread& thread);
 
-    /* @NOTE: if the thread don't exist, don't do anything */
-    if (_Status.find(id) == _Status.end()){
-      return False;
-    }
+#if DEBUGING
+  friend void Base::Debug::DumpWatch(String parameter); 
+#endif
 
-    /* @NOTE: don't update if the thread is released */
-    if (_Status[id] == Released){
-      return True;
-    }
+#if DEV
+  ULong _Owner[NUM_SPINLOCKS];
+  Mutex _Checking;
+#endif
 
-    /* @NOTE: don't lock/unlock if the thread is on waiting */
-    if (_Status[id] == Waiting && status < Waiting) {
-      return False;
-    }
-
-    if (id == GetMID()) {
-      if (status == Waiting) {
-        _Main = True;
-      }
-    } else if (status == Unlocked && _Status[id] == Locked) {
-      UnlockMutex(1);
-    }
-
-    if (status == Released && !force) {
-      if (!_Stoppers[name][id]->Expired()) {
-        return False;
-      }
-    }
-
-    _Status[id] = status;
-    return True;
-  }
-
-  Bool Wait(Bool safed, ULong sec = 0, ULong nsec = 10){
-    while(True) {
-      struct timespec timeout;
-
-      /* @NOTE: set the next time wiil be used to check */
-      clock_gettime(CLOCK_REALTIME, &timeout);
-      timeout.tv_sec += sec;
-      timeout.tv_nsec += nsec;
-
-      /* @NOTE: show on debug log the time when we recheck the locking
-       * system */
-      if (Log::Level() == EDebug) {
-        Char buff[TIME_FMT];
-
-        memset(buff, 0, sizeof(buff));
-        if (!Timespec2String(buff, sizeof(buff), &timeout)) {
-          // DEBUG(Format{"check again at {}"}.Apply(buff));
-        }
-      }
-
-      if (IsMain(safed)){
-        switch(pthread_mutex_timedlock(&_Lock[1], &timeout)){
-          case EAGAIN:
-            break;
-
-          case EINVAL:
-            return False;
-
-          case ETIMEDOUT:
-            return False;
-
-          default:
-            return True;
-        }
-      } else {
-        VERBOSE << (Format{"Wait() run on thread {}"} << GetThreadId(safed))
-                << Base::EOL;
-        return False;
-      }
-    }
-  }
-
-  Bool IsMain(ULong id, Bool safed = False){
-    UInt name = TypeId<Implement::Thread>();
-    Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                          [&](){ if (!safed) UnlockMutex(0); }
-      };
-
-    if (_Stoppers[name].find(id) != _Stoppers[name].end()){
-      if (dynamic_cast<Implement::Main*>(_Stoppers[name][id].get())){
-        return True;
-      }
-    }
-
-    return False;
-  }
-
-  UInt IsDeadlock(Bool safed = False){
-    using namespace Implement;
-
-    /* @NOTE: now we must check on the whole system again to make sure that
-     * we don't on deadlock crisis */
-
-    UInt locked{0}, unlocked{0};
-    UInt name{TypeId<Implement::Thread>()};
-    Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                          [&](){ if (!safed) UnlockMutex(0);}
-      };
-
-    for (auto& item: _Status){
-      auto& tid = std::get<0>(item);
-
-      if (_Stoppers[name].find(tid) == _Stoppers[name].end()) {
-        continue;
-      } else if (_Stoppers[name][tid] == None) {
-        continue;
-      } else if (std::get<1>(item) == Unlocked) {
-        unlocked++;
-      } else if (std::get<1>(item) == Locked) {
-        locked++;
-      } else if (std::get<1>(item) == Waiting) {
-        locked++;
-      }
-    }
-
-    if (unlocked > 0) {
-      return 0;
-    } else if (locked == 1 && IsMain(True)){
-      return 0;
-    }
-
-    return locked;
-  }
-
-  Bool IsDeadlock(UInt name, ULong causer, Bool safed = False) {
-    Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                          [&](){ if (!safed) UnlockMutex(0); }};
-    ULong thread_id = GetThreadId(True);
-    UInt thread_t = TypeId<Implement::Thread>();
-
-    /* @NOTE: the first screenario is when we reuse a locked locker and it
-     * cause this issue */
-    if (_Stoppers[thread_t].find(thread_id) == _Stoppers[thread_t].end()){
-      return False;
-    }
-
-    if (name == TypeId<Implement::Lock>()){
-      /* @NOTE: the reason why i have to check it because some of the lock can
-       * be called again event if a thread has been expired and cause a big
-       * issue above since Map will re-add thread_id again and missmatch with
-       * the flow */
-
-      if (_Stoppers[name].find(causer) == _Stoppers[name].end()) {
-        return False;
-      } else if (_Stoppers[name][causer]->Status()) {
-        auto saved = _Status[thread_id];
-
-        if (Update(thread_id, Locked, True)) {
-          if (IsDeadlock(True)) {
-            return Update(thread_id, saved, True);
-          } else {
-            return False;
-          }
-        }
-      }
-    } else if (name == TypeId<Implement::Thread>()){
-      /* @NOTE: this should happen on main thread */
-
-      if (IsMain(True)){
-        /* @NOTE: solve deadlock problem now since main thread call
-         * `pthread_join` here after */
-
-        if (_Stoppers[thread_t][thread_id]->LockedBy(thread_t, thread_id)) {
-          if (Update(thread_id, Waiting, True)) {
-            SolveDeadlock<Implement::Thread>(True);
-          } else {
-            UnlockMutex(0);
-            throw Except(EBadLogic, "can\'t switch to waiting stage of "
-                                    "main thread");
-          }
-        } else {
-          UnlockMutex(0);
-          throw Except(EBadLogic, "can\'t register locking itself on "
-                                  "main thread");
-        }
-
-        return True;
-      } else {
-        UnlockMutex(0);
-        throw Except(EBadLogic, "`pthread_join` must be run on main thread");
-      }
-    }
-
-    return False;
-  }
-
-  Bool IsDoubleUnlock(UInt name, ULong causer, Bool safed = False) {
-    /* @NOTE: this is a conventional tool which aims to detect double unlock
-     * and avoid it to reduce wasting resource */
-
-    Vertex<void> escaping{[&](){ if (!safed) LockMutex(0); },
-                          [&](){ if (!safed) UnlockMutex(0);}};
-    Bool result = False;
-
-    if (name == TypeId<Implement::Lock>()){
-      /* @NOTE: on lock perspective, unlocking an unlocked mutex cause
-       * performance issue somehow so we must detect and avoid this minor issue
-       * */
-
-      if (_Stoppers[name].find(causer) != _Stoppers[name].end()){
-        result = _Stoppers[name][causer]->Status() == False;
-      }
-
-      if (result) {
-        VERBOSE << Format{"detect double unlock {} on thread {}"}
-                         .Apply(causer, GetThreadId(safed))
-                << Base::EOL;
-      }
-    }
-
-    return result;
-  }
-
-  template<typename Type>
-  void SolveDeadlock(Bool safed = False){
-    UInt name{TypeId<Type>()}, count{0};
-
-    do {
-      struct timespec start, end;
-      Vertex<void> escaping{[&]() { if (!safed) LockMutex(0);},
-                            [&]() { if (!safed) UnlockMutex(0); }};
-
-      /* @NOTE: get start time */
-      clock_gettime(CLOCK_REALTIME, &start);
-
-      /* @NOTE: check deadlock and solve the issue */
-      if ((count = IsDeadlock(True))) {
-        auto& threads = _Stoppers[name];
-
-        for (auto it = threads.begin(); it != threads.end(); it++) {
-          if (!it->second) {
-            /* @NOTE: unexpected error happen, killing the app is the best
-             * solution here */
-
-            if (_Status[it->first] == Waiting) {
-              continue;
-            } else if (_Status[it->first] == Released) {
-              continue;
-            } else if (_Status.find(it->first) != _Status.end()) {
-              /* @FIXME: thread_id change status, i can't show message
-               * here dua to fluctuated locks */
-              continue;
-            }
-          } else {
-            it->second->Unlocked();
-          }
-        }
-      }
-
-      /* @NOTE: get end time */
-      clock_gettime(CLOCK_REALTIME, &end);
-      safed = True;
-
-      if (IsMain(True)) {
-        /* @NOTE: on very busy system, main thread may be locked before
-         * some thread and cause stuck when they turn to locked */
-
-        Vertex<void> escaping{[&](){ UnlockMutex(0); },
-                              [&](){ LockMutex(0); }};
-
-        /* @TODO: i will implement another solution to reduce checking so much
-         * on main thread */
-        if (Wait(False, 2*_Pending*(end.tv_sec - start.tv_sec),
-                        2*_Pending*(end.tv_nsec - start.tv_nsec))) {
-          DEBUG("Solving deadlock's locker has been unlocked by an unknown thread");
-        }
-      }
-    } while(IsMain(True) &&  _Pending > 0);
-  }
-
-  /* @NOTE: database of Watch */
-  OMap<UInt, Context> _Stoppers;
-  OMap<ULong, StatusE> _Status;
-  Vector<ULong> _Ignores;
+  /* @NOTE: this variable indicate if we are in safed zone or not */
+  Bool _Safed[NUM_SPINLOCKS];
 
   /* @NOTE: internal locks of Watch */
-  Mutex _Lock[2];
+  Mutex _Lock[NUM_SPINLOCKS], _Global;
+  StatusE _Status;
+  Long _Main;
 
-  /* @NOTE: save status of Watch */
-  Bool _Main;
-  Int _Pending;
+  /* @NOTE: database of Watch */
+  UMap<UInt, Long> _Counters;
+  Set<Base::Thread*> _Threads;
+  UMap<UInt, Set<ULong>> _Ignores, _Stoppers;
 };
 }  // namespace Internal
 }  // namespace Base
 
+/* @NOTE: this is a place to define our API */
 namespace Base {
 namespace Internal {
+thread_local Implement::Thread* Thiz{None};
+static UMap<ULong, Implement::Lock>* Mutexes{None};
 static Watch Watcher{};
 
-ULong GetUniqueId() { return Watcher.GetThreadId(); }
-
-Bool Stopper::LockedBy(UInt name, ULong id){
-  _LockId = id;
-
-  if (name == Watch::TypeId<Implement::Thread>()){
-    /* @NOTE: happen when we call pthread_join */
-
-    _LockType = EJoin;
-  } else if (name == Watch::TypeId<Implement::IOSync>()){
-    /* @NOTE: when a I/O system-call was triggered */
-
-    _LockType = EIOSync;
-  } else if (name == Watch::TypeId<Implement::Lock>()){
-    auto& locker = Watcher.Get(name, id, True);
-
-    /* @NOTE: happen when we call pthread_mutex_lock */
-    if (!locker) {
-      return False;
-    } else {
-      /* @NOTE: this line mustn't be reached be cause we never see a stopper
-       * has been locked more than one with the same locker */
-
-      _LockType = EMutex;
-    }
-  }
-
-  return True;
-}
-
-Bool RunAsDaemon(Base::Thread& thread) {
-  /* @NOTE: by default, run as daemon means we don't manage this thread
-   * any more even if we add again this thread to*/
-
-  return Watcher.Ignore<Implement::Thread>(thread.Identity());
-}
-
-Function<void(Bool)> WatchStopper(Base::Thread& thread) {
-  Vertex<void> escaping{[](){ Watcher.LockMutex(0); },
-                        [](){ Watcher.UnlockMutex(0); }};
-
-#if USE_TID
-  ULong id = GetTID();
-#else
-  ULong id = thread.Identity();
-  Bool reused = False;
-
-  if ((ULong)(GetTID()) == id){
-    /* @NOTE: it should be race condition here but it's not so important, so
-     * we don't need to care about it too much */
-
-    if (Watcher.Status().find(id) != Watcher.Status().end()){
-      reused = Watcher.Status()[id] == Watch::Released;
-    }
-  }
-
-  if (reused) {
-    return [](Bool UNUSED(status)) {};
-  }
-#endif
-
-  if (!Watcher.IsExist<Implement::Thread>(id, True)) {
-    Watcher.Register(id, new Implement::Thread(thread), True);
-  }
-
-  return [](Bool status) {
-    ULong id = GetMID();
-
-    if (status) {
-      Watcher.OnLocking<Implement::Thread>(id, [&](){});
-    } else {
-      Watcher.OnUnlocking<Implement::Thread>(id, [&](){});
-    }
-  };
-}
-
-void WatchStopper(Base::Lock& lock) {
-  ULong id = lock.Identity();
-
-  if (!Watcher.IsExist<Implement::Lock>(id)) {
-    Watcher.Register(id, new Implement::Lock(lock));
-  }
-}
-
-Bool UnwatchStopper(Base::Thread& thread){
-  ULong id = thread.Identity();
-  Bool reused = False;
-
-  if ((ULong)(GetTID()) == id){
-    /* @NOTE: it should be race condition here but it's not so important, so
-     * we don't need to care about it too much */
-
-    Vertex<void> escaping{
-      []() {
-        if (!Watcher.Spinlock(0)) {
-          Watcher.LockMutex(0);
-        }
-      },
-      []() { Watcher.UnlockMutex(0); }
-    };
-
-    if (Watcher.Status().find(id) != Watcher.Status().end()){
-      reused = Watcher.Status()[id] == Watch::Released;
-    }
-  }
-
-  if (!reused) {
-    if (Watcher.IsExist<Implement::Thread>(id)) {
-      return Watcher.Unregister<Implement::Thread>(id);
-    }
-  }
-
-  return True;
-}
-
-void UnwatchStopper(Base::Lock& lock){
-  ULong id = lock.Identity();
-  ULong tid = (ULong)GetTID();
-  Bool dying = False;
-
-  if (Watcher.Status().find(tid) != Watcher.Status().end()) {
-    Vertex<void> escaping{
-      []() {
-        if (Watcher.Spinlock(0)) {
-          Watcher.LockMutex(0);
-        }
-      },
-      []() { Watcher.UnlockMutex(0); }
-    };
-
-    dying = Watcher.Status()[tid] == Watch::Released;
-  }
-
-  if (Watcher.IsExist<Implement::Lock>(id, dying)) {
-    Watcher.Unregister<Implement::Lock>(id, dying);
-  }
-}
-
-Bool KillStoppers(UInt signal = SIGTERM) {
-  if (Watcher.Spinlock(0)) {
-    return False;
-  } else if (!Watcher.IsMain(True)) {
-    return False;
-  } else {
-    auto count = 0;
-
-    for (auto& thread: Watcher.Status()){
-      auto& tid = std::get<0>(thread);
-      auto& status = std::get<1>(thread);
-
-      /* @FIXME: send sigterm to the whole threads, by default I might use
-       * SIGTERM but I'm not sure it's good or not */
-      if (status != Watch::Released) {
-        auto thread = Watcher.GetStopper<Base::Thread>(tid);
-
-        if (thread) {
-          pthread_kill((pthread_t)thread->Identity(), signal);
-          count++;
-        }
-      }
-    }
-
-    Watcher.Reset<Implement::Thread>();
-    Watcher.Reset<Implement::Lock>();
-    Watcher.Reset<Implement::IOSync>();
-
-    return count != 0;
-  }
-}
-
-namespace Summary{
-void WatchStopper(){ Watcher.Summary(); }
+namespace Summary {
+void WatchStopper() { Watcher.Summary(); }
 }  // namespace Summary
+
+void WatchStopper(Base::Thread& thread) {
+  Watcher.Join(&thread);
+}
+
+Bool WatchStopper(Base::Lock& lock) {
+  try {
+    if (Context(lock)) {
+      return False;
+    }
+
+    Register(lock, (Void*)(new Implement::Lock(lock)));
+    Watcher.OnRegister<Implement::Lock>(lock.Identity());
+  } catch (std::exception& except) {
+    return False;
+  }
+
+  return True;
+}
+
+void UnwatchStopper(Base::Thread& thread) {
+  Watcher.OnUnregister<Implement::Thread>(thread.Identity(False));
+  Watcher._Threads.erase(&thread);
+}
+
+Bool UnwatchStopper(Base::Lock& lock) {
+  if (Context(lock)) {
+    Watcher.OnUnregister<Implement::Lock>(lock.Identity());
+    Register(lock, None);
+    delete reinterpret_cast<Implement::Lock*>(Context(lock));
+    return True;
+  }
+
+  return False;
+}
+
+/* @NOTE: this function is used to get UUID of the current thread */
+ULong GetUniqueId() { return GetUUID(); }
 }  // namespace Internal
 
 namespace Locker {
-void Lock(ULong id, Bool force) {
-  using namespace Internal;
-  Mutex* locker = (Mutex*)(id);
+/* @NOTE: this function is used to lock a mutex with the watching to prevent
+ * deadlocks happen */
 
-  /* @NOTE: we must register this locker if it didn't exist */
-  if (!Watcher.IsExist<Implement::Lock>(id)){
-    Watcher.Register(id, new Implement::Lock(*locker));
-  }
+Bool Lock(Base::Lock& locker) {
+  auto context = reinterpret_cast<Internal::Implement::Lock*>(Context(locker));
 
-  /* @NOTE: now, we going to use this locker now */
-  Watcher.OnLocking<Internal::Implement::Lock>(id, [&]() {
-    auto delay = 0;
+  /* @NOTE: lock may fail and cause coredump because we allow to another side
+   * to do that, we can't guarantee that everything should be in safe all the
+   * time if the user tries to trick the highloaded systems */
 
-    if (Log::Level() == EDebug && IsLocked(*locker)) {
-      if (!force) {
-        throw Except(EBadLogic, "lock a locked mutex without forcing");
-      } else {
-        Vertex<void> escaping{[&](){ Watcher.LockMutex(0); },
-                              [&](){ Watcher.UnlockMutex(0); }};
-
-        DEBUG(Format{"force locking a locked mutex({})"}.Apply(id));
-      }
-    }
-
-    do {
-      /* @NOTE: fix race condition cause by unknown error inside pthread */
-
-      delay += 1;
-
-      if (locker->__data.__owner) {
-        usleep(delay);
-        continue;
-      } else {
-        pthread_mutex_lock(locker);
-      }
-    } while(False);
-  }, force);
+  return Internal::Watcher.OnLocking<Internal::Implement::Lock>(
+    context,
+    [&]() {
+      TIMELOCK((Mutex*)locker.Identity(), -1, context->Halt());
+    });
 }
 
-void Lock(Mutex& locker, Bool force) {
-  using namespace Internal;
-  ULong id = ULong(&locker);
+Bool Lock(Mutex& locker) {
+  auto context = &(Internal::Mutexes->at(ULong(&locker)));
 
-  /* @NOTE: we must register this locker if it didn't exist */
-  if (!Watcher.IsExist<Implement::Lock>(id)){
-    Watcher.Register(id, new Implement::Lock(locker));
-  }
+  /* @NOTE: lock may fail and cause coredump because we allow to another side
+   * to do that, we can't guarantee that everything should be in safe all the
+   * time if the user tries to trick the highloaded systems */
 
-  /* @NOTE: now, we going to use this locker now */
-  Watcher.OnLocking<Implement::Lock>(id, [&]() {
-    auto delay = 0;
-
-    do {
-      /* @NOTE: fix race condition cause by unknown error inside pthread */
-
-      delay += 1;
-
-      if (locker.__data.__owner) {
-        usleep(delay);
-        continue;
-      } else {
-        pthread_mutex_lock(&locker);
-      }
-    } while(False);
-  }, force);
+  return Internal::Watcher.OnLocking<Internal::Implement::Lock>(
+    context,
+    [&]() {
+      TIMELOCK(&locker, -1, context->Halt());
+    });
 }
 
-void Unlock(ULong id, Bool force) {
+/* @NOTE: this function is used to unlock a mutex with the watching to prevent
+ * double unlock */
+Bool Unlock(Base::Lock& locker) {
   using namespace Internal;
-  auto locker = (Mutex*)(id);
-  auto perform = [&]() {
-    do {
-      pthread_mutex_unlock(locker);
-    } while(force && IsLocked(*locker));
-  };
 
-  if (!Watcher.OnUnlocking<Implement::Lock>(id, perform, force, True)) {
-    if (force) {
-      Abort(EBadAccess);
-    } else {
-      DEBUG("Fail to unlock a locker");
-    }
-  }
+  /* @NOTE: unlock may fail and cause coredump because we allow to another side
+   * to do that, we can't guarantee that everything should be in safe all the
+   * time if the user tries to trick the highloaded systems */
+
+  return Watcher.OnUnlocking<Implement::Lock>(
+    reinterpret_cast<Implement::Lock*>(Context(locker)),
+    [&]() {
+      do {
+        UNLOCK((Mutex*)locker.Identity());
+      } while (IsLocked(*((Mutex*)locker.Identity())));
+    });
 }
 
-void Unlock(Mutex& locker) {
+Bool Unlock(Mutex& locker) {
   using namespace Internal;
-  auto perform = [&]() {
-    pthread_mutex_unlock(&locker);
-  };
 
-  if (!Watcher.OnUnlocking<Implement::Lock>(ULong(&locker), perform)) {
-    DEBUG("Fail to unlock a locker");
-  }
+  /* @NOTE: unlock may fail and cause coredump because we allow to another side
+   * to do that, we can't guarantee that everything should be in safe all the
+   * time if the user tries to trick the highloaded systems */
+
+  return Watcher.OnUnlocking<Implement::Lock>(
+    &(Mutexes->at(ULong(&locker))),
+    [&]() {
+      do {
+        UNLOCK(&locker);
+      } while (IsLocked(locker));
+    });
 }
 }  // namespace Locker
 
-Mutex* GetMutex(Lock& lock){
-  return lock._Lock;
-}
+/* @NOTE: this function is used to get mutex from a Base::Lock object */
+Mutex* GetMutex(Lock& lock) { return lock._Lock; }
 
-Thread::StatusE GetThreadStatus(Thread& thread){
+/* @NOTE: this function is used to get status of Base::Thread objects */
+Thread::StatusE GetThreadStatus(Thread& thread) {
   return thread._Status;
 }
 
-void* Booting(void* thiz) {
-  Base::Thread* thread = (Base::Thread*)thiz;
+/* @NOTE: this function is used to set status of Base::Thread objects */
+void SetThreadStatus(Thread& thread, Int status) {
+  thread._Status = (Thread::StatusE)status;
+}
 
+void Cleanup(void* ptr) {
+  if (ptr) {
+    Base::Thread* thiz{reinterpret_cast<Base::Thread*>(ptr)};
+    Base::Internal::Implement::Thread* impl =
+      reinterpret_cast<Base::Internal::Implement::Thread*>(Context(*thiz));
+    ErrorCodeE error;
+
+    do {
+      if (error == EDoAgain) {
+        RELAX();
+      }
+
+      error = Base::Internal::Watcher.OnExpiring(impl);
+    } while (error == EDoAgain);
+  }
+
+  pthread_exit((void*) -1);
+}
+
+void Capture (Void* ptr, Bool status) {
   using namespace Base::Internal;
+
+  Implement::Thread* thread = reinterpret_cast<Implement::Thread*>(ptr);
+
+  if (thread) {
+    if (status) {
+      /* @NOTE: this thread is going to switch to waiting state and will
+       * perform solving deadlock if we see it's necessary */
+
+      Watcher.OnLocking<Implement::Thread>(thread, SolveDeadlock);
+    } else {
+      /* @NOTO: ending state of the thread, there is not much thing to do here
+       * so at least it should be used to notice that we are done the thread
+       * here */
+
+      if (!Watcher.OnUnlocking<Implement::Thread>(thread, None)) {
+        Bug(EBadAccess, Format{"unidentify thread {}"} << thread->Identity());
+      }
+
+      Watcher.OnUnregister<Implement::Thread>(thread->Super()->Identity(False));
+
+      /* @NOTE: when the thread reaches here, it would means that this is the
+       * ending of this thread and it's safe to clean it from WatchStopper POV
+       * */
+      delete thread;
+    }
+  }
+}
+
+/* @NOTE: this function is used to boot a thread which was created by
+ * Base::Thread */
+void* Booting(void* ptr) {
   using namespace Base::Internal;
 
-  if ((thread->_Watcher = Internal::WatchStopper(*thread))) {
-    ErrorCodeE error{Internal::Watcher.OnWatching()};
+  Base::Thread* thread = (Base::Thread*) ptr;
+  ErrorCodeE error = ENoError;
+  Bool locked = False;
+  ULong id = GetUUID();
 
-    if (!error) {
-      Base::Vertex<void> escaping{
-        [&]() {
-          Vertex<void> escaping{[&](){ Watcher.LockMutex(0); },
-                                [&](){ Watcher.UnlockMutex(0); }};
+  try {
+    Thiz = new Implement::Thread(thread);
 
-          ((Base::Thread*)thiz)->_Status = Base::Thread::Running;
-        },
-        [&]() {
-          Vertex<void> escaping{[&](){ Watcher.LockMutex(0); },
-                                [&](){ Watcher.UnlockMutex(0); }};
+    if (LIKELY(thread->_Registering, False)) {
+      delete Thiz;
+    } else if (thread->Daemon()) {
+      XCHG16(&(thread->_Status), Watch::Initing);
+    } else {
+      /* @NOTE: we should register the implementer to our thread since i don't
+       * want this object manage this automatically. This role should be from
+       * the thread only */
 
-          if (Watcher.IsExist<Implement::Thread>((ULong)GetTID(), True)) {
-            ((Base::Thread*)thiz)->_Status = Base::Thread::Expiring;
-          } else {
-            /* @NOTE: unlock this to prevent deadlock inside WatchStopper */
-            Watcher.UnlockMutex(0);
-
-            /* @FIXME: report an error to fix latter, consider how to show
-             * log here */
-            error = EDoNothing;
-          }
-        }};
-
-      thread->_Delegate();
-      do {
-        if (error == EDoAgain) {
-          usleep(1);
+      if ((locked = (Watcher.Status() == Watch::Locked))) {
+        delete Thiz;
+      } else if (Watcher.Status() == Watch::Waiting) {
+        if ((locked = !Watcher.Occupy(thread))) {
+          delete Thiz;
         }
+      } else {
+        while (!Watcher.Occupy(thread)) {
+          RELAX();
+        }
+      }
 
-        error = Internal::Watcher.OnExpiring();
-      } while (error == EDoAgain);
+      if (!locked) {
+        Watcher.OnRegister<Implement::Thread>(thread->Identity(False));
+        Register(*thread, Thiz);
+      }
+
+      /* @NOTE: register specific parameters to identify our thread */
+      thread->_UUID = id;
+      thread->_Watcher = Capture;
+
+      if (locked) {
+        XCHG16(&(thread->_Status), Watch::Released);
+      } else {
+        XCHG16(&(thread->_Status), Watch::Initing);
+      }
+
+      /* @NOTE: after finish register our thread, we should release this
+       * lock to notify main-thread to check and verify the status */
+      REL(&(thread->_Registering));
+    }
+  } catch (Base::Exception& except) {
+    error = except.code();
+  } catch (std::bad_alloc&) {
+    error = EDrainMem;
+  } catch (...) {
+    error = EBadLogic;
+  }
+
+  if (!Thiz || error) {
+    /* @NOTE: this line shouldn't happen or we might face another issues
+     * related to OS and stdlib or logic code, bases on the error code we
+     * have here */
+
+    goto bugs;
+  }
+
+  pthread_cleanup_push(Cleanup, ptr);
+  if (thread->Daemon()) {
+    Vertex<void> escaping{[&]() { XCHG16(&thread->_Status, Watch::Unlocked); },
+                          [&]() { XCHG16(&thread->_Status, Watch::Waiting); }};
+
+    try {
+      thread->_Delegate();
+    } catch (Base::Exception& except) {
+    } catch (std::exception& except) {
+    } catch (...) {
+    }
+  } else if (!locked && !(error = Internal::Watcher.OnWatching(Thiz))) {
+    /* @NOTE: invoke the main body of this thread and secure them with
+     * try-catch to protect the whole system from crashing causes by
+     * exceptions */
+
+    try {
+      thread->_Delegate();
+    } catch (Base::Exception& except) {
+    } catch (std::exception& except) {
+    } catch (...) {
     }
 
-    if (error && error != EDoNothing) {
-      Except(error, "A system error happens");
+    /* @NOTE: notify that this thread is on expiring from Watch POV and we
+     * can't guarantee about if crashes happen here. Any crashes would produce
+     * coredump and it's used for mantaining class Watch */
+
+    do {
+      if (error == EDoAgain) {
+        RELAX();
+      }
+
+      error = Internal::Watcher.OnExpiring(Thiz);
+    } while (error == EDoAgain);
+  }
+
+  pthread_cleanup_pop(0);
+  if (error && error != EDoNothing) {
+bugs:
+    /* @NOTE: we should unlock this mutex in the case we facing any issue from
+     * thread side inorder to unlock main-thread */
+
+    while (True) {
+      /* @NOTE: after finish register our thread, we should release this
+       * lock to notify main-thread to check and verify the status */
+
+      if (CMPXCHG(&thread->_Registering, True, False)) {
+        break;
+      } else {
+        BARRIER();
+      }
     }
+
+    /* @NOTE: the implementer got ending state and we should remove it now to
+     * prevent memory leak */
+    if (Thiz) {
+      delete Thiz;
+    }
+
+#if defined(COVERAGE)
+    Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
+    exit(-1);
+#else
+    throw Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
+#endif
   }
 
   return None;
 }
 
-namespace Internal{
-namespace Implement{
-Bool Thread::Unlocked(){
+namespace Internal {
+Mutex* CreateMutex() {
+#if UNIX
+  auto result = (Mutex*)ABI::Calloc(1, sizeof(Mutex));
 
-  if (_LockType == EMutex){
-    Mutex* mutex = (Mutex*)_LockId;
+  if (!result) {
+    throw Except(EDrainMem, "`ABI::Malloc` place to contain `Mutex`");
+  } else if (MUTEX(result)) {
+    switch (errno) {
+      case EAGAIN:
+        throw Except(EDoAgain, "");
 
-    if (Locker::IsLocked(*mutex)) {
-      Locker::Unlock(_LockId, True);
+      case ENOMEM:
+        throw Except(EDrainMem, "");
 
-      /* @NOTE: mutex may lock permantly caused by unexpected error */
-      return !Locker::IsLocked(*mutex);
+      case EPERM:
+        throw Except(EWatchErrno,
+                     "The caller does not have the provilege to"
+                     " perform the operation.");
+    }
+  }
+
+  if (!Mutexes) {
+    Mutexes = new UMap<ULong, Implement::Lock>();
+  }
+
+  Mutexes->insert(std::make_pair(ULong(result), Implement::Lock(*result)));
+  return result;
+#elif WINDOW
+  throw Except(ENoSupport, "");
+#else
+  throw Except(ENoSupport, "");
+#endif
+}
+
+void RemoveMutex(Mutex* mutex) {
+  if (!DESTROY(mutex)) {
+    Mutexes->erase(ULong(mutex));
+    free(mutex);
+
+    if (Mutexes->size() == 0) {
+      delete Mutexes;
+      Mutexes = None;
+    }
+  }
+}
+
+/* @NOTE: this is a place to implement Watch's methods */
+
+template <typename T>
+Bool Watch::Ignore(Stopper* stopper) {
+  /* @NOTE: check if the stopper is existing or not. We can't ignore anything
+   * we never see or manage */
+
+  if (stopper->IsStatus(Released)) {
+    return False;
+  } else {
+    Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
+
+    /* @NOTE: check and register a stopper to the exact place of _Ignores. This
+     * list should be created and manage automatically by Watch and there is no
+     * way to modify this list from outside, this is the only API to help to add
+     * a stopper to this list and it will remain here until it's released */
+
+    if (_Ignores.find(Type<T>()) != _Ignores.end()) {
+      if (_Ignores[Type<T>()].find(stopper->Identity()) != _Ignores.end()) {
+        return False;
+      }
     } else {
-      return False;
+      _Ignores[Type<T>()] = Set<ULong>{};
+    }
+
+
+    _Ignores[Type<T>()].insert(stopper->Identity());
+    return True;
+  }
+}
+
+template <typename T>
+Int Watch::Count() {
+  if (_Counters.find(Type<T>()) == _Counters.end()) {
+    return 0;
+  } else {
+    return _Counters[Type<T>()];
+  }
+}
+
+template <typename T>
+Pair<Int, ULong> Watch::Next() {
+  return Pair<Int, ULong>{0, 0};
+}
+
+template <typename T>
+Bool Watch::IsIgnored(Stopper* stopper) {
+  Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
+
+  if (_Ignores.find(Type<T>()) != _Ignores.end()) {
+    return _Ignores[Type<T>()].find(stopper->Identity()) !=
+        _Ignores[Type<T>()].end();
+  }
+
+  return False;
+}
+
+template <typename T>
+void Watch::OnRegister(ULong uuid) {
+  Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
+
+  if (_Stoppers.find(Type<T>()) == _Stoppers.end()) {
+    _Stoppers[Type<T>()] = Set<ULong>{};
+  }
+
+  _Stoppers[Type<T>()].insert(uuid);
+}
+
+template <typename T>
+void Watch::OnUnregister(ULong uuid) {
+  Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
+
+  _Stoppers[Type<T>()].erase(uuid);
+
+  if (Type<T>() == Type<Implement::Thread>()) {
+    if (_Stoppers[Type<T>()].size() == 0) {
+      _Status = Unlocked;
+    }
+  }
+}
+
+template <typename T>
+Bool Watch::OnLocking(Stopper* stopper, Function<Void()> actor) {
+  Bool ignored{False}, deadlock{False};
+
+  /* @NOTE: check if this stopper is on the ignoring list and jump to the place
+   * to perform actor */
+
+  if ((ignored = IsIgnored<T>(stopper))) {
+    goto passed;
+  }
+
+  /* @NOTE: invoke stoppers to check if it's ok to call actor to perform locking
+   * or not. I assumes that actor may cause crash with exceptions so we need to
+   * prevent it instead at here. We will force close this thread since it has
+   * crashed by unexpected reasons */
+
+  if (stopper->IsStatus(Released)) {
+    return False;
+  } else if (!stopper->OnLocking(Thiz)) {
+ passed:
+    /* @NOTE: we must know clearly the current thread's next status after
+     * calling `actor` and keep update it first before doing it. This would
+     * used to prevent any deadlock from Watch POV */
+
+    Vertex<void> escaping {
+      [&](){
+        /* @NOTE: increase number of locking threads */
+        if (!ignored) {
+          Increase<Implement::Lock>(stopper);
+        }
+      },
+      [&](){
+        /* @NOTE: decrease number of locking threads */
+        if (!ignored) {
+          Decrease<Implement::Lock>(stopper);
+        }
+      }};
+
+    try {
+      /* @NOTE: run `actor` here now and secure it with try-catch */
+      if (actor) actor();
+
+      /* @NOTE: good ending and we will recovery the function's status here
+       * after returning the status code */
+      return stopper->IsStatus(Watch::Locked);
+    } catch(Base::Exception& except) {
+      /* @NOTE: we may face an exception related to the lock is locked even if
+       * this lock is free. This happens on highloaded system when so many lock
+       * apply at the same time and causes this issue. This is expected
+       * behavious and we just return false at this time. */
+    } catch(std::exception& except) {
+    } catch(...) {
     }
   } else {
+    RELAX();
+  }
+
+  /* @TODO: bad ending, thinking about how to process this situation */
+  return False;
+}
+
+template <typename T>
+Bool Watch::OnUnlocking(Stopper* stopper, Function<Void()> actor) {
+  /* @NOTE: notify a stopper to switch to state Unlocked. This should be defined
+   * specifically by each stopper and the only thing we can provide is the
+   * database, stoppers will use it to decide it should start locking this or
+   * not. We also need to check if the stoppers is on ignoring database to avoid
+   * doing unecessary things */
+
+  if (IsIgnored<T>(stopper)) {
+    goto passed;
+  }
+
+  /* @NOTE: invoke stoppers to check if it's ok to call actor to perform
+   * unlocking or not. I assumes that actor may cause crash with exceptions so
+   * we need to prevent it instead at here. We will force close this thread
+   * since it has crashed by unexpected reasons */
+
+  if (stopper->IsStatus(Released)) {
     return False;
+  }
+
+  if (!stopper->OnUnlocking(Thiz)) {
+ passed:
+    try {
+      Int status;
+
+      /* @NOTE: run `actor` here now and secure it with try-catch */
+      if (actor) actor();
+
+      /* @NOTE: check the status after calling `actor`, this may fail for some
+       * unknown reasons */
+      if (Type<T>() == Type<Implement::Lock>()) {
+        return stopper->IsStatus(Watch::Unlocked) ||
+          stopper->IsStatus(Watch::Waiting);
+      } else {
+        return stopper->IsStatus(Watch::Unlocked);
+      }
+    } catch(Base::Exception& except) {
+    } catch(std::exception& except) {
+    } catch(...) {
+    }
+  } else {
+    RELAX();
+  }
+
+  /* @TODO: bad ending, thinking about how to process this situation */
+  return False;
+}
+
+template <typename T>
+Bool Watch::Increase(Stopper* stopper) {
+  Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
+
+   if (_Counters.find(Type<T>()) == _Counters.end()) {
+    _Counters[Type<T>()] = 1;
+  } else if (stopper->Increase()) {
+    _Counters[Type<T>()]++;
+  }
+
+  return True;
+}
+
+template <typename T>
+Bool Watch::Decrease(Stopper* stopper) {
+  Vertex<void> escaping{[&](){ Lock(0); }, [&](){ Unlock(0); }};
+
+  if (_Counters.find(Type<T>()) == _Counters.end()) {
+#if DEBUGING
+    return False;
+#else
+    Bug(EBadLogic, "decrease an undefined type");
+#endif
+  } else if (stopper->Decrease()) {
+    _Counters[Type<T>()]--;
+  }
+
+  return True;
+}
+
+ErrorCodeE Watch::OnWatching(Stopper* stopper) {
+  ErrorCodeE error{ENoError};
+
+  /* @NOTE: this function is used to switch status of a thread to Running state
+   * this status only effects on Thread */
+
+  if (!(error = stopper->SwitchTo(Unlocked))) {
+    if (!Increase<Implement::Thread>(stopper)) {
+      return EBadLogic;
+    }
+  } else if (stopper->SwitchTo(Initing)) {
+    Bug(EBadLogic, "fail to revert to Initing");
+  }
+  
+  return error;
+}
+
+ErrorCodeE Watch::OnExpiring(Stopper* stopper) {
+  ErrorCodeE error{ENoError};
+
+  /* @NOTE: this function is used to switch status of a thread to Released state
+   * this status should be the ending phrase of any stopper object. When it's
+   * marked as `Released`, this object shouldn't be reused without specific
+   * configurations */
+
+  if ((error = stopper->SwitchTo(Released))) {
+    return error;
+  } else {
+    auto status = stopper->Status();
+
+    if (Decrease<Implement::Thread>(stopper)) {
+      /* @NOTE: the thread is on going to be clear from Watch POV and will be
+       * released soon */
+
+      return ENoError;
+    } else {
+      return stopper->SwitchTo(status);
+    }
   }
 }
 
-Bool Thread::Expired(){
-  if (_Thread) {
-    return GetThreadStatus(*_Thread) == Base::Thread::Running;
+void Watch::Lock(UInt index) {
+#if DEV
+  Bool state{True};
+  Vertex<void> escaping{[&]() { LOCK(&_Checking); },
+                        [&]() { if (state) UNLOCK(&_Checking); }};
+
+  if (sizeof(_Owner)/sizeof(index) <= index) {
+    Bug(EBadLogic, "use unknown spinlock");
+  }
+#endif
+
+#if DEV
+  if (ISLOCKED(&_Lock[index])) {
+    /* @NOTE: check to see if the thread is on deadlock here, if that is True,
+     * it should be our own bug and we should crash ourself here to collect
+     * coredump */
+
+    if (GetUUID() == (ULong)_Owner[index]) {
+      Bug(EBadLogic, "found issue `double spinlock`");
+    } else {
+      state = False;
+
+      /* @NOTE: we are going to face a waiting lock so we must unlock this first
+       * before doing anything */
+      UNLOCK(&_Global);
+    }
+  } else {
+    goto update;
+  }
+#endif
+
+  /* @NOTE: lock the spinlock */
+  _Safed[index] = !LOCK(&_Lock[index]);
+
+#if DEV
+ update:
+  /* @NOTE: update the new owner of this lock, this only indicate that which one
+   * is locking this spinlock */
+  _Owner[index] = GetUUID();
+#endif
+}
+
+void Watch::Unlock(UInt index) {
+#if DEV
+  if (sizeof(_Owner)/sizeof(index) <= index) {
+    Bug(EBadLogic, "use unknown spinlock");
+  }
+
+  /* @NOTE: release onwer before unlock this to prevent race condition */
+  _Owner[index] = -1;
+#endif
+
+  /* @NOTE: unlock the spinlock */
+  _Safed[index] = UNLOCK(&_Lock[index]);
+}
+
+ULong Watch::Main() { return _Main; }
+
+ULong Watch::Size() {
+  return _Stoppers[Type<Implement::Thread>()].size();
+}
+
+Bool Watch::Occupy(Base::Thread* thread) {
+  return _Threads.find(thread) != _Threads.end();
+}
+
+void Watch::Join(Base::Thread* thread) {
+  _Threads.insert(thread);
+}
+
+Watch::StatusE& Watch::Status() { return _Status; }
+
+ULong Watch::Optimize(Bool UNUSED(predict), ULong timewait) {
+  /* @TODO: design a new algothrim to optmize timewait */
+  return timewait;
+}
+
+List::List(Int parallel): _Global{False}, _Sweep{False}, _Head{None},
+      _Curr{None}, _Parallel{0}, _Count{0} {
+  if (parallel <= 0) {
+    parallel = std::thread::hardware_concurrency();
+  }
+
+  _Barriers = new Barrier[3 * parallel];
+  _Size[1] = 3 * parallel;
+  _Size[0] = 0;
+  
+  for (auto i = 0; i < 3 * parallel; ++i) {
+    _Barriers[i].Left = new ULong[EEnd];
+
+    ABI::Memset(_Barriers[i].Left, 0, EEnd * sizeof(ULong));
+    MUTEX(&_Barriers[i].Right);
+  }
+}
+
+List::~List() {
+  _Sweep = True;
+
+  for (auto item = _Curr; item;) {
+    auto tmp = item;
+
+    item = item->_Prev;
+    delete tmp;
+  }
+}
+
+template<typename T> 
+T* List::At(ULong index) {
+  Item* item = Access(ERead, index, True);
+  T* result = (T*) (item? item->_Ptr : None);
+
+  if (Unlock(item)) {
+    return result;
+  } else {
+    return None;
+  }
+}
+
+ULong List::Size() { return _Size[0]; }
+
+ULong List::Add(Void* ptr) {
+  return Add(_Curr, ptr);
+}
+
+ULong List::Add(Item* prev,  Void* ptr) { 
+  ULong index{INC(&_Count)};
+  Item* next{prev ? prev->_Next : None};
+  Item* item{new Item{}};
+  Item* curr{_Curr};
+
+  if (_Sweep) {
+    return False;
+  }
+
+  item->_Index = index;
+  item->_Ptr = ptr;
+
+  if (!_Sweep) {
+    Bool done{False};
+
+    if (Access(ELModify, prev)) {
+      prev->_Next = item;
+      item->_Prev = prev;
+    }
+
+    if (Access(ERModify, next)) {
+      next->_Prev = item;
+      item->_Next = prev;
+    }
+
+    do {
+      if ((done = ACK(&_Global, True))) {
+        CMPXCHG(&_Head, None, item);
+
+	if (!CMPXCHG(&_Curr, None, item)) {
+          if (!next && !CMPXCHG(&_Curr, curr, item)) {
+            curr = _Curr;
+            item->_Prev = curr;
+            curr->_Next = item;
+          }
+        }
+
+        INC(&_Size[0]);
+        REL(&_Global);
+      }
+
+      BARRIER();
+    } while(!done);
+
+    if (prev) {
+      Unlock(prev);
+    }
+
+    if (next) {
+      Unlock(next);
+    }
+  }
+
+  return item->_Index;
+}
+
+Bool List::Del(ULong expected, Void* ptr) {
+  Item* curr{None};
+  Bool result{False}, added{False};
+
+  if (_Sweep) {
+    return False;
+  }
+
+  curr = Access(ERemove, expected);
+  result = curr && curr->_Ptr == ptr;
+
+  if (!_Sweep && result) {
+    Item* prev{Access(ERModify, curr->_Prev)};
+    Item* next{Access(ELModify, curr->_Next)};
+    Bool done{False};
+
+    if (prev) {
+      prev->_Next = next;
+    }
+
+    if (next) {
+      next->_Prev = prev;
+    }
+
+    if (prev && !Unlock(prev)) {
+      Bug(EBadAccess, Format{"Can unlock node {}"}.Apply(prev->_Index));
+    }
+
+    if (next && !Unlock(next)) {
+      Bug(EBadAccess, Format{"Can unlock node {}"}.Apply(next->_Index));
+    }
+
+    if (_Head == curr) {
+      do {
+        if ((done = ACK(&_Global, True))) {
+          CMPXCHG(&_Head, curr, curr->_Next);
+          REL(&_Global);
+        }
+
+        BARRIER();
+      } while(!done);
+    }
+
+    if (_Curr == curr) {
+      do {
+        if ((done = ACK(&_Global, True))) {
+          CMPXCHG(&_Curr, curr, curr->_Prev);
+          REL(&_Global);
+        }
+
+        BARRIER();
+      } while(!done);
+    }
+
+    DEC(&_Size[0]);
+  }
+
+  if (result) {
+    delete curr;
+  }
+
+  if (curr) {
+    if (Unlock(expected)) {
+      return result;
+    } else if (_Curr && _Head) {
+      Bug(EBadAccess, Format{"Can delete node {}"}.Apply(expected));
+    }
+  }
+
+  return 0;
+}
+
+List::Item* List::Access(ActionE action, ULong index, Bool counting) {
+  Item* node{None};
+
+  if (counting) {
+    Vertex<void> escaping{[&](){ while(!ACK(&_Global, True)) { BARRIER(); } },
+                          [&](){ REL(&_Global); }};
+
+    for (node = _Head; node; node = node->_Next) {
+      if ((--index) == 0) {
+        break;
+      }
+    }
+  } else {
+    Vertex<void> escaping{[&](){ while(!ACK(&_Global, True)) { BARRIER(); } },
+                          [&](){ REL(&_Global); }};
+
+    for (node = _Head; node; node = node->_Next) {
+      if (node->_Index == index) {
+        break;
+      }
+    }
+  }
+
+  return Access(action, node);
+}
+
+List::Item* List::Access(ActionE action, Item* node) {
+  Item* prev{node? node->_Prev: None};
+  Item* next{node? node->_Next: None};
+  Item* result{None};
+  UInt i;
+
+  if (!node) {
+    return None;
+  }
+
+  for (i = 0; i < _Size[1]; ++i) {
+    switch (action) {
+    default:
+      break;
+
+    case ERead:
+      if (CMP(&_Barriers[i].Left[ERemove], node->_Index)) {
+        goto finish;
+      }
+      break;
+
+    case ERModify:
+      if (CMP(&_Barriers[i].Left[ELModify], node->_Index)) {
+        goto checking;
+      } else if (CMP(&_Barriers[i].Left[ERModify], node->_Index)) {
+        goto pending;
+      }
+      break;
+
+    case ELModify:
+      if (CMP(&_Barriers[i].Left[ERModify], node->_Index)) {
+        goto checking;
+      } else if (CMP(&_Barriers[i].Left[ELModify], node->_Index)) {
+        goto pending;
+      }
+      break;
+
+    case ERemove:
+      if (CMP(&_Barriers[i].Left[ERemove], node->_Index)) {
+        goto finish;
+      } else if (prev && CMP(&_Barriers[i].Left[ERModify], prev->_Index)) {
+        goto finish;
+      } else if (next && CMP(&_Barriers[i].Left[ELModify], next->_Index)) {
+        goto finish;
+      }
+      break;
+    } 
+  }
+
+checking:
+  if (_Size[1] <= _Parallel) {
+    while (!ACK(&_Global, True)) {
+      BARRIER();
+    }
+  }
+  
+  for (i = 0; i < _Size[1]; ++i) {
+    Int j = 0;
+
+    for (; j < EEnd; ++j) {
+      if (!CMP(&_Barriers[i].Left[j], 0)) {
+        break;
+      }
+    }
+
+    if (j == EEnd) {
+      break;
+    }
+  }
+
+  LOCK(&_Barriers[i].Right);
+  INC(&_Parallel);
+  goto registering;
+
+pending:
+  LOCK(&_Barriers[i].Right);
+
+registering:
+  XCHG64(&_Barriers[i].Left[action], node->_Index);
+  result = node;
+
+finish:
+  return result;
+}
+
+Bool List::Unlock(ULong index) {
+  Bool locked = _Global && _Parallel >= _Size[1];
+  Bool result = False;
+
+  for (ULong i = 0; i < _Size[1] && !result; ++i) {
+    for (Int j = 0; j < Int(EEnd) && !result; ++j) {
+      if ((result = CMPXCHG(&_Barriers[i].Left[j], index, 0))) {
+        DEC(&_Parallel);
+        UNLOCK(&_Barriers[i].Right);
+      }
+    }
+  }
+
+  if (result && locked) {
+    _Global = False;
+  }
+  return result;
+}
+
+Bool List::Unlock(Item* item) {
+  if (item) {
+    return Unlock(item->_Index);
   } else {
     return False;
   }
 }
 
-Bool Main::Expired(){
-  return False;
+/* @NOTE: this is a place to implement Stopper's methods */
+namespace Implement {
+Int Thread::Status() {
+  return GetThreadStatus(*_Thread);
+}
+
+Bool Thread::IsStatus(Int status) {
+  if (_Thread) {
+    return LIKELY(status, (Int) GetThreadStatus(*_Thread));
+  }
+
+  return Watcher.Status() == status;
+}
+
+ULong Thread::Identity() {
+  if (_Thread) {
+    return _Thread->Identity();
+  }
+
+  return 0;
+}
+
+void* Thread::Context() {
+  return _Thread;
+}
+
+Bool Thread::Unlock() {
+  /* @TODO: */
+
+  return True;
+}
+
+ErrorCodeE Thread::SwitchTo(Int next) {
+  if (IsStatus(Watch::Released)) {
+    return EBadAccess;
+  } else if (IsStatus(next)) {
+    if (LIKELY(next, Watch::Waiting) && LIKELY(Watcher.Main(), GetUUID())) {
+      return ENoError;
+    }
+
+    return EDoNothing;
+  }
+
+  /* @NOTE: switch to the correct state */
+  if (LIKELY(next, Watch::Locked) && LIKELY(ULong(GetUUID()), Watcher.Main())) {
+    next = Watch::Waiting;
+  }
+
+  switch (next) {
+  case Watch::Initing:
+    if (_Thread) {
+      Int status = (Int)GetThreadStatus(*_Thread);
+
+      if (UNLIKELY(status, Watch::Unlocked) &&
+          UNLIKELY(status,Watch::Unknown)) {
+        return EBadAccess;
+      }
+    } else if (UNLIKELY(Watcher.Status(), Watch::Unlocked)) {
+      return EBadAccess;
+    }
+    break;
+
+  case Watch::Unlocked:
+    /* @NOTE: Locked -> Unlocked: only happen when a dealock is solved by main
+     * or it has been unlocked by another threads during running */
+
+    if (_Thread) {
+      auto status = (Int)GetThreadStatus(*_Thread);
+
+      if (LIKELY(status, Watch::Locked) &&
+          LIKELY(GetUUID(), _Thread->Identity())) {
+        Bug(EBadLogic, "auto-unlock causes by itself");
+      } else if (UNLIKELY(status, Watch::Locked) &&
+                 UNLIKELY(status, Watch::Waiting) &&
+                 UNLIKELY(status, Watch::Initing)) {
+        return EBadAccess;
+      }
+    } else {
+      Int result;
+
+      if (UNLIKELY(Watcher.Status(), Watch::Waiting)) {
+        return EBadAccess;
+      }
+    }
+    break;
+
+  case Watch::Locked:
+    /* @NOTE: Unlocked -> Locked: only happen when mutex locks itself more than
+     * one time and this thread will switch to this stage automatically */
+
+    if (_Thread) {
+      Int status;
+
+      if (UNLIKELY(GetUUID(), _Thread->Identity())) {
+        return BadLogic.code();
+      } else if (UNLIKELY((status = (Int)GetThreadStatus(*_Thread)),
+                          Watch::Unlocked)) {
+        return BadAccess.code();
+      }
+    } else if (UNLIKELY(Watcher.Status(), Watch::Unlocked)) {
+      return BadAccess.code();
+    }
+    break;
+
+  case Watch::Waiting:
+    /* @NOTE: Unlocked -> Waiting: only happen at a certain time on main thread
+     * only, and we will trigger SolveDeadlock to watch and reslove any deadlock
+     * situaltions */
+
+    if (UNLIKELY(Watcher.Main(), GetUUID())) {
+      return BadLogic.code();
+    } else if (_Thread) {
+      Int status;
+
+      if (UNLIKELY((status = (Int)GetThreadStatus(*_Thread)), Watch::Unlocked)) {
+        if (GetUUID() != _Thread->Identity(True)) {
+          Bug(EBadAccess, Format{"thread {} doesn\'t exist"} << GetUUID());
+        } else {
+          return BadAccess(Format{"Unlocked != {}"} << status).code();
+        }
+      }
+    } else if (LIKELY(Watcher.Status(), Watch::Locked)) {
+      return BadAccess.code();
+    }
+
+    Watcher.Status() = Watch::Waiting;
+    break;
+
+  case Watch::Released:
+    /* @NOTE: happen automatically we the thread finish and exit completedly */
+
+    if (_Thread) {
+      return ENoError;
+    }
+    break;
+
+  default:
+    return ENoSupport;
+  }
+
+  if (_Thread) {
+    SetThreadStatus(*_Thread, next);
+  } else {
+    Watcher.Status() = (Watch::StatusE) next;
+  }
+  return ENoError;
+}
+
+ErrorCodeE Thread::OnLocking(Implement::Thread* UNUSED(thread)) {
+  return SwitchTo(Watch::Waiting);
+}
+
+ErrorCodeE Thread::OnUnlocking(Implement::Thread* UNUSED(thread)) {
+  return SwitchTo(Watch::Unlocked);
+}
+
+ErrorCodeE Thread::LockedBy(Stopper* locker) {
+  if (!CMPXCHG(&_Locker, locker, _Locker)) {
+    /* @NOTE: maybe on high-loading systems, we would see this command repeate
+     * a certain time before we are sure that everything is copy completedly.
+     * We should consider about the timeout at this stage to prevent hanging
+     * issues */
+
+    while (!CMPXCHG(&_Locker, None, locker)) {
+      BARRIER();
+    }
+  }
+
+  return ENoError;
+}
+
+ErrorCodeE Thread::UnlockedBy(Stopper* stopper) {
+  /* @NOTE: maybe on high-loading systems, we would see this command repeate
+   * a certain time before we are sure that everything is copy completedly.
+   * We should consider about the timeout at this stage to prevent hanging
+   * issues */
+
+  if (_Locker) {
+    _Locker =  None;
+  } else if (_First) {
+    _First = False;
+  } else {
+    return BadAccess("_Locker shouldn\'t be None").code();
+  }
+
+  return ENoError;
+}
+
+Bool Thread::Increase() { return True; }
+
+Bool Thread::Decrease() { return True; }
+
+Base::Thread* Thread::Super() { return _Thread; }
+
+ULong Lock::Count() {
+  return _Count;
+}
+
+Bool* Lock::Halt() {
+  return &_Halt;
+}
+
+Bool Lock::Unlock() {
+  if (_Mutex) {
+    return Watcher.OnUnlocking<Implement::Lock>(this,
+      [&]() {
+        _Halt = True;
+      });
+  } else {
+    return False;
+  }
+
+  return !ISLOCKED(_Mutex);
+}
+
+Bool Lock::IsStatus(Int status) {
+  return LIKELY(Status(), status);
+}
+
+Int Lock::Status() {
+  return ISLOCKED(_Mutex) ? Watch::Locked :
+         (CMP(&_Count, 0) ? Watch::Unlocked: Watch::Waiting);
+}
+
+void* Lock::Context() {
+  return _Mutex;
+}
+
+ULong Lock::Identity() {
+  if (_Mutex) {
+    return (ULong)_Mutex;
+  }
+
+  return 0;
+}
+
+ErrorCodeE Lock::SwitchTo(Int next) {
+  auto uuid = GetUUID();
+
+  if (Status() == Watch::Released) {
+    return EBadAccess;
+  } else if (Status() == next) {
+    return EDoNothing;
+  }
+
+  switch (next) {
+  case Watch::Initing:
+    /* @NOTE: init the first state of this lock we will choose according the
+     * current status of this lock */
+
+    next = ISLOCKED(_Mutex) ? Watch::Locked : Watch::Unlocked;
+    break;
+
+  case Watch::Unlocked:
+    /* @NOTE: Locked -> Unlocked: happens when the mutex switch to unlocked
+     * state */
+
+    if (!IsStatus(Watch::Waiting)) {
+      return EBadAccess;
+    }
+    break;
+
+  case Watch::Locked:
+    /* @NOTE: Unlocked -> Locked: happens when the mutex switch to locked
+     * state */
+
+    break;
+
+  case Watch::Released:
+    /* @NOTE: happen when the lock is removed */
+
+    if (UNLIKELY(Count(), 0)) {
+      return EBadLogic;
+    }
+    break;
+
+  case Watch::Waiting:
+    if (!IsStatus(Watch::Locked)) {
+      return EBadLogic;
+    }
+    break;
+
+  default:
+    return ENoSupport;
+  }
+
+  return ENoError;
+}
+
+ErrorCodeE Lock::OnLocking(Implement::Thread* thread) {
+  ErrorCodeE error{ENoError};
+
+  /* @NOTE: update relationship between this lock and threads which are locked
+   * by this mutex */
+
+  if ((error = SwitchTo(Watch::Locked))) {
+    if (error == EDoNothing) {
+      goto finish;
+    }
+    
+    return error;
+  }
+
+  if (CMP(&_Count, 1)) {
+lock:
+    if (thread && (error = thread->LockedBy(this))) {
+      return error;
+    }
+  }
+
+  goto done;
+
+finish:
+  if (CMP(&_Count, 1)) {
+    goto lock;
+  }
+
+done:
+  return ENoError;
+}
+
+ErrorCodeE Lock::OnUnlocking(Implement::Thread* thread) {
+  ErrorCodeE error{ENoError};
+
+  /* @NOTE: the thread will be unlocked by another threads, when it happens
+   * more than one thread is released at this time, so the lock should jump to
+   * unlocking state */
+
+  if (!ISLOCKED(_Mutex)) {
+    return EBadAccess;
+  }
+    
+  if ((error = SwitchTo(Watch::Waiting))) {
+    if (error == EDoNothing) {
+      goto finish;
+    }
+    
+    return error;
+  }
+
+  /* @NOTE: update relationship between this lock and threads which are locked
+   * by this mutex */
+
+  if (thread && (error = thread->UnlockedBy(this))) { 
+    if (SwitchTo(Watch::Locked)) {
+      Bug(EBadAccess, "can\'t revert case `Locked -> Waiting`");
+    }
+
+    return error;
+  }
+
+finish:
+  return ENoError;
+}
+
+Bool Lock::Increase() {
+  if (LIKELY(INC(&_Count), 1)) {
+    _Ticket = Watcher.Stucks.Add(this);
+  }
+
+  return _Count > 0;
+}
+
+Bool Lock::Decrease() {
+  auto ticket = _Ticket;
+
+  if (DEC(&_Count) > 0) {
+    goto finish;
+  }
+
+  /* @NOTE: remove the ticket here since we are reaching to the latest node.
+   * This should be deleted here because we only touch here when _Count
+   * reaches to 0 */
+
+  if (!Watcher.Stucks.Del(ticket, this)) {
+    if (Watcher.Stucks.Size()) {
+      Notice(EBadAccess, Format{"Can\'t delete ticket {}"} << ticket);
+    }
+  }
+
+
+  /* @NOTE: wow, i can detect the silence state here. Of course, this state is very
+   * unstable but i believe that it should be very useful in the future */
+
+  if (CMP(&_Count, 0)) {
+  }
+
+finish:
+  return _Count >= 0;
 }
 }  // namespace Implement
 }  // namespace Internal
-}  // namespace Base
+
+Lock::StatusE Lock::Status() {
+  auto lock = reinterpret_cast<Internal::Implement::Lock*>(_Context);
+
+  if (lock) {
+    if (ISLOCKED(_Lock)) {
+      return Locked;
+    } else if (lock->Count()) {
+      return Unlocking;
+    } else {
+      return Unlocked;
+    }
+  } else {
+    return Released;
+  }
+}
+
+Void* Context(Base::Thread& thread) {
+  return thread._Context;
+}
+
+Void* Context(Base::Lock& lock) {
+  return lock._Context;
+}
+
+void Register(Base::Thread& thread, Void* context) {
+  thread._Context = context;
+}
+
+void Register(Base::Lock& lock, Void* context) {
+  lock._Context = context;
+}
+
+ULong Time() {
+  TimeSpec spec{.tv_sec=0, .tv_nsec=0};
+
+  if (!clock_gettime(CLOCK_REALTIME, &spec)) {
+    return spec.tv_sec*1000000 + spec.tv_nsec;
+  }
+
+  return 0;
+}
+
+Int TimeLock(Mutex* mutex, Long timeout, Bool* halt) {
+  TimeSpec spec{.tv_sec=0, .tv_nsec=10};
+  Bool pass{False};
+  Long clock{0};
+  Int result{0};
+
+  while ((!halt || (pass = *halt)) && (timeout < 0 || clock < timeout)) { 
+    if (timeout >= 0) {
+      clock += spec.tv_nsec;
+    }
+
+    switch (TRYLOCK(mutex)) {
+      case 0:
+        return 0;
+
+      case EBUSY:
+        result = ETIMEDOUT;
+        break;
+
+      default:
+        return result;
+    }
+
+    nanosleep(&spec, None);
+  }
+
+  return pass? 0: result;
+}
+
+void SolveDeadlock() {
+  using namespace Base::Internal;
+
+  ULong marks[2], timeout{1000};
+  TimeSpec spec{.tv_sec=0, .tv_nsec=0};
+
+  /* @NOTE: when we reach here, there is no way to re-create a new thread until
+   * the number of thread reduces to 0. It would mean that any thread creates
+   * later will cause panicing or being rejected */
+
+  memset(marks, 0, sizeof(marks));
+
+  while (UNLIKELY(Watcher.Count<Implement::Thread>(), 0)) {
+    if (Watcher.Count<Implement::Lock>() >
+               Watcher.Count<Implement::Thread>()) {
+      Bool tracking = False, checking = False;
+
+      marks[1] = marks[0];
+      marks[0] = Time();
+
+      if (marks[1] != 0) {
+        /* @NOTE: we found a certain time has pass since the last deadlock is
+         * found and this place is used as a hook to help to optimize how many
+         * time we should wait for the next probing */
+
+        // timeout = Watcher.Optimize(True, marks[1] - marks[0]);
+      }
+
+      for (ULong i = 0; i < Watcher.Stucks.Size(); ++i) {
+        Implement::Lock* locker = Watcher.Stucks.At<Implement::Lock>(i + 1);
+
+        if (!locker || !(checking = locker->Unlock())) {
+          tracking = True;
+        } else {
+          break;
+        }
+      }
+
+      if (tracking) {
+        /* @NOTE: We could able to detect D-state issues and kill it directly
+         * but we should provide plugins to do it since we can't detect what
+         * really the root-cause of D-state issues recently */
+
+        goto again;
+      }
+
+      if (!checking) {
+        /* @NOTE: do nothing so we should increase timeout in order to prevent
+         * performance impact causes by running this function too much*/
+
+        // timeout *= 10;
+      }
+    } else {
+      // timeout *= 10;
+    }
+
+again:
+    /* @NOTE: take a litter bit of time before checking again */
+
+    spec.tv_sec = timeout / ULong(1e9);
+    spec.tv_nsec = timeout % ULong(1e9);
+    nanosleep(&spec, None);
+  }
+}
+
+#if DEBUGING
+namespace Internal {
+namespace Debug {
+void DumpLock(Base::Internal::Implement::Lock& lock, String parameter) {
+  if (parameter == "Count") {
+    VERBOSE << Format{"Lock {}'s Count is {}"}
+                  .Apply(ULong(lock._Lock), lock._Count)
+            << EOL;
+  } else if (parameter == "Ticket") {
+    VERBOSE << Format{"Lock {}'s Ticket is {}"}
+                  .Apply(ULong(lock._Lock), lock._Ticket)
+            << EOL;
+  } else if (parameter == "Status") {
+    VERBOSE << Format{"Lock {}'s Status is {}"}
+                  .Apply(ULong(lock._Lock), ISLOCKED(lock._Mutex))
+            << EOL;
+  }
+}
+
+void DumpLock(Base::Internal::Implement::Thread& thread, String parameter) {
+}
+} // namespace Debug
+} // namespace Internal
+
+namespace Debug {
+void DumpThread(Base::Thread& thread, String parameter) {
+}
+
+void DumpLock(Base::Lock& lock, String parameter) {
+}
+
+void DumpWatch(String parameter) {
+  using namespace Internal;
+  using namespace Internal::Debug;
+
+  if (parameter == "Stucks") {
+    auto curr = Watcher.Stucks._Head;
+
+    VERBOSE << "Dump information of list Watcher.Stucks:" << EOL;
+    VERBOSE << (Format{" - List's count is {}"} << Watcher.Stucks._Count)
+            << EOL;
+    VERBOSE << (Format{" - List's head is {}"} << ULong(Watcher.Stucks._Head))
+            << EOL;
+    VERBOSE << (Format{" - List's tail is {}"} << ULong(Watcher.Stucks._Curr))
+            << EOL;
+    VERBOSE << (Format{" - List has {} node(s):"} << Watcher.Stucks.Size())
+            << EOL;
+
+    for (UInt i = 0; i < Watcher.Stucks.Size() && curr; ++i) {
+      VERBOSE << Format{"   + {} -> {}"}.Apply(curr->_Index, (ULong)curr->_Ptr)
+              << EOL;
+      curr = curr->_Next;
+    }
+
+    VERBOSE << (Format{" - Have {} running job(s)"} << Watcher.Stucks._Parallel)
+            << EOL;
+
+    for (ULong i = 0; i < Watcher.Stucks._Size[1]; ++i) {
+      auto& barrier = Watcher.Stucks._Barriers[i];
+
+      for (auto j = 0; j < Int(List::EEnd); ++j) {
+        if (Watcher.Stucks._Barriers[i].Left[j] == 0) {
+          continue;
+        }
+
+        VERBOSE << Format{"   + {} is doing job {}"}
+                    .Apply(Watcher.Stucks._Barriers[i].Left[j], j)
+                << EOL;
+        break;
+      }
+    }
+  } else if (parameter == "Counters") {
+    VERBOSE << "Dump Watcher's counters:" << EOL;
+    VERBOSE << Format{" - Count<Implement::Thread>() = {}"}
+                  .Apply(Watcher.Count<Implement::Thread>()) << EOL;
+    VERBOSE << Format{" - Count<Implement::Lock>() = {}"}
+                  .Apply(Watcher.Count<Implement::Lock>()) << EOL; 
+  } else if (parameter == "Stucs.Unlock") {
+    for (ULong i = 0; i < Watcher.Stucks._Size[1]; ++i) {
+      auto& barrier = Watcher.Stucks._Barriers[i];
+
+      for (auto j = 0; j < Int(List::EEnd); ++j) {
+        auto index = Watcher.Stucks._Barriers[i].Left[j];
+        auto curr = Watcher.Stucks._Head;
+
+        if (index == 0) {
+          continue;
+        }
+
+        for (UInt i = 0; i < Watcher.Stucks.Size() && curr; ++i) {
+          if (curr->_Index == index) {
+            break;
+          }
+
+          curr = curr->_Next;
+        }
+
+        if (curr) {
+          auto lock = (Implement::Lock*)curr->_Ptr;
+
+          Internal::Debug::DumpLock(*lock, "Count");
+          Internal::Debug::DumpLock(*lock, "Ticket");
+          Internal::Debug::DumpLock(*lock, "Status");
+        }
+        break;
+      }
+    }
+  }
+}
+} // namespace Debug
+#endif
+} // namespace Base

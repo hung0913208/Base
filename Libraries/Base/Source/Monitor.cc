@@ -7,7 +7,7 @@ namespace Internal {
 Mutex* CreateMutex();
 
 static Map<Monitor::TypeE, Pair<Monitor*, Monitor*>> Monitors;
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex, True); },
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
                                   [](Mutex* mutex) { Locker::Unlock(*mutex); },
                                   CreateMutex());
 

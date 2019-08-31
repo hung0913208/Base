@@ -102,8 +102,8 @@ Type Max();
 
 namespace Locker {
 bool IsLocked(Mutex& locker);
-void Lock(Mutex& locker, Bool force=False);
-void Unlock(Mutex& locker);
+Bool Lock(Mutex& locker);
+Bool Unlock(Mutex& locker);
 }  // namespace Locker
 
 void Wait(Mutex& locker);

@@ -72,8 +72,8 @@ namespace Internal {
 ULong GetUniqueId();
 Mutex* CreateMutex();
 
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex, True); },
-                                  [](Mutex* mutex) { Locker::Unlock(*mutex); },
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { LOCK(mutex); },
+                                  [](Mutex* mutex) { UNLOCK(mutex); },
                                   CreateMutex());
 
 Vector<Pair<Base::Unit::Suite, Vector<Shared<Case>>>>* Units{None};
