@@ -942,6 +942,8 @@ Bool Watch::OnLocking(Stopper* stopper, Function<Void()> actor) {
 
 template <typename T>
 Bool Watch::OnUnlocking(Stopper* stopper, Function<Void()> actor) {
+  ErrorCodeE error;
+
   /* @NOTE: notify a stopper to switch to state Unlocked. This should be defined
    * specifically by each stopper and the only thing we can provide is the
    * database, stoppers will use it to decide it should start locking this or
@@ -961,7 +963,7 @@ Bool Watch::OnUnlocking(Stopper* stopper, Function<Void()> actor) {
     return False;
   }
 
-  if (!stopper->OnUnlocking(Thiz)) {
+  if (!(error = stopper->OnUnlocking(Thiz))) {
  passed:
     try {
       Int status;
@@ -1548,6 +1550,9 @@ ErrorCodeE Thread::SwitchTo(Int next) {
                  UNLIKELY(status, Watch::Waiting) &&
                  UNLIKELY(status, Watch::Initing)) {
         return EBadAccess;
+      } else if (UNLIKELY(GetUUID(), Watcher.Main()) &&
+                 LIKELY(status, Watch::Waiting)) {
+        return ENoError;
       }
     } else {
       Int result;
@@ -1730,7 +1735,7 @@ ErrorCodeE Lock::SwitchTo(Int next) {
      * state */
 
     if (!IsStatus(Watch::Waiting)) {
-      return EBadAccess;
+      return BadAccess.code();
     }
     break;
 
@@ -1802,7 +1807,7 @@ ErrorCodeE Lock::OnUnlocking(Implement::Thread* thread) {
    * unlocking state */
 
   if (!ISLOCKED(_Mutex)) {
-    return EBadAccess;
+    return BadAccess.code();
   }
     
   if ((error = SwitchTo(Watch::Waiting))) {
