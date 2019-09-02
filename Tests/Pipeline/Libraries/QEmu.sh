@@ -104,6 +104,24 @@ function get_internet_interface() {
 	done
 }
 
+function get_gateway() {
+	if [ "$1" = 'default' ]; then
+		ip route show | grep "$1" | awk '{ print $3 }'
+	fi
+}
+
+function get_state_interface() {
+	ip addr show $1 | grep state | awk '{ print $9 }'
+}
+
+function get_ip_interface() {
+	ip addr show $1 | grep inet | awk '{ print $2 }' | awk '{ split($0,a,"/"); print a[1]; }'
+}
+
+function get_netmask_interface() {
+	ip addr show $1 | grep inet | awk '{ print $2 }' | awk '{ split($0,a,"/"); print a[2]; }'
+}
+
 function create_tuntap() {
 	# @NOTE: add a new tuntap
 	$SU tunctl -u $USER -t $1 >& /dev/null

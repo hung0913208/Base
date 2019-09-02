@@ -191,6 +191,7 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 		warning "your environemt don't support creating a bridge"
 		MODE="nat"
 	else
+		$SU ip link delete $BRIDGE type bridge
 		MODE="bridge"
 	fi
 
@@ -210,6 +211,7 @@ if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
 		MODPROBE="modprobe"
 	else
 		MODPROBE=$($SU find /sbin/ -type f -name "modprobe")
+
 		if [[ ${#MODPROBE} -eq 0 ]]; then
 			warning "can't find modprobe"
 			MODPROBE=""

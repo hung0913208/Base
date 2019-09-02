@@ -54,9 +54,111 @@ if [ $? != 0 ]; then
 	fi
 
 	cd $CURRENT || error "can't cd to $CURRENT"
-else
-	install_package screen
 fi
+
+install_package screen
+
+function snift() {
+	if [ $(get_state_interface $1) = 'DOWN' ]; then
+		return 1
+	fi
+
+	if which tcpdump >& /dev/null; then
+		info "turn on snifting on $1"
+		mkdir -p /tmp/dump
+
+		if [ $ETH = $1 ]; then
+			($SU tcpdump -vvi $1 -x >/tmp/dump/$1.tcap) & PID=$!
+		else
+			($SU tcpdump -nnvvi $1 -x >/tmp/dump/$1.tcap) & PID=$!
+		fi
+
+		if $SU ps -p $PID >& /dev/null; then
+			echo "$PID" >> /tmp/tcpdump.pid
+		fi
+	else
+		return 1
+	fi
+}
+
+function troubleshoot() {
+	SCRIPT=$2
+
+	if [ $1 = "start" ]; then
+		INTERFACES=($(show_all_network_interface))
+
+		for IF_PATH in /sys/class/net/*; do
+			snift $(basename $IF_PATH)
+		done
+
+		if [ -d $SCRIPT ]; then
+			bash $SCRIPT/start
+		else
+			bash $SCRIPT start
+		fi
+
+	elif [ $1 = "end" ]; then
+		if [ -f /tmp/tcpdump.pid ]; then
+			cat /tmp/tcpdump.pid | while read PID; do
+				$SU kill -15 $PID >& /dev/null
+			done
+
+			for FILE in /tmp/dump/*.tcap; do
+				if [[ $(wc -c < $FILE) -gt 0 ]]; then
+					info "tcpdump $(basename $FILE) from host view:"
+					cat $FILE
+					echo ""
+				fi
+			done
+
+			rm -fr /tmp/tcpdump.pid
+			rm -fr /tmp/dump
+		fi
+
+		if which iptables >& /dev/null; then
+			info "iptables rule from host view:"
+			$SU iptables -L
+			$SU iptables -t nat --list-rules
+			echo ""
+		fi
+
+		if which ifconfig >& /dev/null; then
+			info "network configuration from host view:"
+			$SU ifconfig
+			echo ""
+		else
+			info "network configuration from host view:"
+			$SU ip addr show
+			echo ""
+		fi
+
+		if which route >& /dev/null; then
+			info "routing table from host view:"
+			$SU route -n
+			echo ""
+		else
+			info "routing table from host view:"
+			$SU ip route show
+			echo ""
+		fi
+
+		if which arp >& /dev/null; then
+			info "arp table from host view:"
+			$SU arp
+			echo ""
+		else
+			info "arp table from host view:"
+			ip neigh show
+			echo ""
+		fi
+		
+		if [ -d $SCRIPT ]; then
+			bash $SCRIPT/stop
+		else
+			bash $SCRIPT stop
+		fi
+	fi
+}
 
 function generate_isolate_initscript(){
 	if [ "$METHOD" == "reproduce" ]; then
@@ -167,6 +269,7 @@ EOF
 }
 
 function generate_netscript() {
+	CLOSE=$3
 	NET=$2
 	IDX=$1
 
@@ -179,10 +282,46 @@ ifconfig lo 127.0.0.1
 route add 127.0.0.1
 EOF
 	elif [ $MODE = "nat" ]; then
-		cat > $NET << EOF
+		TAP="$(get_new_bridge "tap")"
+		create_tuntap "$TAP"
+
+		if [ $? != 0 ]; then
+			error "can\'t create a new tap interface"
+		else
+			# @NOTE: Create forwarding rules, where
+			# tap0 - virtual interface
+			# eth0 - net connected interface
+
+			$SU iptables -A FORWARD -i $TAP -o $ETH -j ACCEPT
+			$SU iptables -A FORWARD -i $ETH -o $TAP -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+			cat > $NET << EOF
 EOF
+		fi
 	elif [ $MODE = "bridge" ]; then
-		cat > $NET << EOF
+		IDX=$((IDX+1))
+
+		# @NOTE: set ip address of this TAP interface
+		TAP="$(get_new_bridge "tap")"
+		create_tuntap "$TAP"
+
+		if [ $? != 0 ]; then
+			error "can't create a new tap interface"
+		else
+			$SU ip link set dev $TAP master $BRD
+			$SU ip link set $TAP up
+
+			NETWORK="-device e1000,netdev=network$IDX -netdev tap,ifname=$TAP,id=network$IDX,script=no,downscript=no"
+
+			cat > $CLOSE << EOF
+#!/bin/sh
+
+$SU ip addr flush dev $TAP
+$SU ip link set $TAP down
+$SU ovs-vsctl del-port $BRD $TAP
+EOF
+
+			cat > $NET << EOF
 #!/bin/sh
 
 # @NOTE: config nameserver
@@ -190,28 +329,30 @@ echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
 # @NOTE: config loopback interface
 ifconfig lo 127.0.0.1
-route add 127.0.0.1
 
 # @NOTE: config eth0 interface to connect to outside
 ifconfig eth0 up
-ifconfig eth0 192.168.0.2
-route add default gw 192.168.100.1
 
-ping -c 5 192.168.0.1 >& /dev/null
-if [ \$? != 0 ]; then
-	echo "can't connect to the gateway"
-fi
+ifconfig eth0 192.168.1.$IDX
+route add default gw 192.168.1.1 
 
-ping -c 5 8.8.8.8 >& /dev/null
-if [ \$? != 0 ]; then
+echo "The VM's network configuration:"
+ifconfig -a
+echo ""
+
+echo "The VM's routing table:"
+route -n
+echo ""
+
+if ! ping -c 5 8.8.8.8 >& /dev/null; then
 	echo "can't connect to internet"
 fi
 
-ping -c 5 google.com >& /dev/null
-if [ \$? != 0 ]; then
+if ! ping -c 5 google.com >& /dev/null; then
 	echo "can't access to DNS server"
 fi
 EOF
+		fi
 	fi
 
 	if [ -f $NET ]; then
@@ -237,11 +378,11 @@ function generate_initrd() {
 
 	# @NOTE: generate our initscript which is used to call our testing system
 	if [ $MODE = "isolate" ]; then
-		generate_isolate_initscript $4 $3
+		generate_isolate_initscript $4
 	elif [ $MODE = "nat" ]; then
-		generate_nat_initscript $4 $3
+		generate_nat_initscript $4
 	elif [ $MODE = "bridge" ]; then
-		generate_bridge_initscript $4 $3
+		generate_bridge_initscript $4
 	fi
 
 	chmod a+x initramfs/init
@@ -393,6 +534,8 @@ function boot_kernel() {
 	RAM_FILENAME=$1
 	KER_FILENAME=$2
 
+	mkdir -p /tmp/vms
+
 	if [ -f "$RAM_FILENAME" ]; then
 		if [ ! -f $KER_FILENAME ]; then
 			compile_linux_kernel
@@ -412,43 +555,60 @@ function boot_kernel() {
 			info "run the slave VM($IDX) with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
 			if [[ ${#CPU} -gt 0 ]]; then
-				screen -S "vms.pid" -dm 					\
-				qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
-						-initrd "${RAM_FILENAME}"			\
-						-nographic 					\
-						-smp $(nproc) -m $RAM				\
-						$NETWORK					\
-						-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+				cat >> /tmp/vms/start << EOF
+screen -S "vms.pid" -dm 					\
+qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
+		-initrd "${RAM_FILENAME}"			\
+		-nographic 					\
+		-smp $(nproc) -m $RAM				\
+		$NETWORK					\
+		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+EOF
 			else
-				screen -S "vms.pid" -dm 				\
-				qemu-system-x86_64 -s -kernel "${KER_FILENAME}"		\
-						-initrd "${RAM_FILENAME}"		\
-						-nographic 				\
-						-smp $(nproc) -m $RAM			\
-						$NETWORK				\
-						-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+				cat >> /tmp/vms/start << EOF
+screen -S "vms.pid" -dm 				\
+qemu-system-x86_64 -s -kernel "${KER_FILENAME}"		\
+		-initrd "${RAM_FILENAME}"		\
+		-nographic 				\
+		-smp $(nproc) -m $RAM			\
+		$NETWORK				\
+		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+EOF
 				fi
 		elif [[ ${#CPU} -gt 0 ]]; then
 			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
-			$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
-				-initrd "${RAM_FILENAME}"					\
-				-nographic 							\
-				-smp $(nproc) -m $RAM						\
-				$NETWORK							\
-				-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+			cat >> /tmp/vms/start << EOF
+echo "console log from master VM:"
+$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
+	-initrd "${RAM_FILENAME}"					\
+	-nographic 							\
+	-smp $(nproc) -m $RAM						\
+	$NETWORK							\
+	-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+echo "--------------------------------------------------------------------------------------------------------------------"
+echo ""
+EOF
 		else
 			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
-			$TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
-					-initrd "${RAM_FILENAME}"			\
-					-nographic 					\
-					-smp $(nproc) -m $RAM				\
-					$NETWORK					\
-					-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+			cat >> /tmp/vms/start << EOF
+echo "[   INFO  ]: console log from master VM:"
+$TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
+		-initrd "${RAM_FILENAME}"			\
+		-nographic 					\
+		-smp $(nproc) -m $RAM				\
+		$NETWORK					\
+		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+echo "--------------------------------------------------------------------------------------------------------------------"
+echo ""
+EOF
 		fi
-
-		rm -fr "$RAM_FILENAME"
+			cat >> /tmp/vms/stop << EOF
+screen -ls "vms.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print \$1}' | while read s; do screen -XS \$s quit; done
+rm -fr "$RAM_FILENAME"
+rm -fr /tmp/vms
+EOF
 	else
 		warning "i can't start QEmu because i don't see any approviated test suites"
 		CODE=1
@@ -485,20 +645,29 @@ function process() {
 			$PIPELINE/../../Tools/Utilities/ngrok.sh ssh $DEBUG rootroot 0 22
 		fi
 
+		if [ "$MODE" = "bridge" ]; then
+			$SU ip addr flush dev $BRD
+		fi
+
 		if [ $? != 0 ]; then
 			warning "Fail repo $REPO/$BRANCH"
 			CODE=1
 		else
+			SCRIPTS=()
+
 			for IDX in $(seq 1 1 $VMS_NUMBER); do
 				KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
 				RAM_FILENAME="$INIT_DIR/initramfs-$IDX.cpio.gz"
-				NET_FILENAME="$INIT_DIR/network-$IDX"
+				IFUP_FILENAME="/tmp/ifup-$IDX"
+				IPDOWN_FILENAME="/tmp/ifdown-$IDX"
 
 				$WORKSPACE/Tests/Pipeline/Build.sh 1 $IDX
 
 				if [ $? != 0 ]; then
 					warning "Fail repo $REPO/$BRANCH"
 				else
+					SCRIPTS=("${SCRIPTS[@]}" $IFDOWN_FILENAME)
+
 					if [[ $IDX -eq $VMS_NUMBER ]] || [[ -f $WORKSPACE/Tests/Pipeline/Test.sh ]]; then
 						MASTER=0
 					else
@@ -509,7 +678,7 @@ function process() {
 						source $WORKSPACE/.environment
 					fi
 
-					if ! generate_netscript $IDX $NET_FILENAME; then
+					if ! generate_netscript $IDX $IFUP_FILENAME $IPDOWN_FILENAME; then
 						warning "can't build network to VM($IDX)"
 					elif [[ ${#IMG_FILENAME} -eq 0 ]]; then
 						# @NOTE: build a new initrd
@@ -519,7 +688,7 @@ function process() {
 						fi
 
 						if [ ! -f $RAM_FILENAME ]; then
-							generate_initrd "$WORKSPACE/build" $RAM_FILENAME $NET_FILENAME $IDX
+							generate_initrd "$WORKSPACE/build" $RAM_FILENAME $IFUP_FILENAME $IDX
 						fi
 					fi
 
@@ -533,15 +702,27 @@ function process() {
 				fi
 			done
 
-			if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
-				$WORKSPACE/Tests/Pipeline/Test.sh
+			if [ $MODE = "bridge" ]; then
+				# @NOTE: assign specific ip to this bridge
 
-				if [[ $CODE -eq 0 ]]; then
-					CODE=$?
+				if $SU ip addr add 192.168.1.1/24 dev $BRD; then
+					$SU ip link set $BRD up
 				fi
 			fi
 
-			screen -ls "vms.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
+			troubleshoot 'start' /tmp/vms
+			if [ -f /tmp/startvm ]; then
+
+				if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
+					$WORKSPACE/Tests/Pipeline/Test.sh
+
+					if [[ $CODE -eq 0 ]]; then
+						CODE=$?
+					fi
+				fi
+			fi
+
+			troubleshoot 'end' /tmp/vms
 		fi
 	else
 		warning "repo $REPO don't support usual CI method"
@@ -552,35 +733,27 @@ function process() {
 	return $CODE
 }
 
-$SU iptables -F FORWARD >& /dev/null
-$SU iptables -I FORWARD -m physdev --physdev-is-bridged -j ACCEPT >& /dev/null
+ETH="$(get_internet_interface)"
+
+# @NOTE: activate ip forwarding
+echo 1 | $SU tee -a /proc/sys/net/ipv4/ip_forward >& /dev/null
 
 if [ "$MODE" = "bridge" ]; then
-	ETH="$(get_internet_interface)"
-	TAP="$(get_new_bridge "tap")"
+	# @NOTE: create a new vswitch
+	BRD=$(get_new_bridge "brd")
 
-	create_tuntap "$TAP"
+	$SU iptables -t nat -A POSTROUTING -o $ETH -j MASQUERADE
+	if create_bridge $BRD; then
+		# @NOTE: redirect network between the bridge and the internet interface
+		$SU iptables -A FORWARD -i $BRD -o $ETH -j ACCEPT	
+		$SU iptables -A FORWARD -i $ETH -o $BRD -m state --state ESTABLISHED,RELATED \
+				                -j ACCEPT
 
-	if [ $? != 0 ]; then
-		error "can\'t create a new tap interface"
+		# @NOTE: we will use this tool to troubleshoot the network issues
+		install_package tcpdump
 	else
-		# @NOTE: set ip address of this TAP interface
-		$SU ip address add  192.168.0.1/24 dev $TAP
-
-		# activate ip forwarding
-		$SU sysctl net.ipv4.ip_forward=1
-		$SU sysctl net.ipv6.conf.default.forwarding=1
-		$SU sysctl net.ipv6.conf.all.forwarding=1
-
-		# @NOTE: Create forwarding rules, where
-		# tap0 - virtual interface
-		# eth0 - net connected interface
-		$SU iptables -A FORWARD -i $TAP -o $ETH -j ACCEPT
-		$SU iptables -A FORWARD -i $ETH -o $TAP -m state --state ESTABLISHED,RELATED -j ACCEPT
-		$SU iptables -t nat -A POSTROUTING -o $ETH -j MASQUERADE
+		error "can't create $BRD"
 	fi
-
-	NETWORK="-net nic,model=e1000,vlan=0 -net tap,ifname=$TAP,vlan=0,script=no"
 fi
 
 if [ "$METHOD" == "reproduce" ]; then
