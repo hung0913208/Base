@@ -40,31 +40,23 @@ if [ $? != 0 ]; then
 		# to use the best candidate of the branch
 
 		git fetch >& /dev/null
-		git checkout -b "Pipeline/QEmu" "origin/Pipeline/QEmu"
-		if [ $? = 0 ]; then
-			cd $CURRENT || error "can't cd to $CURRENT"
-			"$0" $METHOD $PIPELINE $MODE $REPO $BRANCH
-		fi
+		git status | grep "Pipeline/QEmu"
 
-		exit $?
+		if [ $? != 0 ]; then
+			git checkout -b "Pipeline/QEmu" "origin/Pipeline/QEmu"
+
+			if [ $? = 0 ]; then
+				cd $CURRENT || error "can't cd to $CURRENT"
+				"$0" $METHOD $PIPELINE $MODE $REPO $BRANCH
+			fi
+			exit $?
+		fi
 	fi
 
 	cd $CURRENT || error "can't cd to $CURRENT"
+else
+	install_package screen
 fi
-
-function compile_busybox() {
-	cd "$INIT_DIR"
-	curl "$BBOX_URL" -o "$BBOX_FILENAME" 2>/dev/null
-	tar xf "$BBOX_FILENAME"
-
-	cd "$INIT_DIR/$BBOX_DIRNAME/"
-	make defconfig >& /dev/null
-	sed -i "/CONFIG_STATIC/c\CONFIG_STATIC=y" ./.config
-
-	make -j8 >& /dev/null
-	make install >& /dev/null
-	cd "$INIT_DIR"
-}
 
 function generate_isolate_initscript(){
 	if [ "$METHOD" == "reproduce" ]; then
@@ -79,9 +71,9 @@ free -m
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
-# @NOTE: config loopback interface
-ifconfig lo 127.0.0.1
-route add 127.0.0.1
+if [ -f /network ]; then
+	/network
+fi
 EOF
 	else
 		cat > "$INIT_DIR/$BBOX_DIRNAME/initramfs/init" << EOF
@@ -95,14 +87,14 @@ free -m
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
-# @NOTE: config loopback interface
-ifconfig lo 127.0.0.1
-route add 127.0.0.1
+if [ -f /network ]; then
+	/network
+fi
 EOF
 	fi
 }
 
-function generate_network_initscript(){
+function generate_nat_initscript(){
 	if [ "$METHOD" == "reproduce" ]; then
 		cat > "$INIT_DIR/$BBOX_DIRNAME/initramfs/init" << EOF
 #!/bin/busybox sh
@@ -115,31 +107,8 @@ free -m
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
-# @NOTE: config nameserver
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
-
-# @NOTE: config loopback interface
-ifconfig lo 127.0.0.1
-route add 127.0.0.1
-
-# @NOTE: config eth0 interface to connect to outside
-ifconfig eth0 up
-ifconfig eth0 192.168.100.2
-route add 192.168.100.1
-
-ping -c 5 192.168.100.1 >& /dev/null
-if [ $? != 0 ]; then
-	echo "can't connect to the gateway"
-fi
-
-ping -c 5 8.8.8.8 >& /dev/null
-if [ $? != 0 ]; then
-	echo "can't connect to internet"
-fi
-
-ping -c 5 google.com >& /dev/null
-if [ $? != 0 ]; then
-	echo "can't access to DNS server"
+if [ -f /network ]; then
+	/network
 fi
 EOF
 	else
@@ -153,6 +122,68 @@ free -m
 
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
+
+if [ -f /network ]; then
+	/network
+fi
+EOF
+	fi
+}
+
+function generate_bridge_initscript(){
+	if [ "$METHOD" == "reproduce" ]; then
+		cat > "$INIT_DIR/$BBOX_DIRNAME/initramfs/init" << EOF
+#!/bin/busybox sh
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+echo "The virtual machine's memory usage:"
+free -m
+
+# @NOTE: increase maximum fd per process
+ulimit -n 65536
+
+if [ -f /network ]; then
+	/network
+fi
+EOF
+	else
+		cat > "$INIT_DIR/$BBOX_DIRNAME/initramfs/init" << EOF
+#!/bin/busybox sh
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+echo "The virtual machine's memory usage:"
+free -m
+
+# @NOTE: increase maximum fd per process
+ulimit -n 65536
+
+if [ -f /network ]; then
+	/network
+fi
+EOF
+	fi
+}
+
+function generate_netscript() {
+	NET=$2
+	IDX=$1
+
+	if [ $MODE = "isolate" ]; then
+		cat > $NET << EOF
+#!/bin/sh
+
+# @NOTE: config loopback interface
+ifconfig lo 127.0.0.1
+route add 127.0.0.1
+EOF
+	elif [ $MODE = "nat" ]; then
+		cat > $NET << EOF
+EOF
+	elif [ $MODE = "bridge" ]; then
+		cat > $NET << EOF
+#!/bin/sh
 
 # @NOTE: config nameserver
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
@@ -167,27 +198,36 @@ ifconfig eth0 192.168.0.2
 route add default gw 192.168.100.1
 
 ping -c 5 192.168.0.1 >& /dev/null
-if [ $? != 0 ]; then
+if [ \$? != 0 ]; then
 	echo "can't connect to the gateway"
 fi
 
 ping -c 5 8.8.8.8 >& /dev/null
-if [ $? != 0 ]; then
+if [ \$? != 0 ]; then
 	echo "can't connect to internet"
 fi
 
 ping -c 5 google.com >& /dev/null
-if [ $? != 0 ]; then
+if [ \$? != 0 ]; then
 	echo "can't access to DNS server"
 fi
 EOF
+	fi
+
+	if [ -f $NET ]; then
+		chmod +x $NET
+		return $?
+	else
+		return 1
 	fi
 }
 
 function generate_initrd() {
 	local COUNT=0
 
-	cd "$INIT_DIR/$BBOX_DIRNAME/"
+	CURRENT=$(pwd)
+	cd "$INIT_DIR/$BBOX_DIRNAME/" || error "can't cd to $INIT_DIR/$BBOX_DIRNAME"
+
 	cp -rf _install/ initramfs/ >& /dev/null
 	cp -fR examples/bootfloppy/etc initramfs >& /dev/null
 
@@ -196,11 +236,14 @@ function generate_initrd() {
 	$SU cp -a /dev/{null,console,tty,tty1,tty2,tty3,tty4} initramfs/dev/ >& /dev/null
 
 	# @NOTE: generate our initscript which is used to call our testing system
-	if [ $MODE != "isolate" ]; then
-		generate_network_initscript
-	else
-		generate_isolate_initscript
+	if [ $MODE = "isolate" ]; then
+		generate_isolate_initscript $4 $3
+	elif [ $MODE = "nat" ]; then
+		generate_nat_initscript $4 $3
+	elif [ $MODE = "bridge" ]; then
+		generate_bridge_initscript $4 $3
 	fi
+
 	chmod a+x initramfs/init
 
 	# @NOTE: copy only execuators that don't support dynamic link
@@ -225,6 +268,10 @@ function generate_initrd() {
 		# @NOTE: add footer of the initscript
 		echo "sleep 80" >> initramfs/init
 
+		if [ -f $3 ]; then
+			mv $3 initramfs/network
+		fi
+
 		if [[ ${#DEBUG} -eq 0 ]]; then
 			echo "poweroff -f" >> initramfs/init
 		fi
@@ -235,12 +282,25 @@ function generate_initrd() {
 		exec 2>&-
 		cd $INIT_DIR/$BBOX_DIRNAME/initramfs
 
-		find . -print0 | cpio --null -ov --format=newc | gzip -9 > "${RAM_FILENAME}"
+		find . -print0 | cpio --null -ov --format=newc | gzip -9 > "$2"
 		cd $INIT_DIR
 		exec 2>&1
 	fi
 
-	cd "${INIT_DIR}/${BBOX_DIRNAME}/initramfs/"
+	cd "$CURRENT" || error "can't cd to $CURRENT"
+}
+
+function compile_busybox() {
+	cd "$INIT_DIR"
+	curl "$BBOX_URL" -o "$BBOX_FILENAME" 2>/dev/null
+	tar xf "$BBOX_FILENAME"
+
+	cd "$INIT_DIR/$BBOX_DIRNAME/"
+	make defconfig >& /dev/null
+	sed -i "/CONFIG_STATIC/c\CONFIG_STATIC=y" ./.config
+
+	make -j8 >& /dev/null
+	make install >& /dev/null
 	cd "$INIT_DIR"
 }
 
@@ -329,6 +389,76 @@ function detect_libbase() {
 	fi
 }
 
+function boot_kernel() {
+	RAM_FILENAME=$1
+	KER_FILENAME=$2
+
+	if [ -f "$RAM_FILENAME" ]; then
+		if [ ! -f $KER_FILENAME ]; then
+			compile_linux_kernel
+		fi
+
+		if [[ ${#DEBUG} -gt 0 ]]; then
+			TIMEOUT="timeout 2700"
+		else
+			TIMEOUT=""
+		fi
+
+		if [[ ${#RAM} -eq 0 ]]; then
+			RAM="1G"
+		fi
+
+		if [[ $3 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
+			info "run the slave VM($IDX) with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+
+			if [[ ${#CPU} -gt 0 ]]; then
+				screen -S "vms.pid" -dm 					\
+				qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
+						-initrd "${RAM_FILENAME}"			\
+						-nographic 					\
+						-smp $(nproc) -m $RAM				\
+						$NETWORK					\
+						-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+			else
+				screen -S "vms.pid" -dm 				\
+				qemu-system-x86_64 -s -kernel "${KER_FILENAME}"		\
+						-initrd "${RAM_FILENAME}"		\
+						-nographic 				\
+						-smp $(nproc) -m $RAM			\
+						$NETWORK				\
+						-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+				fi
+		elif [[ ${#CPU} -gt 0 ]]; then
+			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+
+			$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
+				-initrd "${RAM_FILENAME}"					\
+				-nographic 							\
+				-smp $(nproc) -m $RAM						\
+				$NETWORK							\
+				-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		else
+			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+
+			$TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
+					-initrd "${RAM_FILENAME}"			\
+					-nographic 					\
+					-smp $(nproc) -m $RAM				\
+					$NETWORK					\
+					-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		fi
+
+		rm -fr "$RAM_FILENAME"
+	else
+		warning "i can't start QEmu because i don't see any approviated test suites"
+		CODE=1
+	fi
+}
+
+function boot_image() {
+	IMG_FILENAME=$1
+}
+
 function process() {
 	git submodule update --init --recursive
 
@@ -339,79 +469,82 @@ function process() {
 	FORCE=0
 
 	mkdir -p "$WORKSPACE/build"
+	cd $WORKSPACE || error "can't cd to $WORKSPACE"
 
 	# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
 	# that we are using Eevee as the tool to deploy this Repo
 	if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
-		KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
-		RAM_FILENAME="$INIT_DIR/initramfs.cpio.gz"
+		VMS_NUMBER=1
 
 		$BASE/Tests/Pipeline/Prepare.sh
-
 		if [ -f $WORKSPACE/.environment ]; then
 			source $WORKSPACE/.environment
+		fi
+
+		if [[ ${#DEBUG} -gt 0 ]]; then
+			$PIPELINE/../../Tools/Utilities/ngrok.sh ssh $DEBUG rootroot 0 22
 		fi
 
 		if [ $? != 0 ]; then
 			warning "Fail repo $REPO/$BRANCH"
 			CODE=1
 		else
-			$WORKSPACE/Tests/Pipeline/Build.sh 1
+			for IDX in $(seq 1 1 $VMS_NUMBER); do
+				KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
+				RAM_FILENAME="$INIT_DIR/initramfs-$IDX.cpio.gz"
+				NET_FILENAME="$INIT_DIR/network-$IDX"
 
-			if [ $? != 0 ]; then
-				warning "Fail repo $REPO/$BRANCH"
-			else
-				# @NOTE: build a new initrd
+				$WORKSPACE/Tests/Pipeline/Build.sh 1 $IDX
 
-				if [ ! -f $RAM_FILENAME ]; then
-					compile_busybox
+				if [ $? != 0 ]; then
+					warning "Fail repo $REPO/$BRANCH"
+				else
+					if [[ $IDX -eq $VMS_NUMBER ]] || [[ -f $WORKSPACE/Tests/Pipeline/Test.sh ]]; then
+						MASTER=0
+					else
+						MASTER=1
+					fi
+
+					if [ -f $WORKSPACE/.environment ]; then
+						source $WORKSPACE/.environment
+					fi
+
+					if ! generate_netscript $IDX $NET_FILENAME; then
+						warning "can't build network to VM($IDX)"
+					elif [[ ${#IMG_FILENAME} -eq 0 ]]; then
+						# @NOTE: build a new initrd
+
+						if [ ! -f $RAM_FILENAME ]; then
+							compile_busybox
+						fi
+
+						if [ ! -f $RAM_FILENAME ]; then
+							generate_initrd "$WORKSPACE/build" $RAM_FILENAME $NET_FILENAME $IDX
+						fi
+					fi
+
+					cd "$WORKSPACE" || error "can't cd to $WORKSPACE"
+
+					if [ ${#KER_FILENAME} -gt 0 ]; then
+						boot_kernel $RAM_FILENAME $KER_FILENAME $MASTER
+					elif [ ${#IMG_FILENAME} -gt 0 ]; then
+						boot_image $IMG_FILENAME
+					fi
 				fi
+			done
 
-				generate_initrd "$WORKSPACE/build"
+			if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
+				$WORKSPACE/Tests/Pipeline/Test.sh
+
+				if [[ $CODE -eq 0 ]]; then
+					CODE=$?
+				fi
 			fi
+
+			screen -ls "vms.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
 		fi
 	else
 		warning "repo $REPO don't support usual CI method"
-		CODE=1
-	fi
-
-	cd "$ROOT" || error "can't cd to $ROOT"
-
-	if [ -f "$RAM_FILENAME" ]; then
-		if [ ! -f $KER_FILENAME ]; then
-			compile_linux_kernel
-		fi
-
-		if [[ ${#DEBUG} -gt 0 ]]; then
-			$PIPELINE/../../Tools/Utilities/ngrok.sh ssh $DEBUG rootroot 22
-			TIMEOUT="timeout 2700 "
-		else
-			TIMEOUT=""
-		fi
-
-		info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
-		if [[ ${#CPU} -gt 0 ]]; then
-			$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
-					-initrd "${RAM_FILENAME}"				\
-					-nographic 						\
-					-smp $(nproc) -m 1G					\
-					$NETWORK						\
-					-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
-		else
-			$TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
-					-initrd "${RAM_FILENAME}"			\
-					-nographic 					\
-					-smp $(nproc) -m 1G				\
-					$NETWORK					\
-					-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
-		fi
-
-		# @TODO: start slave VMs at the same time with master VM using builder
-		# to create a cluster for testing with different kind of network
-
-		rm -fr "$RAM_FILENAME"
-	else
-		warning "i can't start QEmu because i don't see any approviated test suites"
 		CODE=1
 	fi
 
@@ -419,7 +552,10 @@ function process() {
 	return $CODE
 }
 
-if [ "$MODE" != "isolate" ]; then
+$SU iptables -F FORWARD >& /dev/null
+$SU iptables -I FORWARD -m physdev --physdev-is-bridged -j ACCEPT >& /dev/null
+
+if [ "$MODE" = "bridge" ]; then
 	ETH="$(get_internet_interface)"
 	TAP="$(get_new_bridge "tap")"
 
@@ -542,7 +678,6 @@ except Exception as error:
 	print(error)
 	sys.exit(-1)
 """))
-
 
 		if [ $? != 0 ]; then
 			FAIL=(${FAIL[@]} $PROJECT)
