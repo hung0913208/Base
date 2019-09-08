@@ -33,6 +33,7 @@ endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
 	include(CodeCoverage)
 
+	add_definitions(-DCOVERAGE=1)
 	add_cxx_compiler_flag(-Werror)
 	add_cxx_compiler_flag(-Wfatal-errors)
 	add_cxx_compiler_flag(-fprofile-arcs)
@@ -52,6 +53,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Profiling")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
 	set(CMAKE_CXX_FLAGS_RELEASE "")
 
+	add_definitions(-DRELEASE=1)
 	add_cxx_compiler_flag(-O3)
 	add_c_compiler_flag(-O3)
 	add_cxx_compiler_flag(-g3)
@@ -65,6 +67,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_c_compiler_flag(-Werror)
 	add_c_compiler_flag(-Wfatal-errors)
 endif()
+
 # @NOTE: suppress some feature according to the compilers
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 	if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 3.2)
@@ -103,28 +106,32 @@ include_directories(${CMAKE_SOURCE_DIR}
                     ${CMAKE_SOURCE_DIR}/Libraries/Unittest
                     ${CMAKE_SOURCE_DIR}/Libraries/Unittest/Implement)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+	# @NOTE: define how to build project Builder
+	file(GLOB HEADERS "${CMAKE_SOURCE_DIR}/*.h")
+	file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/Source/*.cc")
+
+	add_executable(build2 ${SOURCES})
+
+	if(THREADS_HAVE_PTHREAD_ARG)
+		target_compile_options(build2 PUBLIC base -pthread)
+	elseif(CMAKE_THREAD_LIBS_INIT)
+		target_link_libraries(build2 base data ${CMAKE_THREAD_LIBS_INIT})
+	else()
+		target_link_libraries(build2 base data -lpthread)
+	endif()
+endif()
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries/Base)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries/Data)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries/Unittest)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries/Wrapping)
-
-# @NOTE: define how to build project Builder
-file(GLOB HEADERS "${CMAKE_SOURCE_DIR}/*.h")
-file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/Source/*.cc")
 
 find_package(Threads)
 if(COMMAND cmake_policy)
 	cmake_policy(SET CMP0003 NEW)
 endif()
 
-add_executable(build2 ${SOURCES})
-if(THREADS_HAVE_PTHREAD_ARG)
-	target_compile_options(build2 PUBLIC base -pthread)
-elseif(CMAKE_THREAD_LIBS_INIT)
-	target_link_libraries(build2 base data ${CMAKE_THREAD_LIBS_INIT})
-else()
-	target_link_libraries(build2 base data -lpthread)
-endif()
 
 # @NOTE: build test cases from here
 enable_testing()
