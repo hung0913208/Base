@@ -57,9 +57,13 @@ esac
 # @TODO: check on storage if we have any artifact to reuse, we will use it to
 # avoid rebuild again since rebuild take so much time
 
+info "run with $PARALLEL paralel job"
+
 # @NOTE: cloning step
-if ! git clone --recurse-submodules -j"$PARALLEL" "$1" &> /dev/null; then
-	error "can't clone repo $1"
+if ! git clone --recurse-submodules -j"$PARALLEL" "$1" >& /dev/null; then
+	if ! git clone --recurse-submodules "$1" >& /dev/null; then
+		error "can't clone repo $1"
+	fi
 fi
 
 # @NOTE: install step

@@ -138,13 +138,13 @@ if [ -d "$ROOT/.recompile.d" ]; then
 				info "recompile $REPO now, $BACKGROUND background"
 
 				if [[ $BACKGROUND == "show" ]]; then
-					$PIPELINE/Libraries/Install.sh $DEFINE
+					$PIPELINE/Libraries/Install.sh $REPO
 				else
-					$PIPELINE/Libraries/Install.sh $DEFINE &> /dev/null
+					$PIPELINE/Libraries/Install.sh $REPO &> /dev/null
 				fi
 
 				if [ $? != 0 ]; then
-					error "fail recompile $DEFINE"
+					error "fail recompile $REPO"
 				fi
 			fi
 		done
