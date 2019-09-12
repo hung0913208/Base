@@ -39,7 +39,7 @@ test_with_centos:
     expire_in: 2 days
 
 test_with_opensuse:
-  image: opensuse
+  image: opensuse/leap
   stage: test
   script:
     - mkdir -p Coredumps
