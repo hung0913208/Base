@@ -1,8 +1,8 @@
 clang
-lcov
 gdb
 gcc
 gcc-c++
 make
 cmake
 valgrind
+lcov

@@ -32,27 +32,27 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 	fi
 
 	# @NOTE: check and set INSTALL tool
-	if [ $(which apt-get) ]; then
+	if which apt-get >& /dev/null; then
 		SYS="debian"
 		INSTALL="apt-get install -y"
 		REMOVE="apt-get remove -y"
 		CLEAR="apt-get autoremove -y"
-	elif [ $(which apt) ]; then
+	elif which apt >& /dev/null; then
 		SYS="debian"
 		INSTALL="apt install -y"
 		REMOVE="apt remove -y"
 		CLEAR="apt autoremove -y"
-	elif [ $(which yum) ]; then
+	elif which yum >& /dev/null; then
 		SYS="redhat"
 		INSTALL="yum install -y"
 		REMOVE="yum remove -y"
 		CLEAR="yum autoremove -y"
-	elif [ $(which zypper) ]; then
+	elif which zypper >& /dev/null; then
 		SYS="suse"
 		INSTALL="zypper install -y"
 		REMOVE="zypper rm --clean-deps -y"
 		CLEAR="echo 'Do nothing'"
-	elif [ $(which pkg) ]; then
+	elif which pkg >& /dev/null; then
 		SYS="freebsd"
 		INSTALL="pkg"
 		REMOVE="pkg delete -y"

@@ -81,19 +81,19 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 	fi
 
 	# @NOTE: check and set INSTALL tool
-	if [ $(which apt-get) ]; then
+	if which apt-get >& /dev/null; then
 		info "I found this distro maybe Ubuntu/Debian"
 		INSTALL="apt install -y"
-	elif [ $(which apt) ]; then
+	elif which apt >& /dev/null; then
 		info "I found this distro maybe Ubuntu/Debian"
 		INSTALL="apt install -y"
-	elif [ $(which yum) ]; then
-		info "I found this distro maybe Ubuntu/Debian"
+	elif which yum >& /dev/null; then
+		info "I found this distro maybe Centos/Redhat"
 		INSTALL="yum install -y"
-	elif [ $(which zypper) ]; then
+	elif which zypper >& /dev/null; then
 		info "I found this distro maybe SUSE/OpenSuse"
 		INSTALL="zypper install -y"
-	elif [ $(which pkg) ]; then
+	elif which pkg >& /dev/null; then
 		info "I found this distro maybe FreeBSD"
 		INSTALL="pkg"
 	else
