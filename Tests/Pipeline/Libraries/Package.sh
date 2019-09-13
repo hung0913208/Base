@@ -86,6 +86,12 @@ fi
 
 # @NOTE: this function helps you to install a package
 function install_package() {
+	export DEBIAN_FRONTEND=noninteractive
+
+	if [ ! -f /etc/localtime ]; then
+		$SU ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
+	fi
+
 	info "install $1 now"
 	$SU $INSTALL $1 >& /dev/null
 

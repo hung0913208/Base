@@ -88,8 +88,7 @@ fi
 
 # okey, install basic packages which are defined above
 for PACKAGE in "${REQUIRED[@]}"; do
-	info "Install package ${PACKAGE} with command \"${SU} ${INSTALL} ${PACKAGE}\""
-	$SU $INSTALL $PACKAGE &> /dev/null
+	install_package $PACKAGE
 done
 
 ROOT="$(git rev-parse --show-toplevel)"
