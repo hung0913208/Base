@@ -44,7 +44,7 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 		info "It seems your distribute is Ubuntu/Debian"
 		info "Kernel info $(uname -a)"
 	elif [ $(which yum) ]; then
-		REQUIRED=("openssh" "python" "git" "lftp" "ncftp" "expect")
+		REQUIRED=("openssh" "python" "git" "expect")
 		$SU yum update
 
 		# @NOTE: print infomation of this device
