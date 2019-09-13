@@ -30,35 +30,35 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 
 	# @NOTE: check and set INSTALL tool
 	if [ $(which apt-get) ]; then
-		REQUIRED=("ssh" "python3" "git" "lftp" "ncftp" "expect")
+		REQUIRED=("ssh" "python" "git" "lftp" "ncftp" "expect")
 		$SU apt-get update &> /dev/null
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Ubuntu/Debian"
 		info "Kernel info $(uname -a)"
 	elif [ $(which apt) ]; then
-		REQUIRED=("ssh" "python3" "git" "lftp" "ncftp" "expect")
+		REQUIRED=("ssh" "python" "git" "lftp" "ncftp" "expect")
 		$SU apt update &> /dev/null
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Ubuntu/Debian"
 		info "Kernel info $(uname -a)"
 	elif [ $(which yum) ]; then
-		REQUIRED=("openssh" "python3" "git" "lftp" "ncftp" "expect")
+		REQUIRED=("openssh" "python" "git" "lftp" "ncftp" "expect")
 		$SU yum update
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Fedora/Centos"
 		info "Kernel info $(uname -a)"
 	elif [ $(which zypper) ]; then
-		REQUIRED=("openssh" "python3" "git" "lftp" "ncftp" "expect")
+		REQUIRED=("openssh" "python" "git" "lftp" "ncftp" "expect")
 		$SU zypper update
 
 		# @NOTE: print infomation of this device
 		info "It seems your distribute is Opensuse"
 		info "Kernel info $(uname -a)"
 	elif [ $(which pkg) ]; then
-		REQUIRED=("ssh" "python3" "git" "lftp" "ncftp" "expect")
+		REQUIRED=("ssh" "python" "git" "lftp" "ncftp" "expect")
 		$SU pkg update
 
 		# @NOTE: print infomation of this device
@@ -73,7 +73,7 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 		exit -1
 	fi
 elif [ "$machine" == "Mac" ]; then
-	REQUIRED=("ssh" "python3" "git")
+	REQUIRED=("ssh" "python" "git")
 
 	# @NOTE: show memory status
 	info "Memory of this CI:"
