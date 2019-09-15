@@ -96,8 +96,10 @@ class Fildes: public Monitor {
         break;
 
       case 1:
-#if UNIX
-        _Run = Poll(&_Pool);
+#if LINUX
+        _Run = EPoll(&_Pool, backlog);
+#elif MACOS || BSD
+        _Run = KQueue(&_Pool);
 #elif WINDOW
         _Run = Select(&_Pool);
 #else

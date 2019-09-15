@@ -1,3 +1,4 @@
+#include <Atomic.h>
 #include <Macro.h>
 #include <Logcat.h>
 
@@ -60,6 +61,8 @@ Int EpollAppend(void* ptr, Int socket, Int mode){
     event.events = EPOLLIN | EPOLLET;
   } else if (mode == ELooping) {
     event.events = EPOLLOUT | EPOLLET;
+  } else {
+    return Error(ENoSupport, "socket type only adapts value 0 or 1");
   }
 
   if (!poll) {
@@ -67,10 +70,9 @@ Int EpollAppend(void* ptr, Int socket, Int mode){
   } else if (epoll_ctl(poll->fd, EPOLL_CTL_ADD, socket, &event) == -1) {
     return Error(EBadAccess, "epoll_ctl got an error");
   } else {
-    return Error(ENoSupport, "socket type only adapts value 0 or 1");
+    INC(&poll->nevent);
+    return 0;
   }
-
-  return 0;
 }
 
 Int EpollModify(void* ptr, Int socket, Int mode){
@@ -108,6 +110,7 @@ Int EpollRelease(void* ptr, Int socket) {
 
   if (!(error = pool->Remove(pool, socket))) {
     if (!(error =pool->ll.Modify(context, socket, EReleasing))) {
+      DEC(&context->nevent);
       close(socket);
     } else {
       return error;
@@ -159,7 +162,7 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
     poll = (Context*)pool->ll.Poll;
   }
 
-  if (pool->Status == IDLE) {
+  if (pool->Status == IDLE && poll->nevent == 0) {
     return EDoNothing;
   }
 
@@ -197,7 +200,7 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
           case ENoError:
           case EBadAccess:
           case EKeepContinue:
-            ev &= ~EPOLLOUT;
+            ev &= ~EPOLLIN;
             break;
 
           case EDoAgain:

@@ -66,6 +66,8 @@ enum ErrorCodeE KqueueAppend(Void* ptr, Int socket, Int mode) {
     return Error(EBadLogic, "pool is not null");
   } else if (kevent(poll->fd, &event, 1, NULL, 0, NULL) == -1) {
     return Error(EBadAccess, "epoll_ctl got an error");
+  } else {
+    INC(&poll->nevent);
   }
 
   return ENoError;
@@ -104,6 +106,7 @@ enum ErrorCodeE KqueueRelease(void* ptr, Int socket, ErrorCodeE reason){
   if (socket >= 0) {
     if (pool->Remove(pool, socket)) {
       Kqueue_Modify(pool->ll.Poll, socket, EReleasing);
+      DEC(&pool->ll.Poll->nevent);
       close(socket);
     } else {
       return EDoAgain;
@@ -158,7 +161,7 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
     Bool is_interrupted = pool->Status == INTERRUPT;
 
     do {
-      Int error = 0, idevent = 0;
+      Int error = 0, idevent = 0, nevent = 0;
 
       if (pool->Timeout > 0) {
         struct timespec timeout;
@@ -166,16 +169,16 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
         clock_gettime(CLOCK_REALTIME, &timeout);
         timeout.tv_sec += pool->Timeout;
 
-        poll->nevent = kevent(poll->fd, None, 0
-                              poll->events, pool->MaxEvents,
-                              &timeout);
+        nevent = kevent(poll->fd, None, 0
+                        poll->events, pool->MaxEvents,
+                        &timeout);
       } else {
-        poll->nevent = kevent(poll->fd, None, 0
-                              poll->events, pool->MaxEvents,
-                              None);
+        nevent = kevent(poll->fd, None, 0
+                        poll->events, pool->MaxEvents,
+                        None);
       }
 
-      for (; idevent < poll->nevent; ++idevent) {
+      for (; idevent < nevent; ++idevent) {
         Int flagss = poll->events[idevent].flags;
         Int events = poll->events[idevent].filter;
         Int fd = poll->events[idevent].ident;
