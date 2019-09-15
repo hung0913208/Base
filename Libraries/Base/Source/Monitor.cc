@@ -6,17 +6,17 @@ namespace Base {
 namespace Internal {
 Mutex* CreateMutex();
 
-static Map<Monitor::TypeE, Pair<Monitor*, Monitor*>> Monitors;
+static Map<UInt, Pair<Monitor*, Monitor*>> Monitors;
 static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
                                   [](Mutex* mutex) { Locker::Unlock(*mutex); },
                                   CreateMutex());
 
 namespace Fildes {
-Shared<Monitor> Create(String name, Base::Monitor::TypeE type, Int system);
+Shared<Monitor> Create(String name, UInt type, Int system);
 } // namespace Fildes
 } // namespace Internal
 
-Monitor::Monitor(String name, TypeE type): _Name{name}, _Type{type} {
+Monitor::Monitor(String name, UInt type): _Name{name}, _Type{type} {
   using namespace Internal;
   Vertex<Mutex, False> UNUSED(guranteer) = Secure.generate();
 
@@ -217,7 +217,7 @@ ErrorCodeE Monitor::Loop(UInt steps, Int timeout) {
   return Loop([&](Monitor&) -> Bool { return (--steps) > 0; }, timeout);
 }
 
-Shared<Monitor> Monitor::Make(String name, Monitor::TypeE type) {
+Shared<Monitor> Monitor::Make(String name, UInt type) {
   switch(type) {
   case EIOSync:
     return Internal::Fildes::Create(name, type, 0);
@@ -230,7 +230,7 @@ Shared<Monitor> Monitor::Make(String name, Monitor::TypeE type) {
   }
 }
 
-Monitor* Monitor::Head(Monitor::TypeE type) {
+Monitor* Monitor::Head(UInt type) {
   if (Internal::Monitors.find(type) == Internal::Monitors.end()) {
     return None;
   }

@@ -42,7 +42,7 @@ class Monitor {
 
   /* @NOTE: this function is the only way to create a monitor. With this
    * design, there is no way to create a monitor without diferent type */
-  static Shared<Monitor> Make(String name, Monitor::TypeE type);
+  static Shared<Monitor> Make(String name, UInt type);
 
  protected:
   /* @NOTE: this function is used to registry an indicator which is used 
@@ -64,7 +64,7 @@ class Monitor {
 
   /* @NOTE: acces the head monitor, they are defined as a single tone and should
    * be the latest remover */
-  static Monitor* Head(TypeE type);
+  static Monitor* Head(UInt type);
 
   /* @NOTE: these virtual methods are used to interact with monitor */
   virtual ErrorCodeE _Append(Auto fd, Int mode) = 0;
@@ -89,12 +89,12 @@ class Monitor {
 
   /* @NOTE: by default we will lock constructors and destructor to prevent
    * user to create a new monitor with uncompatible type */
-  explicit Monitor(String name, TypeE type);
+  explicit Monitor(String name, UInt type);
   virtual ~Monitor();
 
   /* @NOTE: these provide basic information of this monitor */
   String _Name;
-  TypeE _Type;
+  UInt _Type;
 
   /* @NOTE: these should be managed by CHILD */
   Vector<Check> _Checks;

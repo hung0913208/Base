@@ -69,9 +69,9 @@ Int Flush(Void* ptr, Int fd);
 class Fildes: public Monitor {
  public:
 #if LINUX
-  explicit Fildes(String name, Monitor::TypeE type, Int system, Int backlog = 100) :
+  explicit Fildes(String name, UInt type, Int system, Int backlog = 100) :
 #else
-  explicit Fildes(String name, Monitor::TypeE type, Int system) :
+  explicit Fildes(String name, UInt type, Int system) :
 #endif
       Monitor(name, type), _Tid{-1} {
     using namespace std::placeholders;  // for _1, _2, _3...
@@ -556,7 +556,7 @@ class Fildes: public Monitor {
 
 namespace Internal {
 namespace Fildes {
-Shared<Monitor> Create(String name, Base::Monitor::TypeE type, Int system){
+Shared<Monitor> Create(String name, UInt type, Int system){
   return Shared<Monitor>(new class Fildes(name, type, system));
 }
 
