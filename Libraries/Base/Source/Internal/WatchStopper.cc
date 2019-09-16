@@ -44,6 +44,7 @@ void DumpWatch(String parameter);
 namespace Internal {
 void UnwatchStopper(Base::Thread& thread);
 Bool KillStoppers(UInt signal);
+void Idle(TimeSpec* spec);
 
 namespace Implement {
 class Thread;
@@ -1589,7 +1590,7 @@ Int TimeLock(Mutex* mutex, Long timeout, Bool* halt) {
         return result;
     }
 
-    nanosleep(&spec, None);
+    Internal::Idle(&spec);
   }
 
 finish:
@@ -1667,7 +1668,8 @@ again:
 
     spec.tv_sec = timeout / ULong(1e9);
     spec.tv_nsec = timeout % ULong(1e9);
-    nanosleep(&spec, None);
+
+    Internal::Idle(&spec);
   }
 }
 
