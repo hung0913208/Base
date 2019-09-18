@@ -13,13 +13,6 @@ function error() {
 	exit -1
 }
 
-function log() {
-	PROTOCOL="7"
-	VESION="5.0.0"
-	$WEBSOCKET "wss://ws.pusherapp.com/app/$PUSHER?protocol=$PROTOCOL&client=js&version=$VERSION&flash=false" << EOF
-EOF
-}
-
 function repository() {
 	REPO=$(python -c """
 try:
@@ -131,7 +124,6 @@ except Exception as error:
 }
 
 function build() {
-	ID=$1
 	KEEP=1
 	EVENT='push%2Capi%2Ccron'
 	OFFSET=0
@@ -161,22 +153,20 @@ print(json.load(sys.stdin)['builds'][0]['number'])
 			IDX=$LAST
 		fi
 
-		if [[ $1 -le $IDX ]]; then
-			ADJUST=$((IDX-ID))
+		IDX=$((IDX-LIMIT))
+		OFFSET=$((OFFSET+LIMIT))
 
+		if [[ $1 -gt $IDX ]]; then
 			echo $RESP | python -c """
 import json, sys
 
 for idx, item in enumerate(json.load(sys.stdin)['builds']):
-	if idx == $ADJUST:
+	if item['number'] == '$1':
 		print(item['id'])
 		break
 			"""
 			break
 		fi
-
-		IDX=$((IDX-LIMIT))
-		OFFSET=$((OFFSET+LIMIT))
 
 		if [[ $IDX -gt 0 ]]; then
 			KEEP=1
@@ -220,12 +210,24 @@ for idx, item in enumerate(json.load(sys.stdin)['jobs']):
 """
 }
 
-if [ $1 = 'restart' ] || [ $1 = 'status' ]; then
+function console() {
+	PUSHER=""
+	PROTOCOL="7"
+	VESION="5.0.0"
+
+	$WEBSOCKET "wss://ws.pusherapp.com/app/$PUSHER?protocol=$PROTOCOL&client=js&version=$VERSION&flash=false" << EOF
+EOF
+}
+
+if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ]; then
 	TASK=$1
+
+	if [ $1 = 'log' ] || [ $1 = 'status' ]; then
+		JOB=1
+	fi
 	shift
 	
-	if ! options=$(getopt -l token,patch,job,repo: -- "$@")
-	then
+	if ! options=$(getopt -l token,patch,job,repo: -- "$@"); then
 		error "Can' parse $BASE/Tools/Builder/build $@"
 	fi
 
@@ -233,7 +235,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ]; then
 		case $1 in
 			--job)		JOB="$2"; shift;;
 			--repo)		REPO="$2"; shift;;
-			--build)	BUILD="$2"; shift;;
+			--patch)	BUILD="$2"; shift;;
 			--token)	TOKEN="$2" ; shift;;
 			(--) 		shift; break;;
 			(-*) 		error "unrecognized option $1";;
@@ -251,10 +253,24 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ]; then
 	REPO=$(repository $REPO)
 	BUILD=$(build $BUILD)
 
-	if [ $TASK = 'status' ]; then
-		if [[ ${#JOB} -ne 0 ]]; then
-			status $BUILD $JOB
+	if [ $TASK = 'log' ]; then
+		if [ $(status $BUILD $JOB) != 'started' ]; then
+			curl -sS --request GET 				\
+			 	--header "Authorization: token $TOKEN" 	\
+				--header "Travis-API-Version: 3" 	\
+				https://api.travis-ci.org/job/$(job $BUILD $JOB)/log |
+			python -c """
+import json, sys
+try:
+    from urllib import unquote_plus
+except ImportError:
+    from urllib.parse import unquote_plus
+
+print(unquote_plus(json.load(sys.stdin)['content']))
+			"""
 		fi
+	elif [ $TASK = 'status' ]; then
+		status $BUILD $JOB
 	elif [[ ${#JOB} -eq 0 ]]; then
 		if ! restart 'build' $BUILD; then
 			error "Can't restart travis"
