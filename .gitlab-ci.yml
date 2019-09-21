@@ -1,14 +1,15 @@
 
 stages:
-  - test
+  - linux
+  - macos
   - composer
   - reproduce
   - coverage
   - deploy
 
-test_with_ubuntu:
+build_with_ubuntu:
   image: ubuntu
-  stage: test
+  stage: linux
   script:
     - mkdir -p Coredumps
     - apt update >& /dev/null
@@ -22,9 +23,9 @@ test_with_ubuntu:
       - Coredumps
     expire_in: 2 days
 
-test_with_centos:
+build_with_centos:
   image: centos
-  stage: test
+  stage: linux
   script:
     - mkdir -p Coredumps
     - yum update -y >& /dev/null
@@ -38,9 +39,9 @@ test_with_centos:
       - Coredumps
     expire_in: 2 days
 
-test_with_opensuse:
+build_with_opensuse:
   image: opensuse/leap
-  stage: test
+  stage: linux
   script:
     - mkdir -p Coredumps
     - zypper update -y >& /dev/null
@@ -53,9 +54,87 @@ test_with_opensuse:
       - Coredumps
     expire_in: 2 days
 
-test_with_gaia:
+perform_reproduce_issues:
   image: ubuntu
-  stage: test
+  stage: reproduce
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python3 >& /dev/null
+    - ./.gitlab-ci.d/travis/reproduce.sh ${REPRODUCES}
+
+build_with_travis:
+  image: ubuntu
+  stage: linux
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python >& /dev/null
+    - ./.gitlab-ci.d/travis/build.sh ${BUILDS}
+
+build_kernel_linux:
+  image: ubuntu
+  stage: linux
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - ./.gitlab-ci.d/travis/kernel.sh ${KERNELS}
+ 
+build_with_macos_7.3:
+  image: ubuntu
+  stage: macos
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - ./Tools/Utilities/travis.sh restart --job 8 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+
+build_with_macos_8.3:
+  image: ubuntu
+  stage: macos
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - ./Tools/Utilities/travis.sh restart --job 9 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+
+build_with_macos_9.1:
+  image: ubuntu
+  stage: macos
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - ./Tools/Utilities/travis.sh restart --job 11 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+
+build_with_macos_9.2:
+  image: ubuntu
+  stage: macos
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - ./Tools/Utilities/travis.sh restart --job 12 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+
+build_with_macos_9.3:
+  image: ubuntu
+  stage: macos
+  script:
+    - apt update >& /dev/null
+    - apt upgrade -y >& /dev/null
+    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - ./Tools/Utilities/travis.sh restart --job 13 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+
+build_with_gaia:
+  image: ubuntu
+  stage: linux
   script:
     - echo "On developing"
   allow_failure: true
@@ -64,25 +143,6 @@ test_with_gaia:
     paths:
       - Coredumps
     expire_in: 2 days
-
-perform_reproduce_issues:
-  image: ubuntu
-  stage: reproduce
-  script:
-    - mkdir -p Coredumps
-    - mkdir -p Log
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
-    - if [ -n "${JOBS}" ]; then./Tests/Pipeline/Reproduce.sh ${JOBS}; fi
-  allow_failure: true
-  artifacts:
-    when: on_failure
-    paths:
-      - Coredumps
-      - Log
-    expire_in: 2 days
-  when: manual
 
 save_code_coverage:
   image: ubuntu
