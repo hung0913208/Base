@@ -1,26 +1,34 @@
 #!/bin/bash
 CURRENT=$(pwd)
+SOURCE=$2
 
 function on_exit() {
+	rm -fr cli.py
+	rm -fr $SOURCE
 	cd $CURRENT
 }
 
 cd $(dirname $0) || exit -1
 trap on_exit 1 2 3 15 20
 
-# @NOTE: what would be the best way to define an interact websocket-cli?
-while read LINE; do
-	SCRIPT="""$SCRIPT
-        $LINE
-"""
-done <&0
-
-python -c """
+cat > $(pwd)/cli.py << EOF
 from Source import WebSocket
 
 if __name__ == '__main__':
     with WebSocket('$1') as ws:
-        $SCRIPT
+EOF
+
+python -c """
+with open('$(pwd)/cli.py', 'a') as dst:
+    with open('$2', 'r') as src:
+        for line in src.readlines():
+            dst.write('        %s' % line)
 """
-exit $?
+
+python cli.py
+CODE=$?
+
+rm -fr cli.py
+rm -fr $2
+exit $CODE
 
