@@ -60,7 +60,7 @@ perform_reproduce_issues:
   script:
     - apt update >& /dev/null
     - apt upgrade -y >& /dev/null
-    - apt install -y git curl python3 >& /dev/null
+    - apt install -y git curl python >& /dev/null
     - ./.gitlab-ci.d/travis/reproduce.sh ${REPRODUCES}
 
 build_with_travis:
