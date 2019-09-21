@@ -398,11 +398,14 @@ while keep is True:
         num = parsed['number']
         keep = parsed['final'] == False
 
-        sys.stdout.write(log)
+	sys.stdout.write(log.encode('ascii', 'ignore').decode('ascii'))
         sys.stdout.flush()
 EOF
 
-	log $4 $5
+	if [[ $# -gt 3 ]]; then
+		log $4 $5
+	fi
+
 	$WEBSOCKET "ws://ws.pusherapp.com/app/$PUSHER?protocol=$PROTOCOL&client=js&version=$VERSION&flash=false" $(pwd)/travis.py
     return $?
 }
