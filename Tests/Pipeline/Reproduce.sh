@@ -13,26 +13,18 @@ CODE=0
 install_package screen
 
 function progress() {
-	case "$((IDX%18))" in
-		0)	python -c "import sys; sys.stdout.write('\\r[*        ]: $2'); sys.stdout.flush();";;
-		1)	python -c "import sys; sys.stdout.write('\\r[**       ]: $2'); sys.stdout.flush();";;
-		2)	python -c "import sys; sys.stdout.write('\\r[***      ]: $2'); sys.stdout.flush();";;
-		3)	python -c "import sys; sys.stdout.write('\\r[****     ]: $2'); sys.stdout.flush();";;
-		4)	python -c "import sys; sys.stdout.write('\\r[*****    ]: $2'); sys.stdout.flush();";;
-		5)	python -c "import sys; sys.stdout.write('\\r[******   ]: $2'); sys.stdout.flush();";;
-		6)	python -c "import sys; sys.stdout.write('\\r[*******  ]: $2'); sys.stdout.flush();";;
-		7)	python -c "import sys; sys.stdout.write('\\r[******** ]: $2'); sys.stdout.flush();";;
-		8)	python -c "import sys; sys.stdout.write('\\r[*********]: $2'); sys.stdout.flush();";;
-		9)	python -c "import sys; sys.stdout.write('\\r[******** ]: $2'); sys.stdout.flush();";;
-		10)	python -c "import sys; sys.stdout.write('\\r[*******  ]: $2'); sys.stdout.flush();";;
-		11)	python -c "import sys; sys.stdout.write('\\r[******   ]: $2'); sys.stdout.flush();";;
-		12)	python -c "import sys; sys.stdout.write('\\r[*****    ]: $2'); sys.stdout.flush();";;
-		13)	python -c "import sys; sys.stdout.write('\\r[****     ]: $2'); sys.stdout.flush();";;
-		14)	python -c "import sys; sys.stdout.write('\\r[***      ]: $2'); sys.stdout.flush();";;
-		15)	python -c "import sys; sys.stdout.write('\\r[**       ]: $2'); sys.stdout.flush();";;
-		16)	python -c "import sys; sys.stdout.write('\\r[*        ]: $2'); sys.stdout.flush();";;
-		17)	python -c "import sys; sys.stdout.write('\\r[         ]: $2'); sys.stdout.flush();";;
-	esac
+	python -c """
+import sys
+number = '$1'
+
+if len(number) > 9:
+	number = number[:9]
+else:
+	number = ' '*(9 - len(number)) + number
+
+sys.stdout.write('\\r[%s]: $2' % number)
+sys.stdout.flush()
+"""
 }
 
 if [[ ${#HOOK} -gt 0 ]]; then
