@@ -11,6 +11,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 CODE=0
 
 install_package screen
+install_package lftp
 
 function progress() {
 	python -c """
