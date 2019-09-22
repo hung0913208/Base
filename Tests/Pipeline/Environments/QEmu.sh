@@ -479,6 +479,7 @@ cat './repo.list' | while read DEFINE; do
 	REPO=${SPLITED[0]}
 	BRANCH=${SPLITED[1]}
 	PROJECT=$(basename $REPO)
+	PROJECT=${PROJECT%.*}
 
 	if [[ ${#SPLITED[@]} -gt 2 ]]; then
 		AUTH=${SPLITED[2]}
