@@ -95,14 +95,39 @@ if [[ ${#PACKAGES} -gt 0 ]]; then
 	done
 fi
 
-for IDX in {0..256}; do
-	NAME="HOOK$IDX"
-	HOOK=${!NAME}
+SAVE=$IFS
+IFS=$'\n'
 
-	if [[ ${#HOOK} -gt 0 ]]; then
-		printf "$HOOK" >> ./HOOK
-	fi
-done
+HOOKS=($(printenv | grep HOOK))
+IFS=$SAVE
+
+if [[ ${#HOOKS[@]} -gt 0 ]]; then
+	for ITEM in "${HOOKS[@]}"; do
+		NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+		if [ "$NAME" = 'HOOK_TOP' ]; then
+			echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+			break
+		fi
+	done
+
+	for ITEM in "${HOOKS[@]}"; do
+		NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+		if [ "$NAME" != 'HOOK_BOT' ] && [ "$NAME" != 'HOOK_TOP' ]; then
+			echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+		fi
+	done
+
+	for ITEM in "${HOOKS[@]}"; do
+		NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+		if [ "$NAME" = 'HOOK_BOT' ]; then	
+			echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+			break
+		fi
+	done
+fi
 
 if [ -f ./HOOK ]; then
 	$SU chmod +x ./HOOK

@@ -5,12 +5,21 @@ for JOB in $(python -c "for v in '$1'.split(';'): print(v)"); do
 
 	for IDX in `seq ${BEGIN} ${END}`; do
 		STATUS=$(./Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TOKEN} --repo ${REPO})
+		CODE=0
 
 		if [ $STATUS != 'started' ]; then
 			RUN=1
+			HOOK="HOOK${JOB}_gitlab_${CI_JOB_ID}"
+			VALUE="\\\"if [[ \\\\\$ID -eq $JOB ]]; then export JOB='build'; sudo apt install qemu; echo '${CI_REPOSITORY_URL} ${CI_COMMIT_REF_NAME}' >> ./repo.list; fi\\\""
 
+			./Tools/Utilities/travis.sh env add --name "$HOOK" --value "$VALUE" --token ${TOKEN} --repo ${REPO}
 			if ! ./Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TOKEN} --repo ${REPO}; then
-				exit -1
+				CODE=-1
+			fi
+
+			./Tools/Utilities/travis.sh env del --name "$HOOK" --token ${TOKEN} --repo ${REPO}
+			if [ $CODE != 0 ]; then
+				exit $CODE
 			else
 				break
 			fi
