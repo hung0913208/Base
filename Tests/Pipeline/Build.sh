@@ -25,7 +25,6 @@ if [ $(which git) ]; then
 		PROJECT=$1
 
 		if [ $PROJECT != "$(basename `git config  --get remote.origin.url`)" ]; then
-			REROUTE=1
 		fi
 	else
 		PROJECT="$(basename `git config  --get remote.origin.url`)"
@@ -38,6 +37,18 @@ if [ $(which git) ]; then
 
 		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'LibBase.git' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
+		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'Base' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
+		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'Base.git' ]]; then
 		if [ $REROUTE = 1 ]; then
 			ROOT=$(pwd)
 		fi
