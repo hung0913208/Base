@@ -79,7 +79,6 @@ build_with_macos_9.3:
     - Travis
 
 save_code_coverage:
-  image: ubuntu
   stage: coverage
   script:
     - mkdir -p Coverages
@@ -87,6 +86,8 @@ save_code_coverage:
     - apt upgrade -y >& /dev/null
     - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
     - if [ -n "${JOBS}" ]; then ./Tests/Pipeline/Coverage.sh ${JOBS}; fi
+  tags:
+    - Travis
   allow_failure: true
   artifacts:
     paths:
@@ -104,6 +105,8 @@ pages:
     - if [ -d ./Coverages ]; then cp -a ./Coverages public; fi
     - if [ -d ./Logs ]; then cp -a ./Logs public; fi
     - if [ -n "$(find public -maxdepth 0 -type d -empty 2>/dev/null)" ]; then touch public/.lock; fi
+  tags:
+    - Travis
   artifacts:
     paths:
       - public
