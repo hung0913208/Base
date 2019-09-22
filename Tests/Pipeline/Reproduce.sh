@@ -160,6 +160,8 @@ EOF
 				if [ ! -e "$ROOT/BUG" ]; then
 					touch "$ROOT/BUG"
 				fi
+			else
+				echo ''
 			fi
 
 			$PIPELINE/Libraries/Reproduce.sh report "$ISSUE" "$ROOT" "$LOG/$ISSUE"
