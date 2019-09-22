@@ -1,4 +1,3 @@
-
 stages:
   - linux
   - macos
