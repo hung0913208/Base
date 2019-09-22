@@ -7,142 +7,77 @@ stages:
   - coverage
   - deploy
 
-build_with_ubuntu:
-  image: ubuntu
-  stage: linux
-  script:
-    - mkdir -p Coredumps
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
-    - ./Tests/Pipeline/Prepare.sh LibBase
-    - ./Tests/Pipeline/Build.sh LibBase
-  artifacts:
-    when: on_failure
-    paths:
-      - Coredumps
-    expire_in: 2 days
-
-build_with_centos:
-  image: centos
-  stage: linux
-  script:
-    - mkdir -p Coredumps
-    - yum update -y >& /dev/null
-    - yum install -y git curl python3 openssh sudo binutils which >& /dev/null
-    - ./Tests/Pipeline/Prepare.sh LibBase
-    - ./Tests/Pipeline/Build.sh LibBase
-  allow_failure: true
-  artifacts:
-    when: on_failure
-    paths:
-      - Coredumps
-    expire_in: 2 days
-
-build_with_opensuse:
-  image: opensuse/leap
-  stage: linux
-  script:
-    - mkdir -p Coredumps
-    - zypper update -y >& /dev/null
-    - zypper install -y  git curl python3 openssh sudo which binutils >& /dev/null
-    - ./Tests/Pipeline/Prepare.sh LibBase
-    - ./Tests/Pipeline/Build.sh LibBase
-  artifacts:
-    when: on_failure
-    paths:
-      - Coredumps
-    expire_in: 2 days
-
 perform_reproduce_issues:
-  image: ubuntu
   stage: reproduce
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'reproduce' ]; then exit 0; fi
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/reproduce.sh ${REPRODUCES}
+  tags:
+    - Travis
 
 build_with_travis:
-  image: ubuntu
   stage: linux
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
+    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/build.sh ${BUILDS}
+  tags:
+    - Travis
 
 build_kernel_linux:
-  image: ubuntu
   stage: linux
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'kernel' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/kernel.sh ${KERNELS}
+  tags:
+    - Travis
  
 build_with_macos_7.3:
-  image: ubuntu
   stage: macos
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./Tools/Utilities/travis.sh restart --job 8 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+  tags:
+    - Travis
 
 build_with_macos_8.3:
-  image: ubuntu
   stage: macos
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./Tools/Utilities/travis.sh restart --job 9 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+  tags:
+    - Travis
 
 build_with_macos_9.1:
-  image: ubuntu
   stage: macos
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./Tools/Utilities/travis.sh restart --job 11 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+  tags:
+    - Travis
 
 build_with_macos_9.2:
-  image: ubuntu
   stage: macos
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./Tools/Utilities/travis.sh restart --job 12 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+  tags:
+    - Travis
 
 build_with_macos_9.3:
-  image: ubuntu
   stage: macos
   script:
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python >& /dev/null
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
     - ./Tools/Utilities/travis.sh restart --job 13 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
-
-build_with_gaia:
-  image: ubuntu
-  stage: linux
-  script:
-    - echo "On developing"
-  allow_failure: true
-  artifacts:
-    when: on_failure
-    paths:
-      - Coredumps
-    expire_in: 2 days
+  tags:
+    - Travis
 
 save_code_coverage:
   image: ubuntu
