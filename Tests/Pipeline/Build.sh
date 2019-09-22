@@ -25,6 +25,7 @@ if [ $(which git) ]; then
 		PROJECT=$1
 
 		if [ $PROJECT != "$(basename `git config  --get remote.origin.url`)" ]; then
+			info "Use custom name $PROJECT"
 		fi
 	else
 		PROJECT="$(basename `git config  --get remote.origin.url`)"
