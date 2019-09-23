@@ -85,6 +85,14 @@ function troubleshoot() {
 	SCRIPT=$2
 
 	if [ $1 = "start" ]; then
+		if [ -d $SCRIPT ]; then
+			if [ ! -f $SCRIPT/start ]; then
+				return 0
+			fi
+		else
+			return 0
+		fi
+
 		INTERFACES=($(show_all_network_interface))
 
 		for IF_PATH in /sys/class/net/*; do
@@ -98,6 +106,14 @@ function troubleshoot() {
 		fi
 
 	elif [ $1 = "end" ]; then
+		if [ -d $SCRIPT ]; then
+			if [ ! -f $SCRIPT/stop ]; then
+				return 0
+			fi
+		else
+			return 0
+		fi
+
 		if [ -f /tmp/tcpdump.pid ]; then
 			cat /tmp/tcpdump.pid | while read PID; do
 				$SU kill -15 $PID >& /dev/null
