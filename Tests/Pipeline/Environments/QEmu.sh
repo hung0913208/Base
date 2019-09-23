@@ -513,7 +513,7 @@ function compile_linux_kernel() {
 }
 
 function detect_libbase() {
-	PROJECT=$1
+	local PROJECT=$1
 
 	if [[ -d "${PROJECT}/Eden" ]]; then
 		echo "${PROJECT}/Eden"
@@ -661,10 +661,11 @@ function process() {
 				IFUP_FILENAME="/tmp/ifup-$IDX"
 				IPDOWN_FILENAME="/tmp/ifdown-$IDX"
 
-				$WORKSPACE/Tests/Pipeline/Build.sh 1 $IDX
+				$WORKSPACE/Tests/Pipeline/Build.sh $1 1 $IDX
 
 				if [ $? != 0 ]; then
 					warning "Fail repo $REPO/$BRANCH"
+					CODE=1
 				else
 					SCRIPTS=("${SCRIPTS[@]}" $IFDOWN_FILENAME)
 
@@ -864,13 +865,13 @@ except Exception as error:
 			git fetch $(git remote get-url --all origin) $REVIS
 			git checkout FETCH_HEAD
 
-			if ! process; then
+			if ! process $PROJECT; then
 				FAIL=(${FAIL[@]} $PROJECT)
 				break
 			fi
 		done
 	else
-		if ! process; then
+		if ! process $PROJECT; then
 			FAIL=(${FAIL[@]} $PROJECT)
 			break
 		fi
