@@ -246,11 +246,11 @@ if [ $(which git) ]; then
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
 				exit -1
-			else
+			elif [ $MODE != 1 ]; then
 				exec 2>&1
 				$BASE/Tools/Utilities/ctest.sh Coverage
 				CODE=$?
-
+	
 				bash $BASE/Tools/Utilities/coverage.sh .
 				exit $CODE
 			fi

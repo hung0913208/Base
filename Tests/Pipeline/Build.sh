@@ -10,7 +10,7 @@ source $PIPELINE/Libraries/Package.sh
 SCRIPT="$(basename "$0")"
 
 if [[ $# -gt 0 ]]; then
-	MODE=$1
+	MODE=$2
 else
 	MODE=0
 fi
