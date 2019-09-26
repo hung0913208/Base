@@ -31,7 +31,6 @@ Vector<Type>::Vector(Type* data, ULong size) {}
 template <typename Type>
 Vector<Type>::~Vector() {}
 
-
 template <typename Type>
 Vector<Type>::Vector(const Vector& src) {}
 

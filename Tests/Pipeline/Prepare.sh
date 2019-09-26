@@ -73,7 +73,7 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 		exit -1
 	fi
 elif [ "$machine" == "Mac" ]; then
-	REQUIRED=("ssh" "python" "git")
+	REQUIRED=("lftp" "ncftp" "expect")
 
 	# @NOTE: show memory status
 	info "Memory of this CI:"

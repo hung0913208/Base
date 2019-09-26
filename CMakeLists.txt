@@ -42,7 +42,7 @@ add_cxx_compiler_flag(-Wno-deprecated-register)
 add_cxx_compiler_flag(-fno-omit-frame-pointer)
 
 # @NOTE: maybe there was a bug inside gcc's stack protector that cause hanging
-#  issue on Release mode
+# issue on Release mode
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_cxx_compiler_flag(-fno-stack-protector)
 endif()
