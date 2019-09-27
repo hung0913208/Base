@@ -226,7 +226,7 @@ Float ToFloat<CString>(CString value);
 
 template<unsigned Index, typename ...Ts>
 #ifndef BASE_TYPE_TUPLE_H_
-auto Get(Tuple<Ts..>& tuple) {
+auto Get(Tuple<Ts...>& tuple) -> decltype(Base::Get<Index>(tuple)) {
   return Base::Get<Index>(tuple);
 }
 #else

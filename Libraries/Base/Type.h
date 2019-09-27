@@ -13,17 +13,15 @@
 #if __cplusplus
 #if USE_BASE_WITH_FULL_PATH_HEADER
 #include <Base/Type/String.h>
+#include <Base/Type/Tuple.h>
+#include <Base/Type/Vector.h>
 #else
 #include <String.h>
+#include <Tuple.h>
+#include <Vector.h>
 #endif
 
 #ifndef BASE_TYPE_STRING_H_
-#if USE_BASE_WITH_FULL_PATH_HEADER
-#include <Base/Type/Refcount.h>
-#else
-#include <Refcount.h>
-#endif
-
 using String = std::string;
 #else
 using String = Base::String;
@@ -44,12 +42,6 @@ template <typename... Args> using Tuple = Base::Tuple<Args...>;
 
 #if !__cplusplus
 #include <string.h>
-
-#if USE_BASE_WITH_FULL_PATH_HEADER
-#include <Base/Type/Refcount.h>
-#else
-#include <Refcount.h>
-#endif
 
 #define String char*
 #endif
