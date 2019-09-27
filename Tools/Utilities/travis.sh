@@ -274,6 +274,7 @@ import json, sys
 
 job = 'job-$JOB'
 keep = True
+pending = {}
 channels = {}
 
 @ws.Hook('ping')
@@ -312,6 +313,7 @@ for channel in $CHANNELS:
 
 stage = 'establishing'
 index = 0
+expected = 0
 
 while keep is True:
     try:
@@ -398,8 +400,24 @@ while keep is True:
         num = parsed['number']
         keep = parsed['final'] == False
 
-	sys.stdout.write(log.encode('ascii', 'ignore').decode('ascii'))
-        sys.stdout.flush()
+        if num == expected:
+            sys.stdout.write(log.encode('ascii', 'ignore').decode('ascii'))
+            sys.stdout.flush()
+            expected += 1
+            num += 1
+
+            while True:
+                if num != expected or not num in pending:
+                    break
+
+                sys.stdout.write(pending[num].encode('ascii', 'ignore').decode('ascii'))
+                sys.stdout.flush()
+
+                del pending[num]
+                expected += 1
+                num += 1
+        else:
+            pending[num] = log
 EOF
 
 	if [[ $# -gt 3 ]]; then
@@ -438,7 +456,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console'
 	shift
 	
 	if ! options=$(getopt -l token,patch,job,repo: -- "$@"); then
-		error "Can' parse $BASE/Tools/Builder/build $@"
+		error "Can' parse $0 $TASK $@"
 	fi
 
 	while [ $# -gt 0 ]; do
@@ -506,11 +524,82 @@ print(unquote_plus(json.load(sys.stdin)['content']))
 		elif [ $(status $BUILD $ID) = 'started' ]; then
 			console 'started' $JOB $PUSHER $BUILD $ID
 		fi
+
+		if [ $(status $BUILD $ID) == 'failed' ]; then
+			exit -1
+		else
+			exit 0
+		fi
 	fi
 elif [ $1 = 'env' ]; then
 	shift
 
-	if [ $1 = 'set' ]; then
+	if [ $1 = 'add' ]; then
 		shift
+
+		BRANCH='null'
+		PUBLIC='false'
+
+		if ! options=$(getopt -l repo,token,name,value,branch,public: -- "$@"); then
+			error "Can' parse $0 env add $@"
+		fi
+
+		while [ $# -gt 0 ]; do
+			case $1 in
+				--repo)		REPO="$2"; shift;;
+				--name) 	NAME="$2"; shift;;
+				--token)	TOKEN="$2"; shift;;
+				--value) 	VALUE="$2"; shift;;
+				--branch) 	BRANCH="\"$2\""; shift;;
+				--public) 	PUBLIC="true";;
+				(--) 		shift; break;;
+				(-*) 		error "unrecognized option $1";;
+				(*) 		break;;
+			esac
+			shift
+		done
+
+		REPO=$(repository $REPO)
+		curl -sS --request POST 						\
+                        	 --header "Authorization: token $TOKEN"     		\
+				 --header "Accept: application/json; version=2" 	\
+				 --data-binary "{\"env_var\":{\"name\":\"$NAME\",\"value\":\"$VALUE\",\"public\":true,\"branch\":$BRANCH,\"repository_id\":\"$REPO\"}}" \
+		https://api.travis-ci.org/settings/env_vars?repository_id=$REPO
+	elif [ $1 = 'del' ]; then
+		shift
+
+		if ! options=$(getopt -l repo,token,name: -- "$@"); then
+			error "Can' parse $0 env set $@"
+		fi
+
+		while [ $# -gt 0 ]; do
+			case $1 in
+				--repo)		REPO="$2"; shift;;
+				--name) 	NAME="$2"; shift;;
+				--token)	TOKEN="$2"; shift;;
+				(--) 		shift; break;;
+				(-*) 		error "unrecognized option $1";;
+				(*) 		break;;
+			esac
+			shift
+		done
+
+		REPO=$(repository $REPO)
+		ID=$(curl -sS --request GET 						\
+                              --header "Authorization: token $TOKEN"     		\
+			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
+		python -c """
+import json, sys
+
+env = json.load(sys.stdin)
+for item in env['env_vars']:
+	if item['name'] == '$NAME':
+		print(item['id'])
+		break
+		""")
+
+		curl -sS --request DELETE 				\
+                         --header "Authorization: token $TOKEN"     	\
+		"https://api.travis-ci.org/settings/env_vars/$ID?repository_id=$REPO"
 	fi
 fi
