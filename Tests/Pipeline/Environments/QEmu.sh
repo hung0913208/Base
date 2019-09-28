@@ -334,6 +334,7 @@ function process() {
 
 	BASE="$(detect_libbase $WORKSPACE)"
 	CPU=$HOST
+	CODE=0
 	DEBUG=""
 	FORCE=0
 
@@ -465,7 +466,6 @@ else
 	fi
 fi
 
-CODE=0
 HOST=""
 
 if ! $SU grep vmx /proc/cpuinfo; then
@@ -488,7 +488,7 @@ cat './repo.list' | while read DEFINE; do
 	git clone --branch $BRANCH $REPO $PROJECT
 
 	if [ $? != 0 ]; then
-		FAIL+=$PROJECT
+		FAIL=(${FAIL[@]} $PROJECT)
 		continue
 	fi
 
@@ -517,7 +517,7 @@ print(gerrit)
 		RESP=$(curl -s --request GET -u $AUTH "https://$GERRIT/a/changes/?q=$COMMIT" | cut -d "'" -f 2)
 
 		if [[ ${#RESP} -eq 0 ]]; then
-			FAIL+=$PROJECT
+			FAIL=(${FAIL[@]} $PROJECT)
 			continue
 		fi
 
@@ -544,7 +544,7 @@ except Exception as error:
 
 
 		if [ $? != 0 ]; then
-			FAIL+=$PROJECT
+			FAIL=(${FAIL[@]} $PROJECT)
 			continue
 		fi
 
@@ -555,16 +555,14 @@ except Exception as error:
 			git fetch $(git remote get-url --all origin) $REVIS
 			git checkout FETCH_HEAD
 
-			process
-			if [ $? != 0 ]; then
-				FAIL+=$PROJECT
+			if ! process; then
+				FAIL=(${FAIL[@]} $PROJECT)
 				break
 			fi
 		done
 	else
-		process
-		if [ $? != 0 ]; then
-			FAIL+=$PROJECT
+		if ! process; then
+			FAIL=(${FAIL[@]} $PROJECT)
 			break
 		fi
 	fi
@@ -573,5 +571,10 @@ done
 
 rm -fr "$INIT_DIR/$BBOX_DIRNAME"
 rm -fr "$INIT_DIR/$KERNEL_DIRNAME"
-exit $CODE
+
+if [ ${#FAIL[@]} -gt 0 ]; then
+	exit -1
+else
+	exit 0
+fi
 
