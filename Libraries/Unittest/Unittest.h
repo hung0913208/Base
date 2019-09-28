@@ -354,6 +354,8 @@ Bool CheckUnitStep(Case* unittest);
 }  // namespace Internal
 
 namespace Unit {
+void Init(Int* argc, CString* argv);
+
 enum StatusE {
   EWaiting = -2,
   EUnknown = -1,
@@ -372,6 +374,7 @@ class Case {
   /* @NOTE: these functions support how to iteract with Unittest */
   ErrorCodeE Assign(Int index, Auto&& value);
   ErrorCodeE Clear();
+  Void Bypass();
   Bool Perform();
   String Report();
   String Information();
@@ -428,6 +431,7 @@ class Case {
 
   /* @NOTE: this function will help to check unittest's steps */
   friend Bool Internal::Unit::CheckUnitStep(Case* unittest);
+  friend Void Unit::Init(Int* argc, CString* argv);
 
  protected:
   /* @NOTE: define our testcase with this virtual method */

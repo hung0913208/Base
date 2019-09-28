@@ -25,7 +25,8 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
-
+//
+#include <Argparse.h>
 #include <Stream.h>
 #include <Unittest.h>
 #include <Utils.h>
@@ -52,8 +53,14 @@ class Assertion : Exception {};
 // @TODO:
 class Suite {
  public:
-  explicit Suite(UInt index, String name) : _Name{name}, _Index{index} {}
+  explicit Suite(UInt index, String name) : _Name{name}, _Index{index},
+                                            _Status{False} 
+  {}
+
   virtual ~Suite() {}
+
+  /* @NOTE: force the suite to be done automatically */
+  void Bypass();
 
   /* @NOTE: update status of the suite */
   Void OnTesting(ULong core, Shared<Case>& testcase);
@@ -62,10 +69,12 @@ class Suite {
   /* @NOTE: get basic information of the suite */
   String Information();
   String Name();
+  Bool Status();
 
  private:
   String _Name;
   UInt _Index;
+  Bool _Status;
 };
 }  // namespace Unit
 
@@ -209,6 +218,10 @@ Shared<Case> Case::Make(String suite, String name, Shared<Case> implementer) {
 }  // namespace Base
 
 Case::~Case() {}
+
+Void Case::Bypass() {
+  _Status = EPass;
+}
 
 /* @NOTE: this method will be used to run a testcase and return its status */
 Bool Case::Perform() {
@@ -413,6 +426,10 @@ Case* Case::Self() {
   }
 }
 
+Void Unit::Suite::Bypass() {
+  _Status = True;
+}
+
 Void Unit::Suite::OnTesting(ULong core, Shared<Case>& testcase) {
   using namespace Base::Internal;
 
@@ -435,6 +452,9 @@ Void Unit::Suite::OnTesting(ULong core, Shared<Case>& testcase) {
 Void Unit::Suite::OnPassing(ULong core) {
   auto UNUSED(guranteer) = Internal::Secure.generate();
 
+  /* @NOTE: update to avoid running again */
+  _Status = True;
+
   /* @NOTE: assign to -1 will elimiate the suite on the testing board */
   if (core < Internal::Testing.size()) {
     Internal::Testing[core].Left.Left = -1;
@@ -442,6 +462,8 @@ Void Unit::Suite::OnPassing(ULong core) {
 }
 
 String Unit::Suite::Name() { return _Name; }
+
+Bool Unit::Suite::Status() { return _Status; }
 
 String Unit::Suite::Information() {
   UInt how_many_tests = (*Internal::Units)[_Index].Right.size();
@@ -451,6 +473,32 @@ String Unit::Suite::Information() {
   result.append((*Internal::Units)[_Index].Left._Name);
 
   return result;
+}
+
+Void Unit::Init(Int* argc, CString* argv) {
+  ArgParse parser{};
+
+#define SUITE 0
+#define CASE 1
+
+  parser.AddArgument<String>("--cases");
+  parser(*argc, argv, False);
+
+  for (auto fullname : Split(parser["--cases"].Get<String>(), ',')) {
+    for (auto suite : *Internal::Units) {
+      Vector<String> names = Split(fullname, '.');
+
+      if (suite.Left.Name() != names[SUITE]) {
+        for (auto unit : suite.Right) {
+          if (unit->_Name != names[CASE]) {
+            unit->Bypass();
+          }
+        }
+      } else {
+        suite.Left.Bypass();
+      }
+    }
+  }
 }
 }  // namespace Base
 
@@ -554,7 +602,11 @@ extern "C" Int BSRunTests() {
     double elapsed_suite_milisecs;
     clock_t begin;
 
-    VLOG(EInfo) << GREEN(SPLIT_SUITED) << " " << suite.Left.Information() << Base::EOL;
+    if (suite.Left.Status()) {
+      goto passing;
+    } else {
+      VLOG(EInfo) << GREEN(SPLIT_SUITED) << " " << suite.Left.Information() << Base::EOL;
+    }
 
     begin = clock();
     for (auto& test : suite.Right) {
@@ -562,7 +614,11 @@ extern "C" Int BSRunTests() {
       /* @NOTE: using a single loop is the simple and safe way to implement my
        * testing flow, consider using Parallel to improve performance */
 
-      VLOG(EInfo) << YELLOW(RUN_LABEL) << " " << test->Information() << Base::EOL;
+      if (test->Status() == Base::Unit::EPass) {
+        continue;
+      } else {
+        VLOG(EInfo) << YELLOW(RUN_LABEL) << " " << test->Information() << Base::EOL;
+      }
 
       /* @NOTE: perform this test now */
       if (test->Status() == Base::Unit::EUnknown) {
@@ -621,6 +677,7 @@ extern "C" Int BSRunTests() {
                 << Base::ToString(elapsed_suite_milisecs) << " ms)"
                 << Base::EOL;
 
+passing:
     /* @NOTE: notify that we are passing the suite */
     suite.Left.OnPassing(index);
   }
