@@ -14,6 +14,7 @@ perform_reproduce_issues:
     - ./.gitlab-ci.d/travis/reproduce.sh ${REPRODUCES}
   tags:
     - Travis
+  allow_failure: true
 
 build_with_travis:
   stage: linux
@@ -23,6 +24,7 @@ build_with_travis:
     - ./.gitlab-ci.d/travis/build.sh ${BUILDS}
   tags:
     - Travis
+  allow_failure: true
 
 build_kernel_linux:
   stage: linux
@@ -32,6 +34,7 @@ build_kernel_linux:
     - ./.gitlab-ci.d/travis/kernel.sh ${KERNELS}
   tags:
     - Travis
+  when: manual
  
 build_with_macos_7.3:
   stage: macos
@@ -41,6 +44,7 @@ build_with_macos_7.3:
     - ./Tools/Utilities/travis.sh restart --job 8 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
   tags:
     - Travis
+  allow_failure: true
 
 build_with_macos_8.3:
   stage: macos
@@ -50,6 +54,7 @@ build_with_macos_8.3:
     - ./Tools/Utilities/travis.sh restart --job 9 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
   tags:
     - Travis
+  allow_failure: true
 
 build_with_macos_9.1:
   stage: macos
@@ -59,6 +64,7 @@ build_with_macos_9.1:
     - ./Tools/Utilities/travis.sh restart --job 11 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
   tags:
     - Travis
+  allow_failure: true
 
 build_with_macos_9.2:
   stage: macos
@@ -68,6 +74,7 @@ build_with_macos_9.2:
     - ./Tools/Utilities/travis.sh restart --job 12 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
   tags:
     - Travis
+  allow_failure: true
 
 build_with_macos_9.3:
   stage: macos
@@ -77,29 +84,18 @@ build_with_macos_9.3:
     - ./Tools/Utilities/travis.sh restart --job 13 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
   tags:
     - Travis
-
-save_code_coverage:
-  stage: coverage
-  script:
-    - mkdir -p Coverages
-    - apt update >& /dev/null
-    - apt upgrade -y >& /dev/null
-    - apt install -y git curl python3 ssh sudo binutils build-essential >& /dev/null
-    - if [ -n "${JOBS}" ]; then ./Tests/Pipeline/Coverage.sh ${JOBS}; fi
-  tags:
-    - Travis
   allow_failure: true
-  artifacts:
-    paths:
-      - Coverages
-    expire_in: 30 mins
-  when: manual
 
 pages:
   stage: deploy
   dependencies:
-    - save_code_coverage
     - perform_reproduce_issues
+    - build_with_travis
+    - build_with_macos_7.3
+    - build_with_macos_8.3
+    - build_with_macos_9.1
+    - build_with_macos_9.2
+    - build_with_macos_9.3
   script:
     - mkdir -p public
     - if [ -d ./Coverages ]; then cp -a ./Coverages public; fi

@@ -239,6 +239,9 @@ if [ -d "./$1" ]; then
 		export LSAN_OPTIONS=verbosity=1:log_threads=1
 		export TSAN_OPTIONS=second_deadlock_stack=1
 
+		echo "Run directly on this environment"
+		echo "=============================================================================="
+
 		if [ "$1" != "Coverage" ]; then
 			ctest --verbose --timeout 1
 			CODE=$?
@@ -253,52 +256,87 @@ if [ -d "./$1" ]; then
 				fi
 			done
 		fi
+		echo "------------------------------------------------------------------------------"
+		echo ""
 
-		if [[ $CODE -ne 0 ]]; then
-			EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
-			CODE=-1
+		if [ "$1" != "Coverage" ]; then
+			if [[ $CODE -ne 0 ]]; then
+				EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
+				CODE=-1
 
-			echo "Check coredump"
-			echo "=============================================================================="
-
-			for FILE in ./Tests/*; do
-				if [ -x "$FILE" ]; then
-					coredump $FILE
-				fi
-			done
-			echo "------------------------------------------------------------------------------"
-			echo ""
-		fi
-
-		if [[ $# -gt 3 ]]; then
-			if [ $2 == "symbolize" ]; then
-				export ASAN_OPTIONS=symbolize=1
-				echo "Run with ASAN_SYMBOLIZER"
+				echo "Check coredump"
 				echo "=============================================================================="
 
 				for FILE in ./Tests/*; do
-					if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
-						$FILE
-						coredump $FILE
-					fi
-				done
-				echo "------------------------------------------------------------------------------"
-				echo ""
-			elif [ $2 == "leak" ]; then
-				export ASAN_OPTIONS=symbolize=1
-				echo "Run with ASAN_LEAK"
-				echo "=============================================================================="
-
-				for FILE in ./Tests/*; do
-					if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
-						$FILE
+					if [ -x "$FILE" ]; then
 						coredump $FILE
 					fi
 				done
 				echo "------------------------------------------------------------------------------"
 				echo ""
 			fi
+
+			if [[ $# -gt 1 ]]; then
+				if [ $2 == "symbolize" ]; then
+					export ASAN_OPTIONS=symbolize=1
+					echo "Run with ASAN_SYMBOLIZER"
+					echo "=============================================================================="
+
+					for FILE in ./Tests/*; do
+						if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
+							$FILE
+							coredump $FILE
+						fi
+					done
+					echo "------------------------------------------------------------------------------"
+					echo ""
+				elif [ $2 == "leak" ]; then
+					export ASAN_OPTIONS=symbolize=1
+					echo "Run with ASAN_LEAK"
+					echo "=============================================================================="
+
+					for FILE in ./Tests/*; do
+						if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
+							$FILE
+							coredump $FILE
+						fi
+					done
+					echo "------------------------------------------------------------------------------"
+					echo ""
+				fi
+			fi
 		fi
+
+		if [[ $CODE -eq 0 ]] && [[ $# -lt 2 ]]; then
+			# @NOTE: test with gdb in order to verify slowing down effect to detect rare issues
+
+			echo "Run with GDB"
+			echo "=============================================================================="
+
+			for FILE in ./Tests/*; do
+				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
+					exec 2>&-
+					OUTPUT=$(gdb -ex="set confirm on" -ex=run -ex="thread apply all bt" -ex=quit \
+					    			--args $FILE 2>&1 | tee /dev/fd/2)
+
+					exec 2>&1
+
+					echo "$OUTPUT"
+
+					if ! echo "$OUTPUT" | grep "exited normally" >& /dev/null; then
+						CODE=-2
+
+						if ! echo "$OUTPUT" | grep "exited with code" >& /dev/null; then
+							CODE=-1
+						fi
+					fi
+				fi
+			done
+
+			echo "------------------------------------------------------------------------------"
+			echo ""
+		fi
+
 	else
 		if [ "$(ctest --verbose)" -ne 0 ]; then
 			exit -1

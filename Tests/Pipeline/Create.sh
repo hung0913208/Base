@@ -10,11 +10,16 @@ source $PIPELINE/Libraries/Package.sh
 
 SCRIPT="$(basename "$0")"
 
-if [ "$1" == "reproduce" ] || [ "$1" == "build" ]; then
+if [ "$1" = "reproduce" ] || [ "$1" = "build" ]; then
 	PACKAGES=$4
 	BRANCH=$3
 	REPO=$2
 	JOB=$1
+
+	if [ $1 = "reproduce" ]; then
+		install_package screen
+		install_package lftp
+	fi
 else
 	PACKAGES=$3
 	BRANCH=$2

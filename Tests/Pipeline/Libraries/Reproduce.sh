@@ -3,9 +3,9 @@
 # - Description: This bash script will be used to provide steps to
 # reproduce any issue from scratch
 
-PIPELINE="$(dirname "$0")"
-source $PIPELINE/Logcat.sh
-source $PIPELINE/Package.sh
+LIBRARIES="$(dirname "$0")"
+source $LIBRARIES/Logcat.sh
+source $LIBRARIES/Package.sh
 
 SCRIPT="$(basename "$0")"
 ISSUE=$2
@@ -13,7 +13,6 @@ ROOT=$3
 
 function clean() {
 	if [ "$1" = "inject" ]; then
-		install_package screen
 		screen -ls "reproduce" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
 
 		cat > /tmp/Inject.conf << EOF
@@ -144,75 +143,92 @@ except Exception as error:
 elif [ "$1" = "prepare" ]; then
 	CURRENT=$(pwd)
 
-	if [ -d "$ROOT/.reproduce.d/$ISSUE/.requirement.d" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/.requirement.d/$SYS" | while read PACKAGE; do
-			install_package $PACKAGE
+	if [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Fetch.sh" ] || [ -f "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Fetch.sh" ]; then
+		if [ -d "$ROOT/.reproduce.d/$ISSUE/.requirement.d" ]; then
+			cat "$ROOT/.reproduce.d/$ISSUE/.requirement.d/$SYS" | while read PACKAGE; do
+				install_package $PACKAGE
 
-			if [ $? != 0 ]; then
-				warning "problem with install $PACKAGE"
-			fi
-		done
-	fi
-
-	if [ -f "$ROOT/.reproduce.d/$ISSUE/.requirement" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/.requirement" | while read PACKAGE; do
-			install_package $PACKAGE
-
-			if [ $? != 0 ]; then
-				warning "problem with install $PACKAGE"
-			fi
-		done
-	fi
-
-	if [ -d "$ROOT/.reproduce.d/$ISSUE/.recompile.d" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/.recompile.d/$SYS" | while read DEFINE; do
-			if [[ ${#DEFINE} -gt 0 ]]; then
-				SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
-				REPO=${SPLITED[0]}
-				BACKGROUND=${SPLITED[1]}
-
-				info "recompile $REPO now, $BACKGROUND background"
-				cd "$ROOT/.reproduce.d/$ISSUE" || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
-
-
-				if [ "$BACKGROUND" == "show" ]; then
-					$PIPELINE/Install.sh $DEFINE
-				else
-					$PIPELINE/Install.sh $DEFINE &> /dev/null
+				if [ $? != 0 ]; then
+					warning "problem with install $PACKAGE"
 				fi
-				CODE=$?
+			done
+		fi
 
-				cd $CURRENT
-				if [ $CODE != 0 ]; then
-					error "fail recompile $DEFINE"
+		if [ -f "$ROOT/.reproduce.d/$ISSUE/.requirement" ]; then
+			cat "$ROOT/.reproduce.d/$ISSUE/.requirement" | while read PACKAGE; do
+				install_package $PACKAGE
+
+				if [ $? != 0 ]; then
+					warning "problem with install $PACKAGE"
 				fi
-			fi
-		done
-	fi
+			done
+		fi
 
-	if [ -f "$ROOT/.reproduce.d/$ISSUE/.recompile" ]; then
-		cat "$ROOT/.reproduce.d/$ISSUE/.recompile" | while read DEFINE; do
-			if [[ ${#DEFINE} -gt 0 ]]; then
-				SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
-				REPO=${SPLITED[0]}
-				BACKGROUND=${SPLITED[1]}
+		if [ -d "$ROOT/.reproduce.d/$ISSUE/.recompile.d" ]; then
+			cat "$ROOT/.reproduce.d/$ISSUE/.recompile.d/$SYS" | while read DEFINE; do
+				if [[ ${#DEFINE} -gt 0 ]]; then
+					SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+					REPO=${SPLITED[0]}
+					BACKGROUND=${SPLITED[1]}
 
-				info "recompile $REPO now, $BACKGROUND background"
-				cd "$ROOT/.reproduce.d/$ISSUE" || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+					info "recompile $REPO now, $BACKGROUND background"
+					cd "$ROOT/.reproduce.d/$ISSUE" || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
 
-				if [ $BACKGROUND == "show" ]; then
-					$PIPELINE/Install.sh $DEFINE
-				else
-					$PIPELINE/Install.sh $DEFINE &> /dev/null
+
+					if [ "$BACKGROUND" == "show" ]; then
+						$LIBRARIES/Install.sh $DEFINE
+					else
+						$LIBRARIES/Install.sh $DEFINE &> /dev/null
+					fi
+					CODE=$?
+
+					cd $CURRENT
+					if [ $CODE != 0 ]; then
+						error "fail recompile $DEFINE"
+					fi
 				fi
-				CODE=$?
+			done
+		fi
 
-				cd $CURRENT
-				if [ $CODE != 0 ]; then
-					error "fail recompile $DEFINE"
+		if [ -f "$ROOT/.reproduce.d/$ISSUE/.recompile" ]; then
+			cat "$ROOT/.reproduce.d/$ISSUE/.recompile" | while read DEFINE; do
+				if [[ ${#DEFINE} -gt 0 ]]; then
+					SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+					REPO=${SPLITED[0]}
+					BACKGROUND=${SPLITED[1]}
+
+					info "recompile $REPO now, $BACKGROUND background"
+					cd "$ROOT/.reproduce.d/$ISSUE" || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+
+					if [ $BACKGROUND == "show" ]; then
+						$LIBRARIES/Install.sh $DEFINE
+					else
+						$LIBRARIES/Install.sh $DEFINE &> /dev/null
+					fi
+					CODE=$?
+
+					cd $CURRENT
+					if [ $CODE != 0 ]; then
+						error "fail recompile $DEFINE"
+					fi
 				fi
-			fi
-		done
+			done
+		fi
+	elif [ -e "$LIBRARIES/../Environment.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		"$LIBRARIES/../Environment.sh" "prepare" "$ROOT/.reproduce.d/$ISSUE"
+		CODE=$?
+
+		cd $CURRENT || error "can't cd to $CURRENT"
+		if [ $CODE != 0 ]; then
+			error "fail when run $ROOT/.reproduce.d/$ISSUE/fetch.sh"
+		fi
+	else
+		echo "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/"
+		ls "$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/"
+		error "not found an approviated environment for reproducing"
 	fi
 
 	if [ -f "$ROOT/.reproduce.d/$ISSUE/fetch.sh" ]; then
@@ -270,7 +286,7 @@ elif [ "$1" = "reproduce" ]; then
 
 		cd $CURRENT || error "can't cd to $CURRENT"
 		if [ $CODE != 0 ]; then
-			exit -1
+			exit 0
 		else
 			exit 1 # <--- try to redo again and again
 		fi
@@ -283,10 +299,25 @@ elif [ "$1" = "reproduce" ]; then
 
 		cd $CURRENT || error "can't cd to $CURRENT"
 		if [ $CODE != 0 ]; then
-			exit 0
+			exit -1
 		else
 			exit 1 # <--- try to redo again and again
 		fi
+	elif [ -f "$LIBRARIES/../Environment.sh" ]; then
+		CURRENT=$(pwd)
+
+		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
+		"$LIBRARIES/../Environment.sh" "test" "$ROOT/.reproduce.d/$ISSUE"
+		CODE=$?
+
+		cd $CURRENT || error "can't cd to $CURRENT"
+		if [ $CODE != 0 ]; then
+			exit -1
+		else
+			exit 1 # <--- try to redo again and again
+		fi
+	else
+		exit -1
 	fi
 	exit 0
 elif [ "$1" = "verify" ]; then
@@ -368,6 +399,10 @@ EOF
 		if [ $CODE != 0 ]; then
 			exit -1
 		fi
+	elif [ -f "$LIBRARIES/../Environment.sh" ]; then
+		clean "inject"
+
+		$LIBRARIES/../Environment.sh "inject" "reproduce"
 	fi
 	exit 0
 elif [ "$1" = "report" ]; then
@@ -382,8 +417,9 @@ elif [ "$1" = "report" ]; then
 		for REPORT in $ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Report/*.sh; do
 			$REPORT $4
 		done
+	elif [ -f "$LIBRARIES/../Environment.sh" ]; then
+		"$LIBRARIES/../Environment.sh" report $4
 	fi
-
 
 	cd $CURRENT || error "can't cd to $CURRENT"
 	exit 0

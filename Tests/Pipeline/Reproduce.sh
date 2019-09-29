@@ -10,9 +10,6 @@ SCRIPT="$(basename "$0")"
 ROOT="$(git rev-parse --show-toplevel)"
 CODE=0
 
-install_package screen
-install_package lftp
-
 function progress() {
 	python -c """
 import sys
@@ -112,7 +109,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 				"$PIPELINE/Libraries/Reproduce.sh" reproduce "$ISSUE" "$ROOT" &> "$LOG/$ISSUE"
 				CODE=$?
 
-				if [ $CODE != 1 ]; then
+				if [ $CODE != 0 ]; then
 					"$PIPELINE/Libraries/Reproduce.sh" verify "$ISSUE" "$ROOT" "$LOG/$ISSUE" "$CODE"
 
 					if [ $? != 0 ]; then

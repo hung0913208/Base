@@ -226,7 +226,7 @@ if [ $(which git) ]; then
 			exit -1
 		fi
 
-		if [ $MODE != 1 ]; then
+		if [[ $MODE -ne 1 ]]; then
 			exec 2>&-
 			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Coverage $ROOT 2>&1 | tee /dev/fd/2)"
 
@@ -246,7 +246,7 @@ if [ $(which git) ]; then
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
 				exit -1
-			elif [ $MODE != 1 ]; then
+			elif [[ $MODE -eq 0 ]]; then
 				exec 2>&1
 				$BASE/Tools/Utilities/ctest.sh Coverage
 				CODE=$?

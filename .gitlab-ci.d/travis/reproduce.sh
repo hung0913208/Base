@@ -1,9 +1,5 @@
 #!/bin/bash
 
-if [ ! -f ./Tests/Pipeline/Fetch.sh ]; then
-	exit 0
-fi
-
 if [[ ${#REPOSITORY} -gt 0 ]] && [[ ${#BRANCH} -gt 0 ]]; then
 	if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
 		PROTOCOL=$(python -c "print('${REPOSITORY}'.split('://')[0])")
