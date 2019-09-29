@@ -106,7 +106,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 					error "fait to inject reproducing scripts"
 				fi
 
-				"$PIPELINE/Libraries/Reproduce.sh" reproduce "$ISSUE" "$ROOT" &> "$LOG/$ISSUE"
+				"$PIPELINE/Libraries/Reproduce.sh" reproduce "$ISSUE" "$ROOT" "$LOG/$ISSUE" 
 				CODE=$?
 
 				if [ $CODE != 0 ]; then

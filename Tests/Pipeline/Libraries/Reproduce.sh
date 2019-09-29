@@ -281,7 +281,7 @@ elif [ "$1" = "reproduce" ]; then
 		CURRENT=$(pwd)
 
 		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
-		$ROOT/.reproduce.d/$ISSUE/test.sh
+		$ROOT/.reproduce.d/$ISSUE/test.sh &> "$4"
 		CODE=$?
 
 		cd $CURRENT || error "can't cd to $CURRENT"
@@ -294,7 +294,7 @@ elif [ "$1" = "reproduce" ]; then
 		CURRENT=$(pwd)
 
 		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
-		$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Test.sh
+		$ROOT/.reproduce.d/$ISSUE/Tests/Pipeline/Test.sh &> "$4"
 		CODE=$?
 
 		cd $CURRENT || error "can't cd to $CURRENT"
@@ -307,7 +307,7 @@ elif [ "$1" = "reproduce" ]; then
 		CURRENT=$(pwd)
 
 		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
-		"$LIBRARIES/../Environment.sh" "test" "$ROOT/.reproduce.d/$ISSUE"
+		"$LIBRARIES/../Environment.sh" "test" "$ROOT/.reproduce.d/$ISSUE" "$4"
 		CODE=$?
 
 		cd $CURRENT || error "can't cd to $CURRENT"
