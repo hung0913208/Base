@@ -16,10 +16,12 @@ if ! echo "$2" | grep ".reproduce.d" >& /dev/null; then
 	else
 		PIPELINE=$2
 	fi
-
-	source $PIPELINE/Libraries/Logcat.sh
-	source $PIPELINE/Libraries/Package.sh
+else
+	PIPELINE="$(dirname $0)"
 fi
+
+source $PIPELINE/Libraries/Logcat.sh
+source $PIPELINE/Libraries/Package.sh
 
 SCRIPT="$(basename "$0")"
 
