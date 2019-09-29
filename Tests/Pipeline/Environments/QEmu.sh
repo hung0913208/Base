@@ -13,9 +13,21 @@ if [ -z "$KERNEL_BRANCH" ]; then
 	KERNEL_BRANCH="master"
 fi
 
-source $PIPELINE/Libraries/QEmu.sh
-source $PIPELINE/Libraries/Logcat.sh
-source $PIPELINE/Libraries/Package.sh
+if ! echo "$2" | grep ".reproduce.d" >& /dev/null; then
+	if [ $1 = "inject" ] || [ -f $2 ] || [ ! -d $PIPELINE/Libraries ]; then
+		if [ $(basename $0) = 'Environment.sh' ]; then
+			PIPELINE="$(dirname $0)"
+		else
+			PIPELINE="$(dirname $0)/../"
+		fi
+	else
+		PIPELINE=$2
+	fi
+
+	source $PIPELINE/Libraries/QEmu.sh
+	source $PIPELINE/Libraries/Logcat.sh
+	source $PIPELINE/Libraries/Package.sh
+fi
 
 SCRIPT="$(basename "$0")"
 INIT_DIR=$PIPELINE
@@ -30,33 +42,33 @@ KERNEL_DIRNAME=$(basename $KERNEL_NAME ",git")
 
 git branch | egrep 'Pipeline/QEmu$' >& /dev/null
 if [ $? != 0 ]; then
-	CURRENT=$(pwd)
+	if ! echo "$2" | grep ".reproduce.d" >& /dev/null; then
+		CURRENT=$(pwd)
 
-	cd $PIPELINE || error "can't cd to $PIPELINE"
-	git branch -a | egrep 'remotes/origin/Pipeline/QEmu$' >& /dev/null
+		cd $PIPELINE || error "can't cd to $PIPELINE"
+		git branch -a | egrep 'remotes/origin/Pipeline/QEmu$' >& /dev/null
 
-	if [ $? = 0 ]; then
-		# @NOTE: by default we will fetch the maste branch of this environment
-		# to use the best candidate of the branch
+		if [ $? = 0 ]; then
+			# @NOTE: by default we will fetch the maste branch of this environment
+			# to use the best candidate of the branch
 
-		git fetch >& /dev/null
-		git status | grep "Pipeline/QEmu"
+			git fetch >& /dev/null
+			git status | grep "Pipeline/QEmu"
 
-		if [ $? != 0 ]; then
-			git checkout -b "Pipeline/QEmu" "origin/Pipeline/QEmu"
+			if [ $? != 0 ]; then
+				git checkout -b "Pipeline/QEmu" "origin/Pipeline/QEmu"
 
-			if [ $? = 0 ]; then
-				cd $CURRENT || error "can't cd to $CURRENT"
-				"$0" $METHOD $PIPELINE $MODE $REPO $BRANCH
+				if [ $? = 0 ]; then
+					cd $CURRENT || error "can't cd to $CURRENT"
+					"$0" $METHOD $PIPELINE $MODE $REPO $BRANCH
+				fi
+				exit $?
 			fi
-			exit $?
 		fi
+
+		cd $CURRENT || error "can't cd to $CURRENT"
 	fi
-
-	cd $CURRENT || error "can't cd to $CURRENT"
 fi
-
-install_package screen
 
 function snift() {
 	if [ $(get_state_interface $1) = 'DOWN' ]; then
@@ -635,8 +647,86 @@ function boot_image() {
 	IMG_FILENAME=$1
 }
 
+function start_vms() {
+	CODE=0
+
+	if [ $MODE = "bridge" ]; then
+		# @NOTE: assign specific ip to this bridge
+
+		if $SU ip addr add 192.168.1.1/24 dev $BRD; then
+			$SU ip link set $BRD up
+		fi
+	fi
+
+	troubleshoot 'start' /tmp/vms
+	if [ -f /tmp/startvm ]; then
+		if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
+			$WORKSPACE/Tests/Pipeline/Test.sh
+
+			if [[ $CODE -eq 0 ]]; then
+				CODE=$?
+			fi
+		else
+			warning "without script $WORKSPACE/Tests/Pipeline/Test.sh we can't deduce the project is worked or not"
+		fi
+	fi
+
+	troubleshoot 'end' /tmp/vms
+	return $CODE
+}
+
+function create_image() {
+	KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
+	RAM_FILENAME="$INIT_DIR/initramfs-$1.cpio.gz"
+	IFUP_FILENAME="/tmp/ifup-$1"
+	IPDOWN_FILENAME="/tmp/ifdown-$1"
+
+	$WORKSPACE/Tests/Pipeline/Build.sh $2 1 $1
+
+	if [ $? != 0 ]; then
+		warning "Fail repo $REPO/$BRANCH"
+		CODE=1
+	else
+		if [[ $1 -eq $VMS_NUMBER ]] || [[ -f $WORKSPACE/Tests/Pipeline/Test.sh ]]; then
+			MASTER=0
+		else
+			MASTER=1
+		fi
+
+		if [ -f $WORKSPACE/.environment ]; then
+			source $WORKSPACE/.environment
+		fi
+
+		if ! generate_netscript $IDX $IFUP_FILENAME $IPDOWN_FILENAME; then
+			warning "can't build network to VM($IDX)"
+		elif [[ ${#IMG_FILENAME} -eq 0 ]]; then
+			# @NOTE: build a new initrd
+
+			if [ ! -f $RAM_FILENAME ]; then
+				compile_busybox
+			fi
+
+			if [ ! -f $RAM_FILENAME ]; then
+				generate_initrd "$WORKSPACE/build" $RAM_FILENAME $IFUP_FILENAME $IDX
+			fi
+		fi
+
+		cd "$WORKSPACE" || error "can't cd to $WORKSPACE"
+
+		if [ ${#KER_FILENAME} -gt 0 ]; then
+			boot_kernel $RAM_FILENAME $KER_FILENAME $MASTER
+		elif [ ${#IMG_FILENAME} -gt 0 ]; then
+			boot_image $IMG_FILENAME
+		fi
+	fi
+}
+
 function process() {
 	git submodule update --init --recursive
+	
+	if [ $METHOD != "build" ]; then
+		return 0
+	fi
 
 	BASE="$(detect_libbase $WORKSPACE)"
 	CPU=$HOST
@@ -669,77 +759,11 @@ function process() {
 			warning "Fail repo $REPO/$BRANCH"
 			CODE=1
 		else
-			SCRIPTS=()
-
 			for IDX in $(seq 1 1 $VMS_NUMBER); do
-				KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
-				RAM_FILENAME="$INIT_DIR/initramfs-$IDX.cpio.gz"
-				IFUP_FILENAME="/tmp/ifup-$IDX"
-				IPDOWN_FILENAME="/tmp/ifdown-$IDX"
-
-				$WORKSPACE/Tests/Pipeline/Build.sh $1 1 $IDX
-
-				if [ $? != 0 ]; then
-					warning "Fail repo $REPO/$BRANCH"
-					CODE=1
-				else
-					SCRIPTS=("${SCRIPTS[@]}" $IFDOWN_FILENAME)
-
-					if [[ $IDX -eq $VMS_NUMBER ]] || [[ -f $WORKSPACE/Tests/Pipeline/Test.sh ]]; then
-						MASTER=0
-					else
-						MASTER=1
-					fi
-
-					if [ -f $WORKSPACE/.environment ]; then
-						source $WORKSPACE/.environment
-					fi
-
-					if ! generate_netscript $IDX $IFUP_FILENAME $IPDOWN_FILENAME; then
-						warning "can't build network to VM($IDX)"
-					elif [[ ${#IMG_FILENAME} -eq 0 ]]; then
-						# @NOTE: build a new initrd
-
-						if [ ! -f $RAM_FILENAME ]; then
-							compile_busybox
-						fi
-
-						if [ ! -f $RAM_FILENAME ]; then
-							generate_initrd "$WORKSPACE/build" $RAM_FILENAME $IFUP_FILENAME $IDX
-						fi
-					fi
-
-					cd "$WORKSPACE" || error "can't cd to $WORKSPACE"
-
-					if [ ${#KER_FILENAME} -gt 0 ]; then
-						boot_kernel $RAM_FILENAME $KER_FILENAME $MASTER
-					elif [ ${#IMG_FILENAME} -gt 0 ]; then
-						boot_image $IMG_FILENAME
-					fi
-				fi
+				create_image $IDX $1
 			done
-
-			if [ $MODE = "bridge" ]; then
-				# @NOTE: assign specific ip to this bridge
-
-				if $SU ip addr add 192.168.1.1/24 dev $BRD; then
-					$SU ip link set $BRD up
-				fi
-			fi
-
-			troubleshoot 'start' /tmp/vms
-			if [ -f /tmp/startvm ]; then
-
-				if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
-					$WORKSPACE/Tests/Pipeline/Test.sh
-
-					if [[ $CODE -eq 0 ]]; then
-						CODE=$?
-					fi
-				fi
-			fi
-
-			troubleshoot 'end' /tmp/vms
+			
+			start_vms
 		fi
 	else
 		warning "repo $REPO don't support usual CI method"
@@ -774,81 +798,196 @@ if [ "$MODE" = "bridge" ]; then
 fi
 
 if [ "$METHOD" == "reproduce" ]; then
-	$PIPELINE/Reproduce.sh
-	exit $?
-elif [ -f './repo.list' ]; then
-	info "use default ./repo.list"
-elif [[ $# -gt 3 ]]; then
-	info "import '$REPO $BRANCH' >> ./repo.list"
+	if ! echo "$2" | grep ".reproduce.d" >& /dev/null; then
+		if [ -e  $PIPELINE/Environment.sh ]; then
+			rm -fr  $PIPELINE/Environment.sh
+		fi
+		
+		# @NOTE: create a shortcut to connect directly with this environment
+		ln -s $0 $PIPELINE/Environment.sh
 
-	echo "$REPO $BRANCH" >> ./repo.list
-else
-	# @NOTE: fetch the list project we would like to build from remote server
-	if [ ! -f './repo.list' ]; then
-		curl -k --insecure $REPO -o './repo.list' >> /dev/null
+		# @NOTE: okey do reproducing now since we have enough information to do right now
+		$PIPELINE/Reproduce.sh
+		exit $?
+	fi
+elif [ "$METHOD" = "prepare" ]; then
+	git submodule update --init --recursive
+	if ! init; then
+		error "can't prepare global network system"
+	fi
+
+	WORKSPACE=$2
+	BASE="$(detect_libbase $WORKSPACE)"
+	mkdir -p "$WORKSPACE/build"
+
+	# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
+	# that we are using Eevee as the tool to deploy this Repo
+	if [ -e "$BASE/Tests/Pipeline/Prepare.sh" ]; then
+		VMS_NUMBER=1
+
+		$BASE/Tests/Pipeline/Prepare.sh
+		if [ -f $WORKSPACE/.environment ]; then
+			source $WORKSPACE/.environment
+		fi
+
+		if [[ ${#DEBUG} -gt 0 ]]; then
+			$PIPELINE/../../Tools/Utilities/ngrok.sh ssh $DEBUG rootroot 0 22
+		fi
+
+		if [ "$MODE" = "bridge" ]; then
+			$SU ip addr flush dev $BRD
+		fi
+
 		if [ $? != 0 ]; then
-			error "Can't fetch list of project from $REPO"
-		fi
-	fi
-fi
-
-HOST=""
-
-if ! $SU grep vmx /proc/cpuinfo; then
-	if ! $SU modprobe kvm; then
-		HOST="host"
-	fi
-fi
-
-cat './repo.list' | while read DEFINE; do
-	SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
-	REPO=${SPLITED[0]}
-	BRANCH=${SPLITED[1]}
-	PROJECT=$(basename $REPO)
-	PROJECT=${PROJECT%.*}
-
-	if [[ ${#SPLITED[@]} -gt 2 ]]; then
-		AUTH=${SPLITED[2]}
-	fi
-
-	# @NOTE: clone this Repo, including its submodules
-	git clone --branch $BRANCH $REPO $PROJECT
-
-	if [ $? != 0 ]; then
-		FAIL=(${FAIL[@]} $PROJECT)
-		continue
-	fi
-
-	ROOT=$(pwd)
-	WORKSPACE="$ROOT/$PROJECT"
-
-	# @NOTE: everything was okey from now, run CI steps
-	cd $WORKSPACE
-
-	# @NOTE: detect an authenticate key of gerrit so we will use it
-	# to detect which patch set should be used to build
-	if [[ ${#AUTH} -gt 0 ]]; then
-		if [[ ${#SPLITED[@]} -gt 3 ]]; then
-			COMMIT=${SPLITED[3]}
+			warning "Fail repo $REPO/$BRANCH"
+			CODE=1
 		else
-			COMMIT=$(git rev-parse HEAD)
+			for IDX in $(seq 1 1 $VMS_NUMBER); do
+				if [ $BASE = $WORKSPACE ]; then
+					create_image $IDX Base
+				else
+					create_image $IDX $(basename $WORKSPACE)
+				fi
+
+				if [ $? != 0 ]; then
+					error "Fail repo $REPO/$BRANCH"
+				fi
+			done
+		fi
+	else
+		error "we can't support this kind of project for reproducing automatically"
+	fi
+elif [ "$METHOD" = "test" ]; then
+	WORKSPACE=$(pwd)
+
+	if [ -x $PIPELINE/Test.sh ]; then
+		start_vms
+		CODE=$?
+	else
+		error "Reproduce requires script $PIPELINE/Test.sh"
+	fi
+
+	exit $CODE
+elif [ "$METHOD" = "inject" ]; then
+	SCREEN=$2
+
+	if [ ! -d $PIPELINE/Plugins ]; then
+		exit 0
+	elif [ ! -d $PIPELINE/Plugins/QEmu ]; then
+		exit 0
+	fi
+
+	for PLUGIN in $PIPELINE/Plugins/QEmu/*.sh; do
+		if [ ! -x $PLUGIN ]; then
+			continue
+		elif ! $PLUGIN reset; then
+			continue
 		fi
 
-		GERRIT=$(python -c """
+		cat > /tmp/$(basename $PLUGIN).conf << EOF
+logfile /tmp/$(basename $SCRIPT).log
+logfile flush 1
+log on
+logtstamp after 1
+	logtstamp string \"[ %t: %Y-%m-%d %c:%s ]\012\"
+logtstamp on
+EOF
+
+		screen -c /tmp/$(basename $PLUGIN).conf -L -S $SCREEN -md $PLUGIN
+	done
+elif [ "$METHOD" = "report" ]; then
+	BASE="$(detect_libbase $(pwd))"
+
+	info "this is the log from the problematic case that we have reproduced:"
+	echo "$1"
+	echo ""
+
+	if [ ! -d $PIPELINE/Plugins ]; then
+		exit 0
+	elif [ ! -d $PIPELINE/Plugins/QEmu ]; then
+		exit 0
+	fi
+
+	for PLUGIN in $PIPELINE/Plugins/QEmu/*.sh; do
+		info "this is the log from plugin $(basename $PLUGIN):"
+		$PLUGIN 'report'
+		echo ""
+		echo ""
+	done
+elif [ "$METHOD" == "build" ]; then
+	if [ -f './repo.list' ]; then
+		info "use default ./repo.list"
+	elif [[ $# -gt 3 ]]; then
+		info "import '$REPO $BRANCH' >> ./repo.list"
+
+		echo "$REPO $BRANCH" >> ./repo.list
+	else
+		# @NOTE: fetch the list project we would like to build from remote server
+		if [ ! -f './repo.list' ]; then
+			curl -k --insecure $REPO -o './repo.list' >> /dev/null
+			if [ $? != 0 ]; then
+				error "Can't fetch list of project from $REPO"
+			fi
+		fi
+	fi
+
+	HOST=""
+
+	if ! $SU grep vmx /proc/cpuinfo; then
+		if ! $SU modprobe kvm; then
+			HOST="host"
+		fi
+	fi
+
+	cat './repo.list' | while read DEFINE; do
+		SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+		REPO=${SPLITED[0]}
+		BRANCH=${SPLITED[1]}
+		PROJECT=$(basename $REPO)
+		PROJECT=${PROJECT%.*}
+
+		if [[ ${#SPLITED[@]} -gt 2 ]]; then
+			AUTH=${SPLITED[2]}
+		fi
+
+		# @NOTE: clone this Repo, including its submodules
+		git clone --branch $BRANCH $REPO $PROJECT
+
+		if [ $? != 0 ]; then
+			FAIL=(${FAIL[@]} $PROJECT)
+			continue
+		fi
+
+		ROOT=$(pwd)
+		WORKSPACE="$ROOT/$PROJECT"
+
+		# @NOTE: everything was okey from now, run CI steps
+		cd $WORKSPACE
+
+		# @NOTE: detect an authenticate key of gerrit so we will use it
+		# to detect which patch set should be used to build
+		if [[ ${#AUTH} -gt 0 ]]; then
+			if [[ ${#SPLITED[@]} -gt 3 ]]; then
+				COMMIT=${SPLITED[3]}
+			else
+				COMMIT=$(git rev-parse HEAD)
+			fi
+
+			GERRIT=$(python -c """
 uri = '$(git remote get-url --all origin)'.split('/')[2]
 gerrit = uri.split('@')[-1].split(':')[0]
 
 print(gerrit)
 """)
 
-		RESP=$(curl -s --request GET -u $AUTH "https://$GERRIT/a/changes/?q=$COMMIT" | cut -d "'" -f 2)
+			RESP=$(curl -s --request GET -u $AUTH "https://$GERRIT/a/changes/?q=$COMMIT" | cut -d "'" -f 2)
 
-		if [[ ${#RESP} -eq 0 ]]; then
-			FAIL=(${FAIL[@]} $PROJECT)
-			continue
-		fi
+			if [[ ${#RESP} -eq 0 ]]; then
+				FAIL=(${FAIL[@]} $PROJECT)
+				continue
+			fi
 
-		REVISIONs=($(echo $RESP | python -c """
+			REVISIONs=($(echo $RESP | python -c """
 import json
 import sys
 
@@ -869,38 +1008,37 @@ except Exception as error:
 	sys.exit(-1)
 """))
 
-		if [ $? != 0 ]; then
-			FAIL=(${FAIL[@]} $PROJECT)
-			continue
-		fi
-
-		for REVIS in "${REVISIONs[@]}"; do
-			info "The patch-set $REVIS base on $COMMIT"
-
-			# @NOTE: checkout the latest patch-set for testing only
-			git fetch $(git remote get-url --all origin) $REVIS
-			git checkout FETCH_HEAD
-
-			if ! process $PROJECT; then
+			if [ $? != 0 ]; then
 				FAIL=(${FAIL[@]} $PROJECT)
-				break
+				continue
 			fi
-		done
-	else
-		if ! process $PROJECT; then
-			FAIL=(${FAIL[@]} $PROJECT)
-			break
+
+			for REVIS in "${REVISIONs[@]}"; do
+				info "The patch-set $REVIS base on $COMMIT"
+
+				# @NOTE: checkout the latest patch-set for testing only
+				git fetch $(git remote get-url --all origin) $REVIS
+				git checkout FETCH_HEAD
+
+				if ! process $PROJECT; then
+					echo "$PROJECT" > ./fail
+				fi
+			done
+		else
+			if ! process $PROJECT; then
+				echo "$PROJECT" > ./fail
+			fi
 		fi
+
+	done
+
+	rm -fr "$INIT_DIR/$BBOX_DIRNAME"
+	rm -fr "$INIT_DIR/$KERNEL_DIRNAME"
+
+	if [ -f /tmp/fail ]; then
+		rm -fr /tmp/fail
+		exit -1
+	else
+		exit 0
 	fi
-
-done
-
-rm -fr "$INIT_DIR/$BBOX_DIRNAME"
-rm -fr "$INIT_DIR/$KERNEL_DIRNAME"
-
-if [ ${#FAIL[@]} -gt 0 ]; then
-	exit -1
-else
-	exit 0
 fi
-

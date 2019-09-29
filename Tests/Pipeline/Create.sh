@@ -201,7 +201,7 @@ fi
 
 # @NOTE: build a CI system with a qemu image
 if [[ $METHOD -le 1 ]] && [ $(which qemu-img) ]; then
-	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities" "wput" "wget" "flex" "bison" "bc")
+	CMDS=("bridge-utils" "iptables" "expect" "iproute2" "uml-utilities" "wput" "wget" "flex" "bison" "bc" "screen")
 	ELFUTILS=("libelf-dev" "libelf-devel" "elfutils-libelf-devel")
 	PASSED=1
 
