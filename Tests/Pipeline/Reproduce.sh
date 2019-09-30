@@ -132,10 +132,13 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 			done
 
 			if [ $FOUND != 0 ]; then
-				echo " success. Here is the log"
-				echo ""
-
-				cat "$LOG/$ISSUE"
+				if [ $(wc -l "$LOG/$ISSUE" | awk '{ print $1 }') -gt 10000 ]; then
+					echo " success. The log looks too big to be showing on console Please check your storage"
+				else
+					echo " success. Here is the log:"
+					echo ""
+					cat "$LOG/$ISSUE"
+				fi
 
 				if [[ $INTERVIEW =~ 'ftp://' ]]; then
 					RPATH=$(python -c "print(\"/\".join(\"$INTERVIEW\".split('/')[3:]))")
