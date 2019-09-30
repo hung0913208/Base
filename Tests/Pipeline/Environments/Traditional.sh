@@ -119,7 +119,7 @@ elif [ "$METHOD" = "test" ]; then
 		cd ./build
 
 		for SPEC in ./*; do
-			$PIPELINE/../../Tools/Utilities/ctest.sh $(basename $SPEC)
+			$PIPELINE/../../Tools/Utilities/ctest.sh $(basename $SPEC) &> $3
 			CODE=$?
 
 			if [[ $CODE -ne 0 ]]; then
@@ -134,6 +134,33 @@ elif [ "$METHOD" = "test" ]; then
 	fi
 
 	exit $CODE
+elif [ "$METHOD" = "inject" ]; then
+	SCREEN=$2
+
+	if [ ! -d $PIPELINE/Plugins ]; then
+		exit 0
+	elif [ ! -d $PIPELINE/Plugins/Traditional ]; then
+		exit 0
+	fi
+
+	for PLUGIN in $PIPELINE/Plugins/Traditional/*.sh; do
+		if [ ! -x $PLUGIN ]; then
+			continue
+		elif ! $PLUGIN reset; then
+			continue
+		fi
+
+		cat > /tmp/$(basename $PLUGIN).conf << EOF
+logfile /tmp/$(basename $SCRIPT).log
+logfile flush 1
+log on
+logtstamp after 1
+	logtstamp string \"[ %t: %Y-%m-%d %c:%s ]\012\"
+logtstamp on
+EOF
+
+		screen -c /tmp/$(basename $PLUGIN).conf -L -S $SCREEN -md $PLUGIN
+	done
 elif [ "$METHOD" = "report" ]; then
 	BASE="$(detect_libbase $(pwd))"
 
@@ -141,10 +168,26 @@ elif [ "$METHOD" = "report" ]; then
 		cd ./build
 		
 		if [ -d ./Coverage ]; then
-			info "collect code coverage and upload to your storage"
-			$BASE/Tools/Utilities/coverage.sh .
+			$BASE/Tools/Utilities/coverage.sh . >& /dev/null
 		fi
 	fi
+
+	if [ ! -d $PIPELINE/Plugins ]; then
+		exit 0
+	elif [ ! -d $PIPELINE/Plugins/Traditional ]; then
+		exit 0
+	fi
+
+	for PLUGIN in $PIPELINE/Plugins/Traditional/*.sh; do
+		if [ ! -x $PLUGIN ]; then
+			continue
+		else
+			info "this is the log from plugin $(basename $PLUGIN):"
+			$PLUGIN "report"
+			echo ""
+			echo ""
+		fi
+	done
 elif [ "$METHOD" = "build" ]; then
 	if [[ -f './repo.list' ]]; then
 		info "use default ./repo.list"
