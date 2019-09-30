@@ -185,7 +185,7 @@ Stream& Stream::operator>>(Double& value) {
 }
 
 ErrorCodeE Stream::WriteToConsole(Bytes&& buffer, UInt buffer_size) {
-  std::cerr << String((char*)buffer, buffer_size) << std::flush;
+  std::cout << String((char*)buffer, buffer_size) << std::flush;
   return ENoError;
 }
 
