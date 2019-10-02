@@ -120,15 +120,24 @@ void ArgParse::Usage() {
     }
   }
 
+  max_length_of_defintion += 2;
+
   /* @NOTE: show full parameters */
   for (auto& item: _Arguments) {
     auto& definition = std::get<0>(item);
     auto& argument = std::get<1>(item);
 
-    INFO << "\t" << definition
-         << String(' ', max_length_of_defintion - definition.size() + 2)
-         << argument.Helper;
+    /* @NOTE: show defintion */
+    INFO << "\t" << definition;
 
+    for (UInt i = 0; i < max_length_of_defintion - definition.size(); ++i) {
+        INFO << " ";
+    }
+    
+    /* @NOTE: show helper */
+    INFO << argument.Helper;
+
+    /* @NOTE: show this argument is optional or not*/
     if (argument.Optional) {
       INFO << " (optional)";
     }
