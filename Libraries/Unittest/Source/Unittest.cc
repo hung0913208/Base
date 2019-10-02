@@ -476,26 +476,29 @@ String Unit::Suite::Information() {
 }
 
 Void Unit::Init(Int* argc, CString* argv) {
-  ArgParse parser{};
+  ArgParse parser{String{argv[0]}};
 
 #define SUITE 0
 #define CASE 1
 
-  parser.AddArgument<String>("--cases");
-  parser(*argc, argv, False);
+  parser.AddArgument<String>("--cases", Auto::As<String>(""),
+                             "specific cases you want to be performed");
+  parser(*argc, argv, True);
 
-  for (auto fullname : Split(parser["--cases"].Get<String>(), ',')) {
-    for (auto suite : *Internal::Units) {
-      Vector<String> names = Split(fullname, '.');
+  if (parser["--cases"].Get<String>().size() > 0) {
+    for (auto fullname : Split(parser["--cases"].Get<String>(), ',')) {
+      for (auto suite : *Internal::Units) {
+        Vector<String> names = Split(fullname, '.');
 
-      if (suite.Left.Name() != names[SUITE]) {
-        for (auto unit : suite.Right) {
-          if (unit->_Name != names[CASE]) {
-            unit->Bypass();
+        if (suite.Left.Name() != names[SUITE]) {
+          for (auto unit : suite.Right) {
+            if (unit->_Name != names[CASE]) {
+              unit->Bypass();
+            }
           }
+        } else {
+          suite.Left.Bypass();
         }
-      } else {
-        suite.Left.Bypass();
       }
     }
   }
