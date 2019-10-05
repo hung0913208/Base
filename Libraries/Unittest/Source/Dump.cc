@@ -8,7 +8,7 @@ typedef void (*Crashing)(int, siginfo_t*, void*);
 typedef void (*Exiting)();
 typedef void (*Finishing)();
 
-void __cxa_throw (void* object, void *tinfo, void (*dest)(void *));
+[[ noreturn ]] void __cxa_throw (void* object, void *tinfo, void (*dest)(void *));
 void __cxa_crash(int signal, siginfo_t* sinfo, void* context);
 void __cxa_finish();
 void __cxa_exit();
