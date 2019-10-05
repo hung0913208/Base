@@ -175,49 +175,49 @@ class Exception {
 TEST(String, Throwing) {
   Base::Vertex<void> escaping{[](){ Base::Log::Disable(EError, -1); },
                               [](){ Base::Log::Enable(EError, -1); }};
-  TIMEOUT(1, [&]() {
+  TIMEOUT(1, {
     try {
       throw Base::String("hello world");
     } catch(Base::String&) {
     }
   });
 
-  TIMEOUT(1, [&]() {
+  TIMEOUT(1, {
     try {
       throw Base::String("hello world");
     } catch(Base::String) {
     }
   });
 
-  TIMEOUT(1, [&]() {
+  TIMEOUT(1, {
     try{
       throw Exception("hello world");
     } catch(Exception&) {
     }
   });
 
-  TIMEOUT(1, [&]() {
+  TIMEOUT(1, {
     try{
       throw Exception(Base::String{"hello world"});
     } catch(Exception) {
     }
   });
 
-  TIMEOUT(1, [&]() {
+  TIMEOUT(1, {
     try{
       throw Exception(Base::String{"hello world"});
     } catch(Exception&) {
     }
   });
 
-  TIMEOUT(1, [&]() {
+  TIMEOUT(1, {
     try{
       throw Exception("hello world");
     } catch(Exception) {
     }
   });
 
-  TIMEOUT(1, [&]() {
+  TIMEOUT(1, {
     try{
       throw Except(EDoNothing, "hello world");
     } catch(Base::Exception&) {
