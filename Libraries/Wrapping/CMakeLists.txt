@@ -27,7 +27,10 @@ if (PYTHONLIBS_FOUND)
 	set(LANGUAGE_LIBRARIES ${LANGUAGE_LIBRARIES} ${PYTHONLIBS_LIBRARIES})
 endif()
 
+add_subdirectory(Source/IBash)
+add_subdirectory(Source/IPython)
 add_library(wrapping STATIC ${SOURCES})
+
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 	set_source_files_properties(SOURCE ${DEBUGS} PROPERTIES COMPILE_FLAGS -O0)
 endif()
@@ -39,3 +42,4 @@ elseif(CMAKE_THREAD_LIBS_INIT)
 else()
 	target_link_libraries(wrapping base -lpthread ${LANGUAGE_LIBRARIES})
 endif()
+

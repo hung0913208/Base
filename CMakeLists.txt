@@ -53,10 +53,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
 	add_cxx_compiler_flag(-fprofile-arcs)
 	add_cxx_compiler_flag(-ftest-coverage)
 
-	add_c_compiler_flag(-Werror)
-	add_c_compiler_flag(-Wfatal-errors)
-	add_c_compiler_flag(-pedantic)
-	add_c_compiler_flag(-pedantic-errors)
 	add_c_compiler_flag(-fprofile-arcs)
 	add_c_compiler_flag(-ftest-coverage)
 
@@ -76,9 +72,6 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_cxx_compiler_flag(-Werror)
 	add_cxx_compiler_flag(-Wfatal-errors)
 	add_cxx_compiler_flag(-fno-stack-protector)
-
-	add_c_compiler_flag(-Werror)
-	add_c_compiler_flag(-Wfatal-errors)
 endif()
 
 # @NOTE: suppress some feature according to the compilers

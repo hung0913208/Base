@@ -3,5 +3,6 @@ gdb
 lcov
 make
 cmake
+bison
 valgrind
 python-dev
