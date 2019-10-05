@@ -525,10 +525,13 @@ print(unquote_plus(json.load(sys.stdin)['content']))
 			console 'started' $JOB $PUSHER $BUILD $ID
 		fi
 
-		if [ $(status $BUILD $ID) == 'failed' ]; then
+		if [ $(status $BUILD $ID) = 'failed' ]; then
 			exit -1
-		else
+		elif [ $(status $BUILD $ID) = 'passed' ]; then
 			exit 0
+		else
+			echo "[ WARNING ]: it seem we are in the middle of unxpected state $(status $BUILD $ID)"
+			exit -2
 		fi
 	fi
 elif [ $1 = 'env' ]; then
@@ -564,7 +567,17 @@ elif [ $1 = 'env' ]; then
                         	 --header "Authorization: token $TOKEN"     		\
 				 --header "Accept: application/json; version=2" 	\
 				 --data-binary "{\"env_var\":{\"name\":\"$NAME\",\"value\":\"$VALUE\",\"public\":true,\"branch\":$BRANCH,\"repository_id\":\"$REPO\"}}" \
-		https://api.travis-ci.org/settings/env_vars?repository_id=$REPO
+			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
+		python -c """
+import json, sys
+
+resp = json.load(sys.stdin)
+
+if not 'env_var' in resp:
+	sys.exit(-1)
+elif not 'id' in resp['env_var']:
+	sys.exit(-1)
+"""
 	elif [ $1 = 'del' ]; then
 		shift
 
@@ -600,6 +613,18 @@ for item in env['env_vars']:
 
 		curl -sS --request DELETE 				\
                          --header "Authorization: token $TOKEN"     	\
-		"https://api.travis-ci.org/settings/env_vars/$ID?repository_id=$REPO"
+		"https://api.travis-ci.org/settings/env_vars/$ID?repository_id=$REPO" |
+		python -c """
+import json, sys
+
+resp = json.load(sys.stdin)
+
+if not 'env_var' in resp:
+	sys.exit(-1)
+elif not 'id' in resp['env_var']:
+	sys.exit(-1)
+"""
+
+		exit $?
 	fi
 fi
