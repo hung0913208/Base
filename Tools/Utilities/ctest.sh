@@ -263,7 +263,7 @@ if [ -d "./$1" ]; then
 		echo "------------------------------------------------------------------------------"
 		echo ""
 
-		if [ "$1" != "Coverage" ]; then
+		if [ "$1" = "Sanitize" ]; then
 			if [[ $CODE -ne 0 ]]; then
 				EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
 				CODE=-1
@@ -311,7 +311,7 @@ if [ -d "./$1" ]; then
 			fi
 		fi
 
-		if [[ $CODE -eq 0 ]] && [[ $# -lt 2 ]]; then
+		if [[ $CODE -eq 0 ]] && [[ $# -lt 2 ]] && [ "$1" != "Sanitize" ]; then
 			# @NOTE: test with gdb in order to verify slowing down effect to detect rare issues
 
 			echo "Run with GDB"

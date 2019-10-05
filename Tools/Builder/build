@@ -225,6 +225,27 @@ if [ $(which git) ]; then
 			echo "---------------------------------------------------------------------------------"
 			exit -1
 		fi
+	
+		exec 2>&-
+		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Sanitize $ROOT 2>&1 | tee /dev/fd/2)"
+
+		if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
+			exec 2>&1
+			warning "fail configure CMakeLists.txt on Sanitize mode, please check console log bellow"
+			echo "================================================================================="
+			echo ""
+			echo "$OUTPUT"
+			echo "---------------------------------------------------------------------------------"
+			exit -1
+		elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+			exec 2>&1
+			warning "fail build on Release mode, please check console log bellow"
+			echo "================================================================================="
+			echo ""
+			echo "$OUTPUT"
+			echo "---------------------------------------------------------------------------------"
+			exit -1
+		fi
 
 		if [[ $MODE -ne 1 ]]; then
 			exec 2>&-
@@ -249,6 +270,7 @@ if [ $(which git) ]; then
 			elif [[ $MODE -eq 0 ]]; then
 				exec 2>&1
 				$BASE/Tools/Utilities/ctest.sh Coverage
+				$BASE/Tools/Utilities/ctest.sh Sanitize
 				CODE=$?
 	
 				bash $BASE/Tools/Utilities/coverage.sh .
