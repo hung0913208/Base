@@ -49,7 +49,7 @@ build_with_macos_7.3:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
-    - ./Tools/Utilities/travis.sh restart --job 8 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+    - ./.gitlab-ci.d/travis/build.sh 8
   tags:
     - Travis
   allow_failure: true
@@ -59,7 +59,7 @@ build_with_macos_8.3:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
-    - ./Tools/Utilities/travis.sh restart --job 9 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+    - ./.gitlab-ci.d/travis/build.sh 9
   tags:
     - Travis
   allow_failure: true
@@ -69,7 +69,7 @@ build_with_macos_9.1:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
-    - ./Tools/Utilities/travis.sh restart --job 11 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+    - ./.gitlab-ci.d/travis/build.sh 11
   tags:
     - Travis
   allow_failure: true
@@ -79,7 +79,7 @@ build_with_macos_9.2:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
-    - ./Tools/Utilities/travis.sh restart --job 12 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+    - ./.gitlab-ci.d/travis/build.sh 12
   tags:
     - Travis
   allow_failure: true
@@ -89,7 +89,7 @@ build_with_macos_9.3:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
-    - ./Tools/Utilities/travis.sh restart --job 13 --patch ${PATCH} --token ${TOKEN} --repo ${REPO}
+    - ./.gitlab-ci.d/travis/build.sh 13
   tags:
     - Travis
   allow_failure: true
