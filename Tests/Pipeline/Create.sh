@@ -77,6 +77,81 @@ probe_linux_machine(){
 	fi
 }
 
+function start() {
+	SAVE=$IFS
+	IFS=$'\n'
+
+	HOOKS=($(printenv | grep HOOK))
+	IFS=$SAVE
+	
+	info "Start a new job"
+	if [[ ${#HOOKS[@]} -gt 0 ]]; then
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" = 'HOOK_TOP' ]; then
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+				break
+			fi
+		done
+
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" != 'HOOK_BOT' ] && [ "$NAME" != 'HOOK_TOP' ] && [[ ! "$NAME" =~ "NOTIFY"* ]]; then
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+			fi
+		done
+
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" = 'HOOK_BOT' ]; then	
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+				break
+			fi
+		done
+	fi
+}
+
+function stop() {
+	SAVE=$IFS
+	IFS=$'\n'
+
+	HOOKS=($(printenv | grep NOTIFY))
+	IFS=$SAVE
+
+	info "Stop the job"
+
+	if [[ ${#HOOKS[@]} -gt 0 ]]; then
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" = 'NOTIFY_TOP' ]; then
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+				break
+			fi
+		done
+
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" != 'NOTIFY_BOT' ] && [ "$NAME" != 'NOTIFY_TOP' ] && [[ ! "$NAME" =~ "HOOK"* ]]; then
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+			fi
+		done
+
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" = 'NOTIFY_BOT' ]; then	
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+				break
+			fi
+		done
+	fi
+}
+
 # @NOTE: now we will support these methods:
 # - 0: unknown, we will force to close since we can't do anything now
 # - 1: traditional way
@@ -88,6 +163,22 @@ probe_linux_machine(){
 CMDS=("git" "curl")
 METHOD=1
 
+start
+if [ -f ./HOOK ]; then
+	$SU chmod +x ./HOOK
+
+	if [ $? = 0 ]; then
+		source ./HOOK
+
+		if [ $? != 0 ]; then
+			info "script HOOK is corrupted please check again i will do with default configure"
+			cat ./HOOK
+		fi
+	fi
+
+	rm -fr ./HOOK
+fi
+
 for CMD in $CMDS; do
 	if [ ! $(which "$CMD") ]; then
 		METHOD=0
@@ -98,55 +189,6 @@ if [[ ${#PACKAGES} -gt 0 ]]; then
 	for PACKAGE in "${PACKAGES[@]}"; do
 		install_package "$PACKAGE"
 	done
-fi
-
-SAVE=$IFS
-IFS=$'\n'
-
-HOOKS=($(printenv | grep HOOK))
-IFS=$SAVE
-
-if [[ ${#HOOKS[@]} -gt 0 ]]; then
-	for ITEM in "${HOOKS[@]}"; do
-		NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
-
-		if [ "$NAME" = 'HOOK_TOP' ]; then
-			echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
-			break
-		fi
-	done
-
-	for ITEM in "${HOOKS[@]}"; do
-		NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
-
-		if [ "$NAME" != 'HOOK_BOT' ] && [ "$NAME" != 'HOOK_TOP' ]; then
-			echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
-		fi
-	done
-
-	for ITEM in "${HOOKS[@]}"; do
-		NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
-
-		if [ "$NAME" = 'HOOK_BOT' ]; then	
-			echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
-			break
-		fi
-	done
-fi
-
-if [ -f ./HOOK ]; then
-	$SU chmod +x ./HOOK
-
-	if [ $? = 0 ]; then
-		source ./HOOK
-
-		if [ $? != 0 ]; then
-			info "script HOOK is corrupted please check again i will do with default configure"
-			cat ./HOOK
-
-			rm -fr ./HOOK
-		fi
-	fi
 fi
 
 if [[ ${#JOB} -gt 0 ]]; then
@@ -277,7 +319,26 @@ if [ -e "$PIPELINE/Environments/$CMD" ]; then
 	else
 		"$PIPELINE/Environments/$CMD" $JOB $PIPELINE $MODE $REPO $BRANCH
 	fi
-	exit $?
+
+	CODE=$?
 else
-	error "Broken pipeline, not found $PIPELINE/Environemts/$CMD"
+	echo "[  ERROR  ]: Broken pipeline, not found $PIPELINE/Environemts/$CMD"
+	CODE=-1
 fi
+
+stop
+if [ -f ./HOOK ]; then
+	$SU chmod +x ./HOOK
+
+	if [ $? = 0 ]; then
+		source ./HOOK
+
+		if [ $? != 0 ]; then
+			info "script HOOK is corrupted please check again i will do with default configure"
+			cat ./HOOK
+		fi
+	fi
+
+	rm -fr ./HOOK
+fi
+exit $CODE
