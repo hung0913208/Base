@@ -6,6 +6,14 @@ stages:
   - coverage
   - deploy
 
+default:
+  before_script:
+    - mkdir -p "/tmp/jobs"
+    - if [ ! -d "/tmp/jobs/$(date +%j)" ]; then rm -fr "/tmp/jobs/*"; mkdir -p "/tmp/$(date +%j)"; fi
+  after_script:
+    - if [ -f /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID} ]; then bash /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID}; fi
+    - rm -fr /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID}
+
 perform_reproduce_issues:
   stage: reproduce
   script:
