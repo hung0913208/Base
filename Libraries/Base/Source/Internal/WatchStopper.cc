@@ -190,8 +190,6 @@ class Watch {
   };
 
   Watch() {
-    UInt name = Type<Implement::Thread>();
-
     _Main = GetUUID();
     _Status = Unlocked;
     _Size = 0;
@@ -850,7 +848,7 @@ void Watch::OnUnregister(ULong uuid) {
 
 template <typename T>
 Bool Watch::OnLocking(Stopper* stopper, Function<Void()> actor) {
-  Bool ignored{False}, deadlock{False};
+  Bool ignored{False};
 
   /* @NOTE: check if this stopper is on the ignoring list and jump to the place
    * to perform actor */
@@ -935,8 +933,6 @@ Bool Watch::OnUnlocking(Stopper* stopper, Function<Void()> actor) {
   if (!(error = stopper->OnUnlocking(Thiz))) {
  passed:
     try {
-      Int status;
-
       /* @NOTE: run `actor` here now and secure it with try-catch */
       if (actor) actor();
 
@@ -1209,12 +1205,8 @@ ErrorCodeE Thread::SwitchTo(Int next) {
                  LIKELY(status, Watch::Waiting)) {
         return ENoError;
       }
-    } else {
-      Int result;
-
-      if (UNLIKELY(Watcher.Status(), Watch::Waiting)) {
-        return EBadAccess;
-      }
+    } else if (UNLIKELY(Watcher.Status(), Watch::Waiting)) {
+      return EBadAccess;
     }
     break;
 
@@ -1303,7 +1295,7 @@ ErrorCodeE Thread::LockedBy(Stopper* locker) {
   return ENoError;
 }
 
-ErrorCodeE Thread::UnlockedBy(Stopper* stopper) {
+ErrorCodeE Thread::UnlockedBy(Stopper* UNUSED(stopper)) {
   /* @NOTE: maybe on high-loading systems, we would see this command repeate
    * a certain time before we are sure that everything is copy completedly.
    * We should consider about the timeout at this stage to prevent hanging
@@ -1369,8 +1361,6 @@ ULong Lock::Identity() {
 }
 
 ErrorCodeE Lock::SwitchTo(Int next) {
-  auto uuid = GetUUID();
-
   if (Status() == Watch::Released) {
     return EBadAccess;
   } else if (Status() == next) {
@@ -1692,16 +1682,17 @@ void DumpLock(Base::Internal::Implement::Lock& lock, String parameter) {
   }
 }
 
-void DumpLock(Base::Internal::Implement::Thread& thread, String parameter) {
+void DumpLock(Base::Internal::Implement::Thread& UNUSED(thread),
+              String UNUSED(parameter)) {
 }
 } // namespace Debug
 } // namespace Internal
 
 namespace Debug {
-void DumpThread(Base::Thread& thread, String parameter) {
+void DumpThread(Base::Thread& UNUSED(thread), String UNUSED(parameter)) {
 }
 
-void DumpLock(Base::Lock& lock, String parameter) {
+void DumpLock(Base::Lock& UNUSED(lock), String UNUSED(parameter)) {
 }
 
 void DumpWatch(String parameter) {
@@ -1734,12 +1725,11 @@ void DumpWatch(String parameter) {
       auto& barrier = Watcher.Stucks._Barriers[i];
 
       for (auto j = 0; j < Int(List::EEnd); ++j) {
-        if (Watcher.Stucks._Barriers[i].Left[j] == 0) {
+        if (barrier.Left[j] == 0) {
           continue;
         }
 
-        VERBOSE << Format{"   + {} is doing job {}"}
-                    .Apply(Watcher.Stucks._Barriers[i].Left[j], j)
+        VERBOSE << Format{"   + {} is doing job {}"}.Apply(barrier.Left[j], j)
                 << EOL;
         break;
       }
@@ -1757,8 +1747,6 @@ void DumpWatch(String parameter) {
     VERBOSE << Format{" - Rest() = {}"}.Apply(Watcher.Rest()) << EOL;
   } else if (parameter == "Stucks.Unlock") {
     for (ULong i = 0; i < Watcher.Stucks._Size[1]; ++i) {
-      auto& barrier = Watcher.Stucks._Barriers[i];
-
       for (auto j = 0; j < Int(List::EEnd); ++j) {
         auto index = Watcher.Stucks._Barriers[i].Left[j];
         auto curr = Watcher.Stucks._Head;

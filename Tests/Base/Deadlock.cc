@@ -269,8 +269,7 @@ TEST(DeadLock, WaitUntilEnd) {
     /* @NOTE: the problem happens when we have many threads run on parallel and
      * a queue will work as a load balancing. On UI-Thread we set */
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start([i, &queue, &wait_colaboratory, &wait_new_job,
-                        &fetching, &abandon]() {
+      threads[i].Start([&queue, &wait_colaboratory, &wait_new_job, &fetching, &abandon]() {
 
         /* @NOTE: wait until their colaboraters show up */
         wait_colaboratory.Wait([]() -> Bool { return True; });

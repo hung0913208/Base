@@ -100,7 +100,7 @@ ULong List::Add(Item* prev,  Void* ptr) {
 
 Bool List::Del(ULong expected, Void* ptr) {
   Item* curr{None};
-  Bool result{False}, added{False};
+  Bool result{False};
 
   if (_Sweep) {
     return False;
