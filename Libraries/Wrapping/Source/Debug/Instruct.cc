@@ -2,43 +2,28 @@
 
 namespace Base {
 namespace Internal{
-void Instruct(Void* callback, Void* result, Void** params, UInt size) {
+void Instruct(Void* UNUSED(callback), Void* result, Void** params, UInt size) {
 #if __amd64__ || __x86_64__
-  register void* UNUSED(addr)  asm("rax") = 0;
-  register void* UNUSED(arg0)  asm("rdi") = 0;
-  register void* UNUSED(arg1)  asm("rsi") = 0;
-  register void* UNUSED(arg2)  asm("rdx") = 0;
-  register void* UNUSED(arg3)  asm("rcx") = 0;
-  register void* UNUSED(arg4)  asm("r8")  = 0;
-  register void* UNUSED(arg5)  asm("r9")  = 0;
-
   for (UInt i = 6; i < size; ++i){
-    arg4 = params[i];
-    asm("push    %r8");
+    asm ("push    %0"::"r"(params[i]));
   }
 
-  if (size > 5) arg5 = params[5];
-  if (size > 4) arg4 = params[4];
-  if (size > 3) arg3 = params[3];
-  if (size > 2) arg2 = params[2];
-  if (size > 1) arg1 = params[1];
-  if (size > 0) arg0 = params[0];
+  if (size > 5) asm ("mov    %0, %%r9" ::"r"(params[5]):"r9");
+  if (size > 4) asm ("mov    %0, %%r8" ::"r"(params[4]):"r8");
+  if (size > 3) asm ("mov    %0, %%rcx"::"r"(params[3]):"rcx");
+  if (size > 2) asm ("mov    %0, %%rdx"::"r"(params[2]):"rdx");
+  if (size > 2) asm ("mov    %0, %%rsi"::"r"(params[1]):"rsi");
+  if (size > 0) asm ("mov    %0, %%rdi"::"r"(params[0]):"rdi");
 
-  arg0 = (void*)result;
-  addr = callback;
-  asm("call    %rax");
+  asm("callq    *-8(%rbp)");
+  asm("mov     %%eax, %0":"=m"(result));
 #elif __i386__
-  register void* UNUSED(addr) asm("rax") = 0;
-  register void* UNUSED(rtmp) asm("rdi") = 0;
-
   for (UInt i = 6; i < size; ++i){
-    rtmp = params[i];
-    asm("push    %rdi");
+    asm ("push    %0"::"r"(params[i]));
   }
 
-  rtmp = (void*)result;
-  addr = callback;
-  asm("call    %rax");
+  asm("callq    *-8(%rbp)");
+  asm("mov     %%eax, %0":"=m"(result));
 #elif __arm__
 #error "No support your architecture"
 #else
@@ -46,41 +31,26 @@ void Instruct(Void* callback, Void* result, Void** params, UInt size) {
 #endif
 }
 
-void Instruct(Void* callback, Void** params, UInt size) {
+void Instruct(Void* UNUSED(callback), Void** params, UInt size) {
 #if __amd64__ || __x86_64__
-  register void* UNUSED(addr)  asm("rax") = 0;
-  register void* UNUSED(arg0)  asm("rdi") = 0;
-  register void* UNUSED(arg1)  asm("rsi") = 0;
-  register void* UNUSED(arg2)  asm("rdx") = 0;
-  register void* UNUSED(arg3)  asm("rcx") = 0;
-  register void* UNUSED(arg4)  asm("r8")  = 0;
-  register void* UNUSED(arg5)  asm("r9")  = 0;
-
   for (UInt i = 6; i < size; ++i){
-    arg4 = params[i];
-    asm("push    %r8");
+    asm ("push    %0"::"r"(params[i]));
   }
 
-  if (size > 5) arg5 = params[5];
-  if (size > 4) arg4 = params[4];
-  if (size > 3) arg3 = params[3];
-  if (size > 2) arg2 = params[2];
-  if (size > 1) arg1 = params[1];
-  if (size > 0) arg0 = params[0];
+  if (size > 5) asm ("mov    %0, %%r9" ::"r"(params[5]):"r9");
+  if (size > 4) asm ("mov    %0, %%r8" ::"r"(params[4]):"r8");
+  if (size > 3) asm ("mov    %0, %%rcx"::"r"(params[3]):"rcx");
+  if (size > 2) asm ("mov    %0, %%rdx"::"r"(params[2]):"rdx");
+  if (size > 2) asm ("mov    %0, %%rsi"::"r"(params[1]):"rsi");
+  if (size > 0) asm ("mov    %0, %%rdi"::"r"(params[0]):"rdi");
 
-  addr = callback;
-  asm("call    %rax");
+  asm("callq    *-8(%rbp)");
 #elif __i386__
-  register void* UNUSED(addr) asm("rax") = 0;
-  register void* UNUSED(rtmp) asm("rdi") = 0;
-
   for (UInt i = 6; i < size; ++i){
-    rtmp = params[i];
-    asm("push    %rdi");
+    asm ("push    %0"::"r"(params[i]));
   }
 
-  addr = callback;
-  asm("call    %rax");
+  asm("callq    *-8(%rbp)");
 #elif __arm__
 #error "No support your architecture"
 #else

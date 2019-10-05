@@ -15,7 +15,7 @@ extern "C" {
 /* @NOTE: Atomic exchange (of various sizes) */
 static inline ULLong XCHG64(Void* ptr, ULLong x) {
   __asm__ __volatile__("xchgq %0,%1"
-                       :"=r" ((ULLong) x)
+                       :"=r" (x)
                        :"m" (*(volatile LLong *)ptr), "0" ((ULLong) x)
                        :"memory");
 
@@ -25,7 +25,7 @@ static inline ULLong XCHG64(Void* ptr, ULLong x) {
 /* @NOTE: Atomic exchange (of various sizes) */
 static inline UInt XCHG32(Void *ptr, UInt x) {
    __asm__ __volatile__("xchgl %0,%1"
-                        :"=r" ((UInt) x)
+                        :"=r" (x)
                         :"m" (*(volatile unsigned *)ptr), "0" (x)
                         :"memory");
 
@@ -34,7 +34,7 @@ static inline UInt XCHG32(Void *ptr, UInt x) {
 
 static inline UShort XCHG16(Void *ptr, UShort x) {
   __asm__ __volatile__("xchgw %0,%1"
-                       :"=r" ((UShort) x)
+                       :"=r" (x)
                        :"m" (*(volatile UShort *)ptr), "0" (x)
                        :"memory");
   return x;
