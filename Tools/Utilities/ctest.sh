@@ -248,13 +248,17 @@ if [ -d "./$1" ]; then
 		else
 			for FILE in ./Tests/*; do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
-					exec_with_timeout -1 $FILE
-
-					if [ $? != 0 ]; then
-						CODE=1
+					if ! exec_with_timeout -1 $FILE; then
+						touch fail
 					fi
 				fi
 			done
+
+			if [ -f fail ]; then
+				CODE=1
+			fi
+
+			rm -fr fail
 		fi
 		echo "------------------------------------------------------------------------------"
 		echo ""
@@ -336,7 +340,6 @@ if [ -d "./$1" ]; then
 			echo "------------------------------------------------------------------------------"
 			echo ""
 		fi
-
 	else
 		if [ "$(ctest --verbose)" -ne 0 ]; then
 			exit -1
