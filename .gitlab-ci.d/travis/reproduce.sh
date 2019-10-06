@@ -21,13 +21,14 @@ for ITEM in $(python -c "for v in '$1'.split(';'): print(v)"); do
 		CODE=0
 
 		if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
-			RUN=1
 			START="HOOK${JOB}_gitlab_${CI_JOB_ID}"
 			STOP="NOTIFY${JOB}_gitlab_${CI_JOB_ID}"
 			HOOK="\\\"if [ \\\\\$TRAVIS_JOB_NUMBER = '$IDX.$JOB' ]; then export JOB='reproduce'; echo '$ISSUE 100000 $REPOSITORY $BRANCH ${FTP}' >> ./repo.list; ADOPTED=1; fi\\\""
 			NOTIFY="\\\"if [ \\\\\$TRAVIS_JOB_NUMBER = '$IDX.$JOB' ]; then ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TOKEN} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TOKEN} --repo ${REPO}; fi\\\""
 
-			if [ -d /tmp/jobs/$(date +%j) ]; then			
+			if ! $(dirname $0)/clean.sh master $IDX $JOB; then
+				continue
+			elif [ -d /tmp/jobs/$(date +%j) ]; then			
 				cat > /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID} << EOF
 ./Tools/Utilities/travis.sh env del --name "$START" --token ${TOKEN} --repo ${REPO}
 ./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TOKEN} --repo ${REPO}
@@ -40,8 +41,15 @@ EOF
 				CODE=-1
 			fi
 
-			./Tools/Utilities/travis.sh env del --name "$START" --token ${TOKEN} --repo ${REPO}
-			./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TOKEN} --repo ${REPO}
+			if ! ./Tools/Utilities/travis.sh env del --name "$START" --token ${TOKEN} --repo ${REPO}; then
+				RUN=0
+			elif ! ./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TOKEN} --repo ${REPO}; then
+
+				RUN=0
+			else
+				RUN=1
+			fi
+
 			if [ $CODE != 0 ]; then
 				exit $CODE
 			else

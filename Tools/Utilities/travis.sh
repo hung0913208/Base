@@ -626,5 +626,39 @@ elif not 'id' in resp['env_var']:
 """
 
 		exit $?
+	elif [ $1 = 'list' ]; then
+		shift
+
+		if ! options=$(getopt -l repo,token,script: -- "$@"); then
+			error "Can' parse $0 env set $@"
+		fi
+
+		while [ $# -gt 0 ]; do
+			case $1 in
+				--repo)		REPO="$2"; shift;;
+				--script) 	SCRIPT="$2"; shift;;
+				--token)	TOKEN="$2"; shift;;
+				(--) 		shift; break;;
+				(-*) 		error "unrecognized option $1";;
+				(*) 		break;;
+			esac
+			shift
+		done
+
+		REPO=$(repository $REPO)
+		curl -sS --request GET 						\
+                              --header "Authorization: token $TOKEN"     		\
+			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
+		python -c """
+import json, sys, subprocess
+
+env = json.load(sys.stdin)
+for item in env['env_vars']:
+	cmds = '$SCRIPT'.split(' ')
+
+	cmds.append(str(item['name']))
+	cmds.append(str(item['value']))
+	subprocess.call(cmds)
+		"""
 	fi
 fi
