@@ -332,7 +332,7 @@ if [ -f ./HOOK ]; then
 
 	if [ $? = 0 ]; then
 		source ./HOOK
-
+		
 		if [ $? != 0 ]; then
 			info "script HOOK is corrupted please check again i will do with default configure"
 			cat ./HOOK

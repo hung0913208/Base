@@ -1,6 +1,7 @@
 stages:
   - linux
   - macos
+  - qemu
   - composer
   - reproduce
   - coverage
@@ -19,37 +20,57 @@ perform_reproduce_issues:
   stage: reproduce
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'reproduce' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/reproduce.sh ${REPRODUCES}
   tags:
     - Travis
+  allow_failure: true
+
+build_with_wercker:
+  stage: linux
+  script:
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
+    - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
+    - ./.gitlab-ci.d/wercker/build.sh
+  tags:
+    - Wercker
+  allow_failure: true
+
+qemu_with_wercker:
+  stage: qemu
+  script:
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
+    - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
+    - ./.gitlab-ci.d/wercker/kernel.sh
+  tags:
+    - Wercker
   allow_failure: true
 
 build_with_travis:
   stage: linux
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/build.sh ${BUILDS}
   tags:
     - Travis
   allow_failure: true
 
-build_kernel_linux:
-  stage: linux
+qemu_with_linux:
+  stage: qemu
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'kernel' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/kernel.sh ${KERNELS}
   tags:
     - Travis
-  when: manual
+  allow_failure: true
  
 build_with_macos_7.3:
   stage: macos
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/build.sh 8
   tags:
     - Travis
@@ -59,7 +80,7 @@ build_with_macos_8.3:
   stage: macos
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/build.sh 9
   tags:
     - Travis
@@ -69,7 +90,7 @@ build_with_macos_9.1:
   stage: macos
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/build.sh 11
   tags:
     - Travis
@@ -79,7 +100,7 @@ build_with_macos_9.2:
   stage: macos
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/build.sh 12
   tags:
     - Travis
@@ -89,7 +110,7 @@ build_with_macos_9.3:
   stage: macos
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TOKEN} -eq 0 ]]; then exit 0; fi
+    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
     - ./.gitlab-ci.d/travis/build.sh 13
   tags:
     - Travis
@@ -99,7 +120,10 @@ pages:
   stage: deploy
   dependencies:
     - perform_reproduce_issues
+    - qemu_with_wercker
+    - qemu_with_linux
     - build_with_travis
+    - build_with_wercker
     - build_with_macos_7.3
     - build_with_macos_8.3
     - build_with_macos_9.1

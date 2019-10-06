@@ -15,33 +15,33 @@ for JOB in $(python -c "for v in '$1'.split(';'): print(v)"); do
 	RUN=0
 
 	for IDX in `seq ${BEGIN} ${END}`; do
-		STATUS=$(./Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TOKEN} --repo ${REPO})
+		STATUS=$(./Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
 		CODE=0
 
 		if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
 			START="HOOK${JOB}_gitlab_${CI_JOB_ID}"
 			STOP="NOTIFY${JOB}_gitlab_${CI_JOB_ID}"
 			HOOK="\\\"if [ \\\\\$TRAVIS_JOB_NUMBER = '$IDX.$JOB' ]; then export JOB='build'; sudo apt install qemu; echo '$REPOSITORY $BRANCH' >> ./repo.list; ADOPTED=1; fi\\\""
-			NOTIFY="\\\"if [ \\\\\$TRAVIS_JOB_NUMBER = '$IDX.$JOB' ]; then ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TOKEN} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TOKEN} --repo ${REPO}; fi\\\""
+			NOTIFY="\\\"if [ \\\\\$TRAVIS_JOB_NUMBER = '$IDX.$JOB' ]; then ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}; fi\\\""
 
 			if ! $(dirname $0)/clean.sh master $IDX $JOB; then
 				continue
 			elif [ -d /tmp/jobs/$(date +%j) ]; then			
 				cat > /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID} << EOF
-./Tools/Utilities/travis.sh env del --name "$START" --token ${TOKEN} --repo ${REPO}
-./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TOKEN} --repo ${REPO}
+./Tools/Utilities/travis.sh env del --name "$START" --token ${TRAVIS} --repo ${REPO}
+./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TRAVIS} --repo ${REPO}
 EOF
 			fi
 
-			./Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TOKEN} --repo ${REPO}
-			./Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TOKEN} --repo ${REPO}
-			if ! ./Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TOKEN} --repo ${REPO}; then
+			./Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
+			./Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
+			if ! ./Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}; then
 				CODE=-1
 			fi
 
-			if ! ./Tools/Utilities/travis.sh env del --name "$START" --token ${TOKEN} --repo ${REPO}; then
+			if ! ./Tools/Utilities/travis.sh env del --name "$START" --token ${TRAVIS} --repo ${REPO}; then
 				RUN=0
-			elif ! ./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TOKEN} --repo ${REPO}; then
+			elif ! ./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TRAVIS} --repo ${REPO}; then
 
 				RUN=0
 			else
