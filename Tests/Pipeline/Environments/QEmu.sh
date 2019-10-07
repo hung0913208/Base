@@ -795,6 +795,8 @@ if [ "$MODE" = "bridge" ]; then
 	else
 		error "can't create $BRD"
 	fi
+elif [ "$MODE" = "isolate" ]; then
+	NETWORK="-net nic -net user"	
 fi
 
 if [ "$METHOD" == "reproduce" ]; then
