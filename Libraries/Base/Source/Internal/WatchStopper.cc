@@ -45,6 +45,7 @@ namespace Internal {
 void UnwatchStopper(Base::Thread& thread);
 Bool KillStoppers(UInt signal);
 void Idle(TimeSpec* spec);
+void AtExit(Function<void()> callback);
 
 namespace Implement {
 class Thread;
@@ -375,14 +376,14 @@ namespace Base {
 namespace Internal {
 thread_local Implement::Thread* Thiz{None};
 static UMap<ULong, Implement::Lock>* Mutexes{None};
-static Watch Watcher{};
+static Watch* Watcher{None};
 
 namespace Summary {
-void WatchStopper() { Watcher.Summary(); }
+void WatchStopper() { Watcher->Summary(); }
 }  // namespace Summary
 
 void WatchStopper(Base::Thread& thread) {
-  Watcher.Join(&thread);
+  Watcher->Join(&thread);
 }
 
 Bool WatchStopper(Base::Lock& lock) {
@@ -391,8 +392,17 @@ Bool WatchStopper(Base::Lock& lock) {
       return False;
     }
 
+    if (!Watcher) {
+      try {
+        Watcher = new Watch();
+        AtExit([]() { delete Watcher; });
+      } catch (std::bad_alloc&) {
+        return False;
+      }
+    }
+
     Register(lock, (Void*)(new Implement::Lock(lock)));
-    Watcher.OnRegister<Implement::Lock>(lock.Identity());
+    Watcher->OnRegister<Implement::Lock>(lock.Identity());
   } catch (std::exception& except) {
     return False;
   }
@@ -401,16 +411,16 @@ Bool WatchStopper(Base::Lock& lock) {
 }
 
 void UnwatchStopper(Base::Thread& thread) {
-  Watcher.OnUnregister<Implement::Thread>(thread.Identity(False));
+  Watcher->OnUnregister<Implement::Thread>(thread.Identity(False));
 
 #if DEBUGING
-  Watcher._Threads.erase(&thread);
+  Watcher->_Threads.erase(&thread);
 #endif
 }
 
 Bool UnwatchStopper(Base::Lock& lock) {
   if (Context(lock)) {
-    Watcher.OnUnregister<Implement::Lock>(lock.Identity());
+    Watcher->OnUnregister<Implement::Lock>(lock.Identity());
     Register(lock, None);
     delete reinterpret_cast<Implement::Lock*>(Context(lock));
     return True;
@@ -422,7 +432,7 @@ Bool UnwatchStopper(Base::Lock& lock) {
 Bool KillStoppers(UInt signal) {
   Bool result{False};
 
-  for (auto thread: Watcher._Threads) {
+  for (auto thread: Watcher->_Threads) {
     if (!pthread_kill(thread->Identity(), signal)) {
       result = False;
     }
@@ -446,7 +456,7 @@ Bool Lock(Base::Lock& locker) {
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
 
-  return Internal::Watcher.OnLocking<Internal::Implement::Lock>(
+  return Internal::Watcher->OnLocking<Internal::Implement::Lock>(
     context,
     [&]() {
       TIMELOCK((Mutex*)locker.Identity(), -1, context->Halt());
@@ -460,7 +470,7 @@ Bool Lock(Mutex& locker) {
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
 
-  return Internal::Watcher.OnLocking<Internal::Implement::Lock>(
+  return Internal::Watcher->OnLocking<Internal::Implement::Lock>(
     context,
     [&]() {
       TIMELOCK(&locker, -1, context->Halt());
@@ -476,7 +486,7 @@ Bool Unlock(Base::Lock& locker) {
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
 
-  return Watcher.OnUnlocking<Implement::Lock>(
+  return Watcher->OnUnlocking<Implement::Lock>(
     reinterpret_cast<Implement::Lock*>(Context(locker)),
     [&]() {
       do {
@@ -492,7 +502,7 @@ Bool Unlock(Mutex& locker) {
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
 
-  return Watcher.OnUnlocking<Implement::Lock>(
+  return Watcher->OnUnlocking<Implement::Lock>(
     &(Mutexes->at(ULong(&locker))),
     [&]() {
       do {
@@ -530,10 +540,10 @@ void Cleanup(void* ptr) {
         RELAX();
       }
 
-      error = Base::Internal::Watcher.OnExpiring(impl);
+      error = Base::Internal::Watcher->OnExpiring(impl);
     } while (error == EDoAgain);
 
-    INC(&Watcher._Rested);
+    INC(&Watcher->_Rested);
   }
 
   pthread_exit((void*) -1);
@@ -550,26 +560,26 @@ void Capture (Void* ptr, Bool status) {
       /* @NOTE: this thread is going to switch to waiting state and will
        * perform solving deadlock if we see it's necessary */
 
-      Watcher.OnLocking<Implement::Thread>(thread, SolveDeadlock);
+      Watcher->OnLocking<Implement::Thread>(thread, SolveDeadlock);
     } else {
       /* @NOTO: ending state of the thread, there is not much thing to do here
        * so at least it should be used to notice that we are done the thread
        * here */
 
-      if (!Watcher.OnUnlocking<Implement::Thread>(thread, None)) {
+      if (!Watcher->OnUnlocking<Implement::Thread>(thread, None)) {
         Bug(EBadAccess, Format{"unidentify thread {}"} << thread->Identity());
       }
 
-      Watcher.OnUnregister<Implement::Thread>(thread->Super()->Identity(False));
-      Watcher._Threads.erase(thread->Super());
+      Watcher->OnUnregister<Implement::Thread>(thread->Super()->Identity(False));
+      Watcher->_Threads.erase(thread->Super());
 
       /* @NOTE: when the thread reaches here, it would means that this is the
        * ending of this thread and it's safe to clean it from WatchStopper POV
        * */
       delete thread;
 
-      if (Watcher.Solved() == Watcher.Size()) {
-        Watcher.Reset();
+      if (Watcher->Solved() == Watcher->Size()) {
+        Watcher->Reset();
       }
     }
   }
@@ -597,20 +607,20 @@ void* Booting(void* ptr) {
        * want this object manage this automatically. This role should be from
        * the thread only */
 
-      if ((locked = (Watcher.Status() == Watch::Locked))) {
+      if ((locked = (Watcher->Status() == Watch::Locked))) {
         delete Thiz;
-      } else if (Watcher.Status() == Watch::Waiting) {
-        if ((locked = !Watcher.Occupy(thread))) {
+      } else if (Watcher->Status() == Watch::Waiting) {
+        if ((locked = !Watcher->Occupy(thread))) {
           delete Thiz;
         }
       } else {
-        while (!Watcher.Occupy(thread)) {
+        while (!Watcher->Occupy(thread)) {
           RELAX();
         }
       }
 
       if (!locked) {
-        Watcher.OnRegister<Implement::Thread>(thread->Identity(False));
+        Watcher->OnRegister<Implement::Thread>(thread->Identity(False));
         Register(*thread, Thiz);
       }
 
@@ -643,7 +653,7 @@ void* Booting(void* ptr) {
 
     goto bugs;
   } else {
-    INC(&Watcher._Spawned);
+    INC(&Watcher->_Spawned);
   }
 
   pthread_cleanup_push(Cleanup, ptr);
@@ -657,7 +667,7 @@ void* Booting(void* ptr) {
     } catch (std::exception& except) {
     } catch (...) {
     }
-  } else if (!locked && !(error = Internal::Watcher.OnWatching(Thiz))) {
+  } else if (!locked && !(error = Internal::Watcher->OnWatching(Thiz))) {
     /* @NOTE: invoke the main body of this thread and secure them with
      * try-catch to protect the whole system from crashing causes by
      * exceptions */
@@ -678,7 +688,7 @@ void* Booting(void* ptr) {
         RELAX();
       }
 
-      error = Internal::Watcher.OnExpiring(Thiz);
+      error = Internal::Watcher->OnExpiring(Thiz);
     } while (error == EDoAgain);
   }
 
@@ -697,7 +707,7 @@ bugs:
       delete Thiz;
     }
 
-    INC(&Watcher._Rested);
+    INC(&Watcher->_Rested);
 
 #if defined(COVERAGE)
     Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
@@ -706,7 +716,7 @@ bugs:
     throw Except(error, Format{"Thread {}: A system error happens"}.Apply(id));
 #endif
   } else {
-    INC(&Watcher._Rested);
+    INC(&Watcher->_Rested);
   }
 
   return None;
@@ -1136,7 +1146,7 @@ Bool Thread::IsStatus(Int status) {
     return LIKELY(status, (Int) GetThreadStatus(*_Thread));
   }
 
-  return Watcher.Status() == status;
+  return Watcher->Status() == status;
 }
 
 ULong Thread::Identity() {
@@ -1161,7 +1171,7 @@ ErrorCodeE Thread::SwitchTo(Int next) {
   if (IsStatus(Watch::Released)) {
     return EBadAccess;
   } else if (IsStatus(next)) {
-    if (LIKELY(next, Watch::Waiting) && LIKELY(Watcher.Main(), GetUUID())) {
+    if (LIKELY(next, Watch::Waiting) && LIKELY(Watcher->Main(), GetUUID())) {
       return ENoError;
     }
 
@@ -1169,7 +1179,7 @@ ErrorCodeE Thread::SwitchTo(Int next) {
   }
 
   /* @NOTE: switch to the correct state */
-  if (LIKELY(next, Watch::Locked) && LIKELY(ULong(GetUUID()), Watcher.Main())) {
+  if (LIKELY(next, Watch::Locked) && LIKELY(ULong(GetUUID()), Watcher->Main())) {
     next = Watch::Waiting;
   }
 
@@ -1182,7 +1192,7 @@ ErrorCodeE Thread::SwitchTo(Int next) {
           UNLIKELY(status,Watch::Unknown)) {
         return EBadAccess;
       }
-    } else if (UNLIKELY(Watcher.Status(), Watch::Unlocked)) {
+    } else if (UNLIKELY(Watcher->Status(), Watch::Unlocked)) {
       return EBadAccess;
     }
     break;
@@ -1201,11 +1211,11 @@ ErrorCodeE Thread::SwitchTo(Int next) {
                  UNLIKELY(status, Watch::Waiting) &&
                  UNLIKELY(status, Watch::Initing)) {
         return EBadAccess;
-      } else if (UNLIKELY(GetUUID(), Watcher.Main()) &&
+      } else if (UNLIKELY(GetUUID(), Watcher->Main()) &&
                  LIKELY(status, Watch::Waiting)) {
         return ENoError;
       }
-    } else if (UNLIKELY(Watcher.Status(), Watch::Waiting)) {
+    } else if (UNLIKELY(Watcher->Status(), Watch::Waiting)) {
       return EBadAccess;
     }
     break;
@@ -1223,7 +1233,7 @@ ErrorCodeE Thread::SwitchTo(Int next) {
                           Watch::Unlocked)) {
         return BadAccess.code();
       }
-    } else if (UNLIKELY(Watcher.Status(), Watch::Unlocked)) {
+    } else if (UNLIKELY(Watcher->Status(), Watch::Unlocked)) {
       return BadAccess.code();
     }
     break;
@@ -1233,7 +1243,7 @@ ErrorCodeE Thread::SwitchTo(Int next) {
      * only, and we will trigger SolveDeadlock to watch and reslove any deadlock
      * situaltions */
 
-    if (UNLIKELY(Watcher.Main(), GetUUID())) {
+    if (UNLIKELY(Watcher->Main(), GetUUID())) {
       return BadLogic.code();
     } else if (_Thread) {
       Int status;
@@ -1245,11 +1255,11 @@ ErrorCodeE Thread::SwitchTo(Int next) {
           return BadAccess(Format{"Unlocked != {}"} << status).code();
         }
       }
-    } else if (LIKELY(Watcher.Status(), Watch::Locked)) {
+    } else if (LIKELY(Watcher->Status(), Watch::Locked)) {
       return BadAccess.code();
     }
 
-    Watcher.Status() = Watch::Waiting;
+    Watcher->Status() = Watch::Waiting;
     break;
 
   case Watch::Released:
@@ -1267,7 +1277,7 @@ ErrorCodeE Thread::SwitchTo(Int next) {
   if (_Thread) {
     SetThreadStatus(*_Thread, next);
   } else {
-    Watcher.Status() = (Watch::StatusE) next;
+    Watcher->Status() = (Watch::StatusE) next;
   }
   return ENoError;
 }
@@ -1328,7 +1338,7 @@ Bool* Lock::Halt() {
 
 Bool Lock::Unlock() {
   if (_Mutex) {
-    return Watcher.OnUnlocking<Implement::Lock>(this,
+    return Watcher->OnUnlocking<Implement::Lock>(this,
       [&]() {
         _Halt = True;
       });
@@ -1480,7 +1490,7 @@ finish:
 
 Bool Lock::Increase() {
   if (LIKELY(INC(&_Count), 1)) {
-    _Ticket = Watcher.Stucks.Add(this);
+    _Ticket = Watcher->Stucks.Add(this);
   }
 
   return _Count > 0;
@@ -1497,8 +1507,8 @@ Bool Lock::Decrease() {
    * This should be deleted here because we only touch here when _Count
    * reaches to 0 */
 
-  if (!Watcher.Stucks.Del(ticket, this)) {
-    if (Watcher.Stucks.Size()) {
+  if (!Watcher->Stucks.Del(ticket, this)) {
+    if (Watcher->Stucks.Size()) {
       Notice(EBadAccess, Format{"Can\'t delete ticket {}"} << ticket);
     }
   }
@@ -1602,14 +1612,14 @@ void SolveDeadlock() {
 
   memset(marks, 0, sizeof(marks));
 
-  while (Watcher.Spawn() != Watcher.Size() || 
-         Watcher.Rest() != Watcher.Size()) {
-    if (LIKELY(Watcher.Count<Implement::Thread>(), 0)) {
+  while (Watcher->Spawn() != Watcher->Size() || 
+         Watcher->Rest() != Watcher->Size()) {
+    if (LIKELY(Watcher->Count<Implement::Thread>(), 0)) {
       goto again;
     }
 
-    if (Watcher.Count<Implement::Lock>() >
-               Watcher.Count<Implement::Thread>()) {
+    if (Watcher->Count<Implement::Lock>() >
+               Watcher->Count<Implement::Thread>()) {
       Bool tracking = False, checking = False;
 
       marks[1] = marks[0];
@@ -1620,11 +1630,11 @@ void SolveDeadlock() {
          * found and this place is used as a hook to help to optimize how many
          * time we should wait for the next probing */
 
-        // timeout = Watcher.Optimize(True, marks[1] - marks[0]);
+        // timeout = Watcher->Optimize(True, marks[1] - marks[0]);
       }
 
-      for (ULong i = 0; i < Watcher.Stucks.Size(); ++i) {
-        Implement::Lock* locker = Watcher.Stucks.At<Implement::Lock>(i + 1);
+      for (ULong i = 0; i < Watcher->Stucks.Size(); ++i) {
+        Implement::Lock* locker = Watcher->Stucks.At<Implement::Lock>(i + 1);
 
         if (!locker || !(checking = locker->Unlock())) {
           tracking = True;
@@ -1700,29 +1710,29 @@ void DumpWatch(String parameter) {
   using namespace Internal::Debug;
 
   if (parameter == "Stucks") {
-    auto curr = Watcher.Stucks._Head;
+    auto curr = Watcher->Stucks._Head;
 
-    VERBOSE << "Dump information of list Watcher.Stucks:" << EOL;
-    VERBOSE << (Format{" - List's count is {}"} << Watcher.Stucks._Count)
+    VERBOSE << "Dump information of list Watcher->Stucks:" << EOL;
+    VERBOSE << (Format{" - List's count is {}"} << Watcher->Stucks._Count)
             << EOL;
-    VERBOSE << (Format{" - List's head is {}"} << ULong(Watcher.Stucks._Head))
+    VERBOSE << (Format{" - List's head is {}"} << ULong(Watcher->Stucks._Head))
             << EOL;
-    VERBOSE << (Format{" - List's tail is {}"} << ULong(Watcher.Stucks._Curr))
+    VERBOSE << (Format{" - List's tail is {}"} << ULong(Watcher->Stucks._Curr))
             << EOL;
-    VERBOSE << (Format{" - List has {} node(s):"} << Watcher.Stucks.Size())
+    VERBOSE << (Format{" - List has {} node(s):"} << Watcher->Stucks.Size())
             << EOL;
 
-    for (UInt i = 0; i < Watcher.Stucks.Size() && curr; ++i) {
+    for (UInt i = 0; i < Watcher->Stucks.Size() && curr; ++i) {
       VERBOSE << Format{"   + {} -> {}"}.Apply(curr->_Index, (ULong)curr->_Ptr)
               << EOL;
       curr = curr->_Next;
     }
 
-    VERBOSE << (Format{" - Have {} running job(s)"} << Watcher.Stucks._Parallel)
+    VERBOSE << (Format{" - Have {} running job(s)"} << Watcher->Stucks._Parallel)
             << EOL;
 
-    for (ULong i = 0; i < Watcher.Stucks._Size[1]; ++i) {
-      auto& barrier = Watcher.Stucks._Barriers[i];
+    for (ULong i = 0; i < Watcher->Stucks._Size[1]; ++i) {
+      auto& barrier = Watcher->Stucks._Barriers[i];
 
       for (auto j = 0; j < Int(List::EEnd); ++j) {
         if (barrier.Left[j] == 0) {
@@ -1737,25 +1747,25 @@ void DumpWatch(String parameter) {
   } else if (parameter == "Counters") {
     VERBOSE << "Dump Watcher's counters:" << EOL;
     VERBOSE << Format{" - Count<Implement::Thread>() = {}"}
-                  .Apply(Watcher.Count<Implement::Thread>()) << EOL;
+                  .Apply(Watcher->Count<Implement::Thread>()) << EOL;
     VERBOSE << Format{" - Count<Implement::Lock>() = {}"}
-                  .Apply(Watcher.Count<Implement::Lock>()) << EOL; 
+                  .Apply(Watcher->Count<Implement::Lock>()) << EOL; 
   } else if (parameter == "Stucs.Unlock") {
-    VERBOSE << Format{" - Spawn() = {}"}.Apply(Watcher.Spawn()) << EOL;
-    VERBOSE << Format{" - Size() = {}"}.Apply(Watcher.Size()) << EOL;
-    VERBOSE << Format{" - Solved() = {}"}.Apply(Watcher.Solved()) << EOL;
-    VERBOSE << Format{" - Rest() = {}"}.Apply(Watcher.Rest()) << EOL;
+    VERBOSE << Format{" - Spawn() = {}"}.Apply(Watcher->Spawn()) << EOL;
+    VERBOSE << Format{" - Size() = {}"}.Apply(Watcher->Size()) << EOL;
+    VERBOSE << Format{" - Solved() = {}"}.Apply(Watcher->Solved()) << EOL;
+    VERBOSE << Format{" - Rest() = {}"}.Apply(Watcher->Rest()) << EOL;
   } else if (parameter == "Stucks.Unlock") {
-    for (ULong i = 0; i < Watcher.Stucks._Size[1]; ++i) {
+    for (ULong i = 0; i < Watcher->Stucks._Size[1]; ++i) {
       for (auto j = 0; j < Int(List::EEnd); ++j) {
-        auto index = Watcher.Stucks._Barriers[i].Left[j];
-        auto curr = Watcher.Stucks._Head;
+        auto index = Watcher->Stucks._Barriers[i].Left[j];
+        auto curr = Watcher->Stucks._Head;
 
         if (index == 0) {
           continue;
         }
 
-        for (UInt i = 0; i < Watcher.Stucks.Size() && curr; ++i) {
+        for (UInt i = 0; i < Watcher->Stucks.Size() && curr; ++i) {
           if (curr->_Index == index) {
             break;
           }

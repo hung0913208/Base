@@ -11,8 +11,8 @@ void ExitCallbackWrapper(void (*hook)()) {
 } // namespace Hook
 
 void ExitCallbackWrapper() {
-  for (UInt i = 0; i < _ExitCallbacks->size(); ++i) {
-    (*_ExitCallbacks)[i]();
+  for (UInt i = _ExitCallbacks->size(); i > 0; --i) {
+    (*_ExitCallbacks)[i - 1]();
   }
 
   delete _ExitCallbacks;
