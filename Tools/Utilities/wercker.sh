@@ -345,7 +345,7 @@ for item in json.load(sys.stdin)['results']:
 		if [[ ${#VID} -gt 0 ]]; then
 			curl -sS --request DELETE --header "Cookie: express.sid=$TOKEN" 	\
 				https://app.wercker.com/api/v3/envvars/$VID |
-			python -c "import sys, json; sys.exit(0 if 'id' in json.load(sys.stdin) else -1)"
+			python -c "import sys, json; sys.exit(-1 if 'error' in json.load(sys.stdin) else 0)"
 			exit $?
 		fi
 	fi
