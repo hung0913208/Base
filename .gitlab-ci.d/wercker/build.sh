@@ -10,45 +10,35 @@ if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
 	REPOSITORY="${PROTOCOL}://$USERNAME:$PASSWORD@$(python -c "print('${REPOSITORY}'.split('://')[1].split('@')[1])")"
 fi
 
-for IDX in {0...10}; do
-	RUN=0
+ROOT=$(realpath $(dirname $0)/../../)
+START="HOOK"
+STOP="NOTIFY"
+HOOK="export JOB=build; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
+NOTIFY="/pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; /pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}"
 
-	STATUS=$(./Tools/Utilities/wercker.sh status --token ${WERCKER} --repo ${REPO})
-	CODE=0
+function run() {
+	$ROOT/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
+	exit $?
+}
 
-	if [ $STATUS = 'passed' ] || [ $STATUS = 'finished' ]; then
-		RUN=1
-		START="HOOK"
-		STOP="NOTIFY"
-		HOOK="export JOB=build; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
-		NOTIFY="../Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; ../Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}"
+function probe() {
+	$ROOT/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}
+	exit $?
+}
 
-		if [ -d /tmp/jobs/$(date +%j) ]; then			
-			cat > /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID} << EOF
-./Tools/Utilities/wercker.sh env del --name "$START" --token ${WERCKER} --repo ${REPO}
-./Tools/Utilities/wercker.sh env del --name "$STOP" --token ${WERCKER} --repo ${REPO}
-EOF
-		fi
-
-		./Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}
-		./Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}
-		if ! ./Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}; then
-			CODE=-1
-		fi
-
-		./Tools/Utilities/wercker.sh env del --name "$START" --token ${WERCKER} --repo ${REPO}
-		./Tools/Utilities/wercker.sh env del --name "$STOP" --token ${WERCKER} --repo ${REPO}
-		if [ $CODE != 0 ]; then
-			exit $CODE
-		else
-			break
-		fi
-	else
-		sleep 600
+function plan() {
+	if ! $ROOT/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
+		exit -1
 	fi
-done
+}
 
-if [[ $RUN -eq 0 ]]; then
-	echo "[  ERROR  ]: Node so busy to perform your task, please try again later or expand the range"
-	exit -2
-fi
+CMD=$1
+shift
+
+case $CMD in
+	run) 		run $@;;
+	plan) 		plan $@;;
+	probe) 		probe $@;;
+	(*)		exit -1;;
+esac
+

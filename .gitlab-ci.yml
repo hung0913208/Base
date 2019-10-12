@@ -1,7 +1,6 @@
 stages:
   - linux
   - macos
-  - qemu
   - composer
   - reproduce
   - coverage
@@ -31,17 +30,17 @@ build_with_wercker:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/wercker/build.sh
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/build.sh --verbose
   tags:
     - Wercker
   allow_failure: true
 
 qemu_with_wercker:
-  stage: qemu
+  stage: linux
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/wercker/kernel.sh
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/kernel.sh --verbose
   tags:
     - Wercker
   allow_failure: true
@@ -56,8 +55,8 @@ build_with_travis:
     - Travis
   allow_failure: true
 
-qemu_with_linux:
-  stage: qemu
+qemu_with_travis:
+  stage: linux
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'kernel' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -121,7 +120,7 @@ pages:
   dependencies:
     - perform_reproduce_issues
     - qemu_with_wercker
-    - qemu_with_linux
+    - qemu_with_travis
     - build_with_travis
     - build_with_wercker
     - build_with_macos_7.3
