@@ -158,7 +158,10 @@ results = {}
 
 for item in json.load(sys.stdin):
 	if os.path.exists('%s.fin' % item['id']):
-		continue
+		if item['result'] == 'failed':
+			sys.exit(-1)
+		else:
+			continue
 	elif item['status'] == 'finished':
 		touch('%s.don' % item['id'])
 
@@ -184,6 +187,10 @@ while True:
 	idx += 1
 """
 ))
+
+			if [ $? != 0 ]; then
+				exit -1
+			fi
 
 			for LOG in "${LOGs[@]}"; do
 				TMP="$LOG.tmp"
