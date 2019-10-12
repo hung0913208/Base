@@ -5,6 +5,7 @@ stages:
   - reproduce
   - coverage
   - deploy
+  - cleanup
 
 default:
   before_script:
@@ -14,6 +15,8 @@ default:
   after_script:
     - if [ -f /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID} ]; then bash /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID}; fi
     - rm -fr /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID}
+    - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/build.sh --cleanup
+    - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/kernel.sh --cleanup
 
 perform_reproduce_issues:
   stage: reproduce
@@ -30,7 +33,7 @@ build_with_wercker:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
-    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/build.sh --verbose
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/build.sh 
   tags:
     - Wercker
   allow_failure: true
@@ -40,7 +43,7 @@ qemu_with_wercker:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
-    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/kernel.sh --verbose
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/kernel.sh 
   tags:
     - Wercker
   allow_failure: true
@@ -139,3 +142,11 @@ pages:
     paths:
       - public
     expire_in: 2 days
+
+cleanup:
+  stage: cleanup
+  script:
+    - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/build.sh --cleanup
+    - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/kernel.sh --cleanup
+  when: on_failure
+
