@@ -118,30 +118,33 @@ for item in json.load(sys.stdin)['items']:
 		       python -c "import sys, json; print(json.load(sys.stdin)['pipeline']['id'])")
 
 		if [[ $# -gt 2 ]]; then
-			curl -sS --request POST  										\
+			RUN=$(curl -sS --request POST  										\
 				 --header 'Content-Type: application/json' 							\
 				 --header "Cookie: express.sid=$TOKEN" 								\
 				 --data-binary "{\"pipelineId\": \"$PIPELINE\", \"branch\": \"$2\", \"commitHash\": \"$3\"}" 	\
-					'https://app.wercker.com/api/v3/runs' >& /dev/null
+					 'https://app.wercker.com/api/v3/runs' |
+			      python -c "import sys, json; print(json.load(sys.stdin)['id'])")
 		elif [[ $# -gt 2 ]]; then
-			curl -sS --request POST  							\
+			RUN=$(curl -sS --request POST  							\
 				 --header 'Content-Type: application/json' 				\
 				 --header "Cookie: express.sid=$TOKEN" 					\
 				 --data-binary "{\"pipelineId\": \"$PIPELINE\", \"branch\": \"$2\"}" 	\
-					'https://app.wercker.com/api/v3/runs' >& /dev/null
+					'https://app.wercker.com/api/v3/runs' |
+			      python -c "import sys, json; print(json.load(sys.stdin)['id'])")
 		else
-			curl -sS --request POST  					\
+			RUN=$(curl -sS --request POST  					\
 				 --header 'Content-Type: application/json' 		\
 				 --header "Cookie: express.sid=$TOKEN" 			\
 				 --data-binary "{\"pipelineId\": \"$PIPELINE\"}" 	\
-					'https://app.wercker.com/api/v3/runs' >& /dev/null
+					'https://app.wercker.com/api/v3/runs' |
+			      python -c "import sys, json; print(json.load(sys.stdin)['id'])")
 		fi
 
 
 		while [ 1 ]; do
 			sleep 3
 			LOGs=($(curl -g -sS --request GET --header "Cookie: express.sid=$TOKEN" \
-					"https://app.wercker.com/api/v3/runs/$ID/steps" |
+					"https://app.wercker.com/api/v3/runs/$RUN/steps" |
 				python -c """
 import sys, json, os
 
