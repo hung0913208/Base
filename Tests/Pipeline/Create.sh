@@ -84,7 +84,7 @@ function start() {
 	HOOKS=($(printenv | grep HOOK))
 	IFS=$SAVE
 	
-	info "Start a new job"
+	info "Start a new job $JID"
 	if [[ ${#HOOKS[@]} -gt 0 ]]; then
 		for ITEM in "${HOOKS[@]}"; do
 			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
@@ -98,7 +98,7 @@ function start() {
 		for ITEM in "${HOOKS[@]}"; do
 			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
 
-			if [ "$NAME" != 'HOOK_BOT' ] && [ "$NAME" != 'HOOK_TOP' ] && [[ ! "$NAME" =~ "NOTIFY"* ]]; then
+			if [ "$NAME" != 'HOOK_BOT' ] && [ "$NAME" != 'HOOK_TOP' ] && [[ ! "$NAME" =~ "NOTIFY"* ]] && [[ ! "$NAME" =~ "DEPART"* ]]; then
 				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
 			fi
 		done
@@ -114,14 +114,14 @@ function start() {
 	fi
 }
 
-function stop() {
+function notify() {
 	SAVE=$IFS
 	IFS=$'\n'
 
 	HOOKS=($(printenv | grep NOTIFY))
 	IFS=$SAVE
 
-	info "Stop the job"
+	info "Receive the job $JID"
 
 	if [[ ${#HOOKS[@]} -gt 0 ]]; then
 		for ITEM in "${HOOKS[@]}"; do
@@ -136,7 +136,7 @@ function stop() {
 		for ITEM in "${HOOKS[@]}"; do
 			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
 
-			if [ "$NAME" != 'NOTIFY_BOT' ] && [ "$NAME" != 'NOTIFY_TOP' ] && [[ ! "$NAME" =~ "HOOK"* ]]; then
+			if [ "$NAME" != 'NOTIFY_BOT' ] && [ "$NAME" != 'NOTIFY_TOP' ] && [[ ! "$NAME" =~ "HOOK"* ]] && [[ ! "$NAME" =~ "DEPART"* ]]; then
 				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
 			fi
 		done
@@ -145,6 +145,43 @@ function stop() {
 			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
 
 			if [ "$NAME" = 'NOTIFY_BOT' ]; then	
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+				break
+			fi
+		done
+	fi
+}
+
+function stop() {
+	SAVE=$IFS
+	IFS=$'\n'
+
+	HOOKS=($(printenv | grep HOOK))
+	IFS=$SAVE
+	
+	info "Stop the job $JID"
+	if [[ ${#HOOKS[@]} -gt 0 ]]; then
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" = 'DEPART_TOP' ]; then
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+				break
+			fi
+		done
+
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" != 'DEPART_BOT' ] && [ "$NAME" != 'DEPART_TOP' ] && [[ ! "$NAME" =~ "NOTIFY"* ]] && [[ ! "$NAME" =~ "HOOK"* ]]; then
+				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
+			fi
+		done
+
+		for ITEM in "${HOOKS[@]}"; do
+			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
+
+			if [ "$NAME" = 'DEPART_BOT' ]; then	
 				echo "$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[a.find('=') + 1:]);")" >> ./HOOK
 				break
 			fi
@@ -179,6 +216,20 @@ if [ -f ./HOOK ]; then
 	rm -fr ./HOOK
 fi
 
+notify
+if [ -f ./HOOK ]; then
+	$SU chmod +x ./HOOK
+
+	if [ $? = 0 ]; then
+		if ! bash ./HOOK; then	
+			info "script HOOK is corrupted please check again i will do with default configure"
+			cat ./HOOK
+		fi
+	fi
+
+	rm -fr ./HOOK
+fi
+
 for CMD in $CMDS; do
 	if [ ! $(which "$CMD") ]; then
 		METHOD=0
@@ -194,8 +245,6 @@ fi
 if [[ ${#JOB} -gt 0 ]]; then
 	if [[ "$JOB" != "reproduce" ]] && [[ "$JOB" != "build" ]]; then
 		exit 0
-	else
-		info "Peform job $JOB"
 	fi
 fi
 
@@ -331,9 +380,7 @@ if [ -f ./HOOK ]; then
 	$SU chmod +x ./HOOK
 
 	if [ $? = 0 ]; then
-		source ./HOOK
-		
-		if [ $? != 0 ]; then
+		if ! bash ./HOOK; then
 			info "script HOOK is corrupted please check again i will do with default configure"
 			cat ./HOOK
 		fi
