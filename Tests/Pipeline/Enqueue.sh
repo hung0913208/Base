@@ -17,11 +17,13 @@ source $PIPELINE/Libraries/Package.sh
 shift
 
 function cleanup() {
-	cat $PIPELINE/cleanup.pid | while read JOB; do
-		rm -fr /tmp/.enqueue/$JOB
-	done
+	if [ -f $PIPELINE/cleanup.pid ]; then
+		cat $PIPELINE/cleanup.pid | while read JOB; do
+			rm -fr /tmp/.enqueue/$JOB
+		done
 
-	rm -fr $PIPELINE/cleanup.pid
+		rm -fr $PIPELINE/cleanup.pid
+	fi
 }
 
 while [ $# -gt 0 ]; do
