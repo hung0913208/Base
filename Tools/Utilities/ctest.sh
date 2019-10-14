@@ -98,15 +98,9 @@ else:
 
 	COREFILE=$(find . -maxdepth 1 -name "$PATTERN" | head -n 1)
 	if [[ -f "$COREFILE" ]]; then
-		echo "[  ERROR  ] found cordump during runing $2:"
-		coredump $FILE
 		CODE=2
 	fi
 
-	if [ $CODE != 0 ]; then
-		echo "[  ERROR  ] run $2 fail"
-	fi
-	echo ""
 	return $CODE
 }
 
@@ -126,7 +120,11 @@ compress_coredump(){
 
 coredump(){
 	FILE=$1
-	PATTERN=$(python -c """
+
+	if echo "$($SU cat /proc/sys/kernel/core_pattern)" | grep "false" >& /dev/null; then
+		return 0
+	else
+		PATTERN=$(python -c """
 import os
 
 pattern = '$($SU cat /proc/sys/kernel/core_pattern)'
@@ -155,27 +153,34 @@ for c in pattern:
 else:
 	print(result)
 """)
-	COREFILE=$(find . -maxdepth 1 -name "$PATTERN" | head -n 1)
 
-	if [[ -f "$COREFILE" ]]; then
-		info "check coredump of $FILE -> found $COREFILE"
-	else
-		info "check coredump of $FILE -> not found"
-	fi
+		find . -maxdepth 1 -name "$PATTERN"
+		COREFILE=$(find . -maxdepth 1 -name "$PATTERN" | head -n 1)
 
-	if [[ -f "$COREFILE" ]]; then
-		gdb -c "$COREFILE" "$FILE" -ex "thread apply all bt" -ex "set pagination 0" -batch;
-		compress_coredump $COREFILE $FILE "$(pwd)/$(git rev-parse --verify HEAD).zip"
+		if [[ -f "$COREFILE" ]]; then
+			info "check coredump of $FILE -> found $COREFILE"
+			echo ""
+		else
+			info "check coredump of $FILE -> not found"
+		fi
 
-		if [ -f "$(pwd)/$(git rev-parse --verify HEAD).zip" ]; then
-			info "send  $(pwd)/$(git rev-parse --verify HEAD).zip to $EMAIL_AUTHOR"
+		if [[ -f "$COREFILE" ]]; then
+			gdb -c "$COREFILE" "$FILE" -ex "bt" -ex "set pagination 0" -batch;
+			compress_coredump $COREFILE $FILE "$(pwd)/$(git rev-parse --verify HEAD).zip"
 
-			if [ -f $ROOT/Tools/Utilities/fsend.sh ]; then
-				$ROOT/Tools/Utilities/fsend.sh upload "$(pwd)/$(git rev-parse --verify HEAD).zip" $EMAIL_AUTHOR
-			elif [ -f $BASE/Tools/Utilities/fsend.sh ]; then
-				$BASE/Tools/Utilities/fsend.sh upload "$(pwd)/$(git rev-parse --verify HEAD).zip" $EMAIL_AUTHOR
-			else
-				warning "can't find tool fsend.sh to upload $(pwd)/$(git rev-parse --verify HEAD).zip to $EMAIL_AUTHOR"
+			if [ -f "$(pwd)/$(git rev-parse --verify HEAD).zip" ]; then
+				echo ""
+				info "send  $(pwd)/$(git rev-parse --verify HEAD).zip to $EMAIL_AUTHOR"
+
+				if [ -f $ROOT/Tools/Utilities/fsend.sh ]; then
+					$ROOT/Tools/Utilities/fsend.sh upload "$(pwd)/$(git rev-parse --verify HEAD).zip" $EMAIL_AUTHOR
+					echo ""
+				elif [ -f $BASE/Tools/Utilities/fsend.sh ]; then
+					$BASE/Tools/Utilities/fsend.sh upload "$(pwd)/$(git rev-parse --verify HEAD).zip" $EMAIL_AUTHOR
+					echo ""
+				else
+					warning "can't find tool fsend.sh to upload $(pwd)/$(git rev-parse --verify HEAD).zip to $EMAIL_AUTHOR"
+				fi
 			fi
 		fi
 	fi
@@ -231,7 +236,7 @@ if [ -d "./$1" ]; then
 	fi
 
 	# @NOTE: enable coredump produce since some system may hidden it
-	$SU sysctl -w kernel.core_pattern="$(pwd)/core-%e.%p.%h.%t"
+	$SU sysctl -w kernel.core_pattern="core-%e.%p.%h.%t"
 	ulimit -c unlimited
 
 	if [ "$1" == "Debug" ] || [ "$1" == "Release" ] || [ "$1" == "Coverage" ]; then
@@ -242,32 +247,39 @@ if [ -d "./$1" ]; then
 		echo "Run directly on this environment"
 		echo "=============================================================================="
 
+		FAIL=0
 		if [ "$1" != "Coverage" ]; then
-			ctest --verbose --timeout 1
-			CODE=$?
+			if ! ctest --verbose --timeout 1; then
+				FAIL=1
+			fi
 		else
+			IDX=0
 			for FILE in ./Tests/*; do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
+					IDX=$((IDX+1))
+
+					echo "        Start  $IDX: $(basename $FILE)"
+					echo "Test command: $FILE"
+					echo ""
+
 					if ! exec_with_timeout -1 $FILE; then
-						touch fail
+						echo "$IDX/ Test  #$IDX:  .............................   Failed"
+						echo ""
+						FAIL=1
+					else
+						echo "$IDX/ Test  #$IDX:  .............................   Passed"
+						echo ""
 					fi
 				fi
 			done
-
-			if [ -f fail ]; then
-				CODE=1
-			fi
-
-			rm -fr fail
 		fi
 		echo "------------------------------------------------------------------------------"
 		echo ""
 
-		if [ "$1" = "Sanitize" ]; then
-			if [[ $CODE -ne 0 ]]; then
-				EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
-				CODE=-1
+		if [[ $FAIL -ne 0 ]]; then
+			EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
 
+			if ! echo "$($SU cat /proc/sys/kernel/core_pattern)" | grep "false" >& /dev/null; then
 				echo "Check coredump"
 				echo "=============================================================================="
 
@@ -279,7 +291,9 @@ if [ -d "./$1" ]; then
 				echo "------------------------------------------------------------------------------"
 				echo ""
 			fi
+		fi
 
+		if [ "$1" = "Sanitize" ]; then
 			if [[ $# -gt 1 ]]; then
 				if [ $2 == "symbolize" ]; then
 					export ASAN_OPTIONS=symbolize=1
@@ -288,8 +302,9 @@ if [ -d "./$1" ]; then
 
 					for FILE in ./Tests/*; do
 						if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
-							$FILE
-							coredump $FILE
+							if ! $FILE; then
+								coredump $FILE
+							fi
 						fi
 					done
 					echo "------------------------------------------------------------------------------"
@@ -301,8 +316,9 @@ if [ -d "./$1" ]; then
 
 					for FILE in ./Tests/*; do
 						if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
-							$FILE
-							coredump $FILE
+							if ! $FILE; then
+								coredump $FILE
+							fi
 						fi
 					done
 					echo "------------------------------------------------------------------------------"
@@ -311,7 +327,7 @@ if [ -d "./$1" ]; then
 			fi
 		fi
 
-		if [[ $CODE -eq 0 ]] && [[ $# -lt 2 ]] && [ "$1" != "Sanitize" ]; then
+		if [[ $FAIL -eq 0 ]] && [[ $# -lt 2 ]] && [ "$1" != "Sanitize" ]; then
 			# @NOTE: test with gdb in order to verify slowing down effect to detect rare issues
 
 			echo "Run with GDB"
@@ -328,10 +344,10 @@ if [ -d "./$1" ]; then
 					echo "$OUTPUT"
 
 					if ! echo "$OUTPUT" | grep "exited normally" >& /dev/null; then
-						CODE=-2
+						FAIL=-2
 
 						if ! echo "$OUTPUT" | grep "exited with code" >& /dev/null; then
-							CODE=-1
+							FAIL=-1
 						fi
 					fi
 				fi
@@ -341,12 +357,26 @@ if [ -d "./$1" ]; then
 			echo ""
 		fi
 	else
-		if [ "$(ctest --verbose)" -ne 0 ]; then
+		if ! "$(ctest --verbose)"; then
+			EMAIL_AUTHOR=$(git --no-pager show -s --format='%ae' HEAD)
+
+			if ! echo "$($SU cat /proc/sys/kernel/core_pattern)" | grep "false" >& /dev/null; then
+				echo "Check coredump"
+				echo "=============================================================================="
+	
+				for FILE in ./Tests/*; do
+					if [ -x "$FILE" ]; then
+						coredump $FILE
+					fi
+				done
+				echo "------------------------------------------------------------------------------"
+				echo ""
+			fi
 			exit -1
 		fi
 	fi
 	cd "$CURRENT" || error "can't cd to $CURRENT"
-	exit $CODE
+	exit $FAIL
 else
 	error "Please run \"reinstall.sh $1\" first"
 fi
