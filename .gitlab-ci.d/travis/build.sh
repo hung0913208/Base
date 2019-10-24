@@ -1,6 +1,22 @@
 #!/bin/bash
 
 BASE=$(dirname $0)/../../
+SAVE=$IFS
+KEEP=1
+
+IFS=$'\n'
+IGNORANCEs=($(git log --format=%B -n 1 HEAD | grep " Ignored "))
+IFS=$SAVE
+
+for IGNORE in ${IGNORANCEs[@]}; do
+	if echo $IGNORE | grep "build.sh\|all"; then
+		KEEP=0
+	fi
+done
+
+if [[ $KEEP -eq 0 ]]; then
+	exit 0
+fi
 
 if [[ ${#REPOSITORY} -gt 0 ]] && [[ ${#BRANCH} -gt 0 ]]; then
 	if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then

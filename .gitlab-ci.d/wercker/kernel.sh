@@ -1,5 +1,22 @@
 #!/bin/bash
 
+SAVE=$IFS
+KEEP=1
+
+IFS=$'\n'
+IGNORANCEs=($(git log --format=%B -n 1 HEAD | grep " Ignored "))
+IFS=$SAVE
+
+for IGNORE in ${IGNORANCEs[@]}; do
+	if echo $IGNORE | grep "kernel.sh\|all"; then
+		KEEP=0
+	fi
+done
+
+if [[ $KEEP -eq 0 ]]; then
+	exit 0
+fi
+
 if [[ ${#REPOSITORY} -eq 0 ]] || [[ ${#BRANCH} -eq 0 ]]; then
 	REPOSITORY=${CI_REPOSITORY_URL}
 	BRANCH=${CI_COMMIT_REF_NAME}
