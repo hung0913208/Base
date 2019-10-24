@@ -1,5 +1,7 @@
 #!/bin/bash
 
+BASE=$(dirname $0)/../../
+
 if [[ ${#REPOSITORY} -gt 0 ]] && [[ ${#BRANCH} -gt 0 ]]; then
 	if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
 		PROTOCOL=$(python -c "print('${REPOSITORY}'.split('://')[0])")
@@ -17,7 +19,7 @@ for JOB in $(python -c "for v in '$1'.split(';'): print(v)"); do
 	RUN=0
 
 	for IDX in `seq ${BEGIN} ${END}`; do
-		STATUS=$(./Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
+		STATUS=$($BASE/Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
 
 		if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
 			START="HOOK${JOB}_gitlab_${CI_JOB_ID}"
@@ -34,11 +36,11 @@ for JOB in $(python -c "for v in '$1'.split(';'): print(v)"); do
 EOF
 			fi
 
-			./Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
-			./Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
+			$BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
+			$BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
 
 			RUN=1
-			if ! ./Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}; then
+			if ! $BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}; then
 				CODE=-1
 			fi
 

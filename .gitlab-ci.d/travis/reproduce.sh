@@ -1,5 +1,7 @@
 #!/bin/bash
 
+BASE=$(dirname $0)/../../
+
 if [[ ${#REPOSITORY} -gt 0 ]] && [[ ${#BRANCH} -gt 0 ]]; then
 	if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
 		PROTOCOL=$(python -c "print('${REPOSITORY}'.split('://')[0])")
