@@ -7,7 +7,7 @@ JOB=$2
 IDX=$3
 
 if [ $POS = 'master' ]; then
-	$BASE/Tools/Utilities/travis.sh env list --token ${TOKEN} --repo ${REPO} --script "/usr/bin/bash $0 slaver $2 $3"
+	$BASE/Tools/Utilities/travis.sh env list --token ${TRAVIS} --repo ${REPO} --script "/usr/bin/bash $0 slaver $2 $3"
 elif [ $POS = 'all' ]; then
 	for CRON in /tmp/jobs/*; do
 		if [ ! -d $CRON ]; then
@@ -24,7 +24,7 @@ else
 
 	if [[ $NAME =~ "HOOK$JOB"* ]]; then
 		if ! echo $VALUE | grep "$JOB.$IDX" >& /dev/null; then
-			$BASE/Tools/Utilities/travis.sh env del --name $NAME --token ${TOKEN} --repo ${REPO}
+			$BASE/Tools/Utilities/travis.sh env del --name $NAME --token ${TRAVIS} --repo ${REPO}
 		fi
 	fi
 fi
