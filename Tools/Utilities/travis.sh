@@ -626,6 +626,47 @@ elif not 'id' in resp['env_var']:
 """
 
 		exit $?
+	elif [ $1 = 'exist' ]; then
+		shift
+
+		if ! options=$(getopt -l repo,token,name,token: -- "$@"); then
+			error "Can' parse $0 env set $@"
+		fi
+
+		while [ $# -gt 0 ]; do
+			case $1 in
+				--token)	TOKEN="$2"; shift;;
+				--name)		NAME="$2"; shift;;
+				--repo)		REPO="$2"; shift;;
+				(--) 		shift; break;;
+				(-*) 		error "unrecognized option $1";;
+				(*) 		break;;
+			esac
+			shift
+		done
+
+		REPO=$(repository $REPO)
+
+		exec {LOCK}>/var/lock/travis || error "can't create lock /var/lock/travis"
+		flock -n "$LOCK" || { echo "ERROR: flock() failed." >&2; exit 1; }
+
+		curl -sS --request GET 							\
+                              --header "Authorization: token $TOKEN"     		\
+			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
+		python -c """
+import json, sys
+
+env = json.load(sys.stdin)
+for item in env['env_vars']:
+	if '$NAME' == item['name']:
+		sys.exit(0)
+else:
+	sys,exit(-1)
+		"""
+		CODE=$?
+		flock -u "$LOCK"
+
+		exit $CODE
 	elif [ $1 = 'list' ]; then
 		shift
 
@@ -646,7 +687,7 @@ elif not 'id' in resp['env_var']:
 		done
 
 		REPO=$(repository $REPO)
-		curl -sS --request GET 						\
+		curl -sS --request GET 							\
                               --header "Authorization: token $TOKEN"     		\
 			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
 		python -c """
