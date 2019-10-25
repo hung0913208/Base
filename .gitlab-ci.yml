@@ -1,9 +1,5 @@
 stages:
-  - linux
-  - macos
-  - composer
-  - reproduce
-  - coverage
+  - test
   - deploy
   - cleanup
 
@@ -19,7 +15,7 @@ default:
     - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/kernel.sh --cleanup
 
 perform_reproduce_issues:
-  stage: reproduce
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'reproduce' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -29,7 +25,7 @@ perform_reproduce_issues:
   allow_failure: true
 
 build_with_wercker:
-  stage: linux
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
@@ -39,7 +35,7 @@ build_with_wercker:
   allow_failure: true
 
 qemu_with_wercker:
-  stage: linux
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
@@ -49,7 +45,7 @@ qemu_with_wercker:
   allow_failure: true
 
 build_with_travis:
-  stage: linux
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -59,7 +55,7 @@ build_with_travis:
   allow_failure: true
 
 qemu_with_travis:
-  stage: linux
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'kernel' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -69,7 +65,7 @@ qemu_with_travis:
   allow_failure: true
  
 build_with_macos_7.3:
-  stage: macos
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -79,7 +75,7 @@ build_with_macos_7.3:
   allow_failure: true
 
 build_with_macos_8.3:
-  stage: macos
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -89,7 +85,7 @@ build_with_macos_8.3:
   allow_failure: true
 
 build_with_macos_9.1:
-  stage: macos
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -99,7 +95,7 @@ build_with_macos_9.1:
   allow_failure: true
 
 build_with_macos_9.2:
-  stage: macos
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -109,7 +105,7 @@ build_with_macos_9.2:
   allow_failure: true
 
 build_with_macos_9.3:
-  stage: macos
+  stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
     - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
@@ -117,31 +113,6 @@ build_with_macos_9.3:
   tags:
     - Travis
   allow_failure: true
-
-pages:
-  stage: deploy
-  dependencies:
-    - perform_reproduce_issues
-    - qemu_with_wercker
-    - qemu_with_travis
-    - build_with_travis
-    - build_with_wercker
-    - build_with_macos_7.3
-    - build_with_macos_8.3
-    - build_with_macos_9.1
-    - build_with_macos_9.2
-    - build_with_macos_9.3
-  script:
-    - mkdir -p public
-    - if [ -d ./Coverages ]; then cp -a ./Coverages public; fi
-    - if [ -d ./Logs ]; then cp -a ./Logs public; fi
-    - if [ -n "$(find public -maxdepth 0 -type d -empty 2>/dev/null)" ]; then touch public/.lock; fi
-  tags:
-    - Travis
-  artifacts:
-    paths:
-      - public
-    expire_in: 2 days
 
 cleanup:
   stage: cleanup
