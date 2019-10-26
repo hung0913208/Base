@@ -27,25 +27,69 @@ if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
 	REPOSITORY="${PROTOCOL}://$USERNAME:$PASSWORD@$(python -c "print('${REPOSITORY}'.split('://')[1].split('@')[1])")"
 fi
 
-ROOT=$(realpath $(dirname $0)/../../)
+
+BASE=$(realpath $(dirname $0)/../../)
 START="HOOK"
 STOP="NOTIFY"
 HOOK="export JOB=build; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
 NOTIFY="/pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; /pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}"
 
 function run() {
-	$ROOT/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
-	exit $?
+	if [[ $(wc -c /var/lock/wercker/${CI_JOB_ID} | awk '{print $1}') -gt 0 ]]; then
+		$BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO} --script "/var/lock/wercker/${CI_JOB_ID}"
+		CODE=$?
+	else
+		$BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
+		CODE=$?
+	fi
+
+	rm -fr /var/lock/wercker/${CI_JOB_ID}
+	exit $CODE
 }
 
 function probe() {
-	$ROOT/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}
-	exit $?
+	mkdir -p /var/lock/wercker
+
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--os)		OS="$2"; shift;;
+			--labs)		shift;;
+			(--) 		shift; break;;
+			(*) 		break;;
+		esac
+		shift
+	done
+
+	if [ $OS = 'linux' ]; then
+		if [[ $(ls -1 /var/lock/wercker | wc -l) -lt 2 ]]; then
+			$BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}
+			CODE=$?
+
+			if [[ $(ls -1 /var/lock/wercker | wc -l) -lt 1 ]]; then
+				cat > /var/lock/wercker/${CI_JOB_ID} << EOF
+#!/bin/bash
+
+$BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
+EOF
+				chmod +x /var/lock/wercker/${CI_JOB_ID}
+			else
+				touch /var/lock/wercker/${CI_JOB_ID}
+			fi
+
+			exit $CODE
+		else
+			exit -1
+		fi
+	else
+		exit -1
+	fi
 }
 
 function plan() {
-	if ! $ROOT/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
-		exit -1
+	if [[ $(wc -c /var/lock/wercker/${CI_JOB_ID} | awk '{print $1}') -eq 0 ]]; then
+		if ! $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
+			exit -1
+		fi
 	fi
 }
 

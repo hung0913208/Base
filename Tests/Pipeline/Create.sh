@@ -84,7 +84,6 @@ function start() {
 	HOOKS=($(printenv | grep HOOK))
 	IFS=$SAVE
 	
-	info "Start a new job $JID"
 	if [[ ${#HOOKS[@]} -gt 0 ]]; then
 		for ITEM in "${HOOKS[@]}"; do
 			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
@@ -120,8 +119,6 @@ function notify() {
 
 	HOOKS=($(printenv | grep NOTIFY))
 	IFS=$SAVE
-
-	info "Receive the job $JID"
 
 	if [[ ${#HOOKS[@]} -gt 0 ]]; then
 		for ITEM in "${HOOKS[@]}"; do
@@ -159,7 +156,6 @@ function stop() {
 	HOOKS=($(printenv | grep HOOK))
 	IFS=$SAVE
 	
-	info "Stop the job $JID"
 	if [[ ${#HOOKS[@]} -gt 0 ]]; then
 		for ITEM in "${HOOKS[@]}"; do
 			NAME=$(echo "$ITEM" | python -c "import sys; a = sys.stdin.readlines()[0]; print(a[0:a.find('=')]);")
@@ -210,7 +206,10 @@ if [ -f ./HOOK ]; then
 		if [ $? != 0 ]; then
 			info "script HOOK is corrupted please check again i will do with default configure"
 			cat ./HOOK
+		else
+			info "Start a new job $JID"
 		fi
+
 	fi
 
 	rm -fr ./HOOK
@@ -224,6 +223,8 @@ if [ -f ./HOOK ]; then
 		if ! bash ./HOOK; then	
 			info "script HOOK is corrupted please check again i will do with default configure"
 			cat ./HOOK
+		else
+			info "Receive the job $JID"
 		fi
 	fi
 
@@ -383,6 +384,8 @@ if [ -f ./HOOK ]; then
 		if ! bash ./HOOK; then
 			info "script HOOK is corrupted please check again i will do with default configure"
 			cat ./HOOK
+		else
+			info "Stop the job $JID"
 		fi
 	fi
 

@@ -455,7 +455,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console'
 	fi
 	shift
 	
-	if ! options=$(getopt -l token,patch,job,repo: -- "$@"); then
+	if ! options=$(getopt -l token,patch,job,repo,script: -- "$@"); then
 		error "Can' parse $0 $TASK $@"
 	fi
 
@@ -465,6 +465,13 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console'
 			--repo)		REPO="$2"; shift;;
 			--patch)	BUILD="$2"; shift;;
 			--token)	TOKEN="$2" ; shift;;
+			--script)
+					if [ $TASK = 'restart' ]; then
+						SCRIPT=$2
+						shift
+					else
+						error "unrecognized option $1"
+					fi;;
 			(--) 		shift; break;;
 			(-*) 		error "unrecognized option $1";;
 			(*) 		break;;
@@ -520,6 +527,10 @@ print(unquote_plus(json.load(sys.stdin)['content']))
 				log $BUILD $ID
 			fi
 		elif restart 'job' $JOB $BUILD; then
+			if [[ ${#SCRIPT} -gt 0 ]]; then
+				$SCRIPT
+			fi
+
 			console 'restarted' $JOB $PUSHER
 		elif [ $(status $BUILD $ID) = 'started' ]; then
 			console 'started' $JOB $PUSHER $BUILD $ID
@@ -647,9 +658,6 @@ elif not 'id' in resp['env_var']:
 
 		REPO=$(repository $REPO)
 
-		exec {LOCK}>/var/lock/travis || error "can't create lock /var/lock/travis"
-		flock -n "$LOCK" || { echo "ERROR: flock() failed." >&2; exit 1; }
-
 		curl -sS --request GET 							\
                               --header "Authorization: token $TOKEN"     		\
 			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
@@ -663,10 +671,7 @@ for item in env['env_vars']:
 else:
 	sys,exit(-1)
 		"""
-		CODE=$?
-		flock -u "$LOCK"
-
-		exit $CODE
+		exit $?
 	elif [ $1 = 'list' ]; then
 		shift
 

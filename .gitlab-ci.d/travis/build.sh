@@ -30,44 +30,82 @@ else
 fi
 
 CODE=0
+START="HOOK"
+STOP="NOTIFY"
+HOOK="\\\"export JOB='build'; echo '$REPOSITORY $BRANCH' >> ./repo.list\\\""
+NOTIFY="\\\"../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO};../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}\\\""
 
-for JOB in $(python -c "for v in '$1'.split(';'): print(v)"); do
-	RUN=0
+function run() {
+	LABs=''
 
-	for IDX in `seq ${BEGIN} ${END}`; do
-		STATUS=$($BASE/Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
-
-		if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
-			START="HOOK${JOB}_gitlab_${CI_JOB_ID}"
-			STOP="NOTIFY${JOB}_gitlab_${CI_JOB_ID}"
-			HOOK="\\\"if [ \\\\\$TRAVIS_JOB_NUMBER = '$IDX.$JOB' ]; then export JOB='build'; echo '$REPOSITORY $BRANCH' >> ./repo.list; ADOPTED=1; fi\\\""
-			NOTIFY="\\\"if [ \\\\\$TRAVIS_JOB_NUMBER = '$IDX.$JOB' ]; then ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}; fi\\\""
-
-			if ! $(dirname $0)/clean.sh master $IDX $JOB; then
-				continue
-			elif [ -d /tmp/jobs/$(date +%j) ]; then			
-				cat > /tmp/jobs/$(date +%j)/${CI_CONCURRENT_ID}_${CI_CONCURRENT_PROJECT_ID} << EOF
-./Tools/Utilities/travis.sh env del --name "$START" --token ${TRAVIS} --repo ${REPO}
-./Tools/Utilities/travis.sh env del --name "$STOP" --token ${TRAVIS} --repo ${REPO}
-EOF
-			fi
-
-			$BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
-			$BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
-
-			RUN=1
-			if ! $BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}; then
-				CODE=-1
-			fi
-
-			break
-		fi
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--labs)		LABs="$2"; shift;;
+			--os)		shift;;
+			(--) 		shift; break;;
+			(*) 		break;;
+		esac
+		shift
 	done
 
-	if [[ $RUN -eq 0 ]]; then
-		echo "[  ERROR  ]: Node so busy to perform your task, please try again later or expand the range"
-		exit -2
-	fi
-done
+	for IDX in $(seq $BEGIN $END); do
+		for JOB in $(python -c "for v in '$LABs'.split(';'): print(v)"); do
+			STATUS=$($BASE/Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
 
-exit $CODE
+			if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
+				if [[ $(wc -c /var/lock/travis/${CI_JOB_ID} | awk '{print $1}') -gt 0 ]]; then
+					$BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO} --script "/var/lock/travis/${CI_JOB_ID}"
+					CODE=$?
+				else
+					$BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
+					CODE=$?
+				fi
+
+				rm -fr /var/lock/travis/${CI_JOB_ID}
+				exit $CODE
+			fi
+		done
+	done
+
+	exit -1
+}
+
+function probe() {
+	mkdir -p /var/lock/travis
+
+	if $BASE/Tools/Utilities/travis.sh env exist --name "$START" --token ${TRAVIS} --repo ${REPO}; then
+		exit -1
+	elif [[ $(ls -1 /var/lock/travis | wc -l) -lt 4 ]]; then
+		if [[ $(ls -1 /var/lock/travis | wc -l) -lt 3 ]]; then
+			cat > /var/lock/travis/${CI_JOB_ID} << EOF
+#!/bin/bash
+
+$BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
+EOF
+
+			chmod +x /var/lock/travis/${CI_JOB_ID}	
+		else
+			touch /var/lock/travis/${CI_JOB_ID}
+		fi
+	else
+		exit -1
+	fi
+}
+
+function plan() {
+	$BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
+
+	if [[ $(wc -c /var/lock/travis/${CI_JOB_ID} | awk '{print $1}') -eq 0 ]]; then
+		$BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
+	fi
+}
+
+CMD=$1
+shift
+
+case $CMD in
+	run) 		run $@;;
+	plan) 		plan $@;;
+	probe) 		probe $@;;
+	(*)		exit -1;;
+esac

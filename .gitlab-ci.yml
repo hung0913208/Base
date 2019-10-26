@@ -14,110 +14,32 @@ default:
     - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/build.sh --cleanup
     - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/kernel.sh --cleanup
 
-perform_reproduce_issues:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'reproduce' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/reproduce.sh ${REPRODUCES}
-  tags:
-    - Travis
-  allow_failure: true
-
-build_with_wercker:
+perform_testing_on_linux:
   stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
-    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/build.sh 
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/build.sh -- --labs ${LINUX} --os linux
   tags:
-    - Wercker
+    - Yggdrasil
   allow_failure: true
 
-qemu_with_wercker:
+perform_reproducing_on_linux:
   stage: test
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
-    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/wercker/kernel.sh 
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/reproduce.sh -- --labs ${LINUX} --os linux
   tags:
-    - Wercker
-  allow_failure: true
-
-build_with_travis:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/build.sh ${BUILDS}
-  tags:
-    - Travis
-  allow_failure: true
-
-qemu_with_travis:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'kernel' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/kernel.sh ${KERNELS}
-  tags:
-    - Travis
+    - Yggdrasil
   allow_failure: true
  
-build_with_macos_7.3:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/build.sh 8
-  tags:
-    - Travis
-  allow_failure: true
-
-build_with_macos_8.3:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/build.sh 9
-  tags:
-    - Travis
-  allow_failure: true
-
-build_with_macos_9.1:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/build.sh 11
-  tags:
-    - Travis
-  allow_failure: true
-
-build_with_macos_9.2:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/build.sh 12
-  tags:
-    - Travis
-  allow_failure: true
-
-build_with_macos_9.3:
-  stage: test
-  script:
-    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'macos' ]; then exit 0; fi
-    - if [[ ${#TRAVIS} -eq 0 ]]; then exit 0; fi
-    - ./.gitlab-ci.d/travis/build.sh 13
-  tags:
-    - Travis
-  allow_failure: true
-
 cleanup:
   stage: cleanup
   script:
     - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/build.sh --cleanup
     - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/wercker/kernel.sh --cleanup
+  tags:
+    - Yggdrasil
   when: on_failure
 

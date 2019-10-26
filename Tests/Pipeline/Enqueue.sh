@@ -58,7 +58,7 @@ while [ 1 ]; do
 	# variable. I assume there is no racing here because we can't create the
 	# same variable at the same time.
 
-	if $VERBOSE $SCRIPT probe; then
+	if $VERBOSE $SCRIPT probe $@; then
 		break
 	else
 		sleep 30
@@ -75,7 +75,7 @@ if $VERBOSE $SCRIPT plan; then
 	# @STEP 6: the job has already been on-board and we should run it now to collect
 	# log from the ci
 
-	$VERBOSE $SCRIPT run
+	$VERBOSE $SCRIPT run $@
 	CODE=$?
 else
 	CODE=-1

@@ -102,6 +102,7 @@ print(status)
 }
 
 function restart() {
+	SCRIPT=$2
 	IDs=($(curl -sS --request GET --header "Cookie: express.sid=$TOKEN" \
 		https://app.wercker.com/api/v3/workflows/$1 |
 	python -c """
@@ -140,6 +141,10 @@ for item in json.load(sys.stdin)['items']:
 			      python -c "import sys, json; print(json.load(sys.stdin)['id'])")
 		fi
 
+
+		if [[ ${#SCRIPT} -gt 0 ]]; then
+			$SCRIPT
+		fi
 
 		while [ 1 ]; do
 			sleep 3
@@ -272,7 +277,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ]; then
 	TASK=$1
 	shift
 	
-	if ! options=$(getopt -l token,repo: -- "$@"); then
+	if ! options=$(getopt -l token,repo,script: -- "$@"); then
 		error "Can' parse $0 $TASK $@"
 	fi
 
@@ -280,6 +285,13 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ]; then
 		case $1 in
 			--repo)		REPO="$2"; shift;;
 			--token)	TOKEN="$2"; shift;;
+			--script)
+					if [ $TASK = 'restart' ]; then
+						SCRIPT=$2
+						shift
+					else
+						error "unrecognized option $1"
+					fi;;
 			(--) 		shift; break;;
 			(-*) 		error "unrecognized option $1";;
 			(*) 		break;;
@@ -300,7 +312,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ]; then
 	elif [ $TASK = 'log' ]; then
 		log $WORKFLOW
 	elif [ $TASK = 'restart' ]; then
-		restart $WORKFLOW
+		restart $WORKFLOW $SCRIPT
 	fi
 elif [ $1 = 'env' ]; then
 	PROTECTED="false"
