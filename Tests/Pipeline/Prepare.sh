@@ -291,7 +291,7 @@ else
 fi
 
 if [ -f "$ROOT/Tests/Pipeline/Prepare.sh" ]; then
-	bash "$ROOT/Tests/Pipeline/Prepare.sh" $SU $INSTALL
+	bash "$ROOT/Tests/Pipeline/Prepare.sh"
 
 	if [ $? != 0 ]; then
 		error "Error when run script $ROOT/Tests/Prepare.sh"
