@@ -58,10 +58,18 @@ while [ 1 ]; do
 	# variable. I assume there is no racing here because we can't create the
 	# same variable at the same time.
 
-	if $VERBOSE $SCRIPT probe $@; then
-		break
+	if [[ ${#VERBOSE} -gt 0 ]]; then
+		if $VERBOSE $SCRIPT probe --verbose $@; then
+			break
+		else
+			sleep 30
+		fi
 	else
-		sleep 30
+		if $VERBOSE $SCRIPT probe $@; then
+			break
+		else
+			sleep 30
+		fi
 	fi
 done
 
@@ -71,14 +79,26 @@ rm -fr $JOB
 
 # @STEP 5: plan this job to be on-board. At this step, only one job jumps here
 # and we are planing this job to be handled.
-if $VERBOSE $SCRIPT plan; then
-	# @STEP 6: the job has already been on-board and we should run it now to collect
-	# log from the ci
+if [[ ${#VERBOSE} -gt 0 ]]; then
+	if $VERBOSE $SCRIPT plan --verbose; then
+		# @STEP 6: the job has already been on-board and we should run it now to collect
+		# log from the ci
 
-	$VERBOSE $SCRIPT run $@
-	CODE=$?
+		$VERBOSE $SCRIPT run --verbose $@
+		CODE=$?
+	else
+		CODE=-1
+	fi
 else
-	CODE=-1
+	if $VERBOSE $SCRIPT plan; then
+		# @STEP 6: the job has already been on-board and we should run it now to collect
+		# log from the ci
+
+		$VERBOSE $SCRIPT run $@
+		CODE=$?
+	else
+		CODE=-1
+	fi
 fi
 
 exit $CODE

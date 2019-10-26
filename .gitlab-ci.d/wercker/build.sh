@@ -35,6 +35,15 @@ HOOK="export JOB=build; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
 NOTIFY="/pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; /pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}"
 
 function run() {
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	set -x;;
+			(--) 		shift; break;;
+			(*) 		break;;
+		esac
+		shift
+	done
+
 	if [[ $(wc -c /var/lock/wercker/${CI_JOB_ID} | awk '{print $1}') -gt 0 ]]; then
 		$BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO} --script "/var/lock/wercker/${CI_JOB_ID}"
 		CODE=$?
@@ -52,6 +61,7 @@ function probe() {
 
 	while [ $# -gt 0 ]; do
 		case $1 in
+			--verbose)	set -x;;
 			--os)		OS="$2"; shift;;
 			--labs)		shift;;
 			(--) 		shift; break;;
@@ -86,6 +96,15 @@ EOF
 }
 
 function plan() {
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	set -x;;
+			(--) 		shift; break;;
+			(*) 		break;;
+		esac
+		shift
+	done
+
 	if [[ $(wc -c /var/lock/wercker/${CI_JOB_ID} | awk '{print $1}') -eq 0 ]]; then
 		if ! $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
 			exit -1

@@ -39,6 +39,7 @@ function run() {
 
 	while [ $# -gt 0 ]; do
 		case $1 in
+			--verbose)	set -x;;
 			--labs)		LABs="$2"; shift;;
 			--os)		shift;;
 			(--) 		shift; break;;
@@ -72,6 +73,14 @@ function run() {
 function probe() {
 	mkdir -p /var/lock/travis
 
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	set -x;;
+			(--)		shift; break;;
+			(*)		break;;
+		esac
+		shift
+	done
 	if $BASE/Tools/Utilities/travis.sh env exist --name "$START" --token ${TRAVIS} --repo ${REPO}; then
 		exit -1
 	elif [[ $(ls -1 /var/lock/travis | wc -l) -lt 4 ]]; then
@@ -92,6 +101,14 @@ EOF
 }
 
 function plan() {
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	set -x;;
+			(--)		shift; break;;
+			(*)		break;;
+		esac
+		shift
+	done
 	$BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
 
 	if [[ $(wc -c /var/lock/travis/${CI_JOB_ID} | awk '{print $1}') -eq 0 ]]; then
