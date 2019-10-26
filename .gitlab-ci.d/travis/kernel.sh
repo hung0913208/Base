@@ -53,16 +53,8 @@ function run() {
 			STATUS=$($BASE/Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
 
 			if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
-				if [[ $(wc -c /var/lock/travis/${CI_JOB_ID} | awk '{print $1}') -gt 0 ]]; then
-					$BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO} --script "/var/lock/travis/${CI_JOB_ID}"
-					CODE=$?
-				else
-					$BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
-					CODE=$?
-				fi
-
-				rm -fr /var/lock/travis/${CI_JOB_ID}
-				exit $CODE
+				$BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
+				exit $?
 			fi
 		done
 	done
@@ -81,21 +73,8 @@ function probe() {
 		esac
 		shift
 	done
+
 	if $BASE/Tools/Utilities/travis.sh env exist --name "$START" --token ${TRAVIS} --repo ${REPO}; then
-		exit -1
-	elif [[ $(ls -1 /var/lock/travis | wc -l) -lt 4 ]]; then
-		if [[ $(ls -1 /var/lock/travis | wc -l) -lt 3 ]]; then
-			cat > /var/lock/travis/${CI_JOB_ID} << EOF
-#!/bin/bash
-
-$BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
-EOF
-
-			chmod +x /var/lock/travis/${CI_JOB_ID}	
-		else
-			touch /var/lock/travis/${CI_JOB_ID}
-		fi
-	else
 		exit -1
 	fi
 }
@@ -110,10 +89,7 @@ function plan() {
 		shift
 	done
 	$BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
-
-	if [[ $(wc -c /var/lock/travis/${CI_JOB_ID} | awk '{print $1}') -eq 0 ]]; then
-		$BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
-	fi
+	$BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
 }
 
 CMD=$1
