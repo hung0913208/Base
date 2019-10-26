@@ -44,16 +44,8 @@ function run() {
 		shift
 	done
 
-	if [[ $(wc -c /var/lock/wercker/${CI_JOB_ID} | awk '{print $1}') -gt 0 ]]; then
-		$BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO} --script "/var/lock/wercker/${CI_JOB_ID}"
-		CODE=$?
-	else
-		$BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
-		CODE=$?
-	fi
-
-	rm -fr /var/lock/wercker/${CI_JOB_ID}
-	exit $CODE
+	$BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
+	exit $?
 }
 
 function probe() {
@@ -71,23 +63,7 @@ function probe() {
 	done
 
 	if [ $OS = 'linux' ]; then
-		if [[ $(ls -1 /var/lock/wercker | wc -l) -lt 2 ]]; then
-			$BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}
-			CODE=$?
-
-			if [[ $(ls -1 /var/lock/wercker | wc -l) -lt 1 ]]; then
-				cat > /var/lock/wercker/${CI_JOB_ID} << EOF
-#!/bin/bash
-
-$BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
-EOF
-				chmod +x /var/lock/wercker/${CI_JOB_ID}
-			else
-				touch /var/lock/wercker/${CI_JOB_ID}
-			fi
-
-			exit $CODE
-		else
+		if ! $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
 			exit -1
 		fi
 	else
@@ -105,10 +81,8 @@ function plan() {
 		shift
 	done
 
-	if [[ $(wc -c /var/lock/wercker/${CI_JOB_ID} | awk '{print $1}') -eq 0 ]]; then
-		if ! $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
-			exit -1
-		fi
+	if ! $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
+		exit -1
 	fi
 }
 
