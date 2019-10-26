@@ -37,7 +37,24 @@ function run() {
 		CODE=$?
 
 		rm -fr $(dirname $0)/tasks/reproduce-$DATE.sh
-		exit $CODE
+
+		if git log --format=%B -n 1 HEAD | grep " Expect failed" >& /dev/null; then
+			if [[ $CODE -ne 0 ]]; then
+				exit 0
+			else
+				IFS=$'\n'
+				ISSUEs=($(git log --format=%B -n 1 HEAD | grep " Ignored "))
+				IFS=$SAVE
+
+				if [[ ${#ISSUEs} -gt 0 ]]; then
+					exit -1
+				else
+					exit 0
+				fi
+			fi
+		else
+			exit $CODE
+		fi
 	fi
 }
 

@@ -37,7 +37,16 @@ function run() {
 		CODE=$?
 
 		rm -fr $(dirname $0)/tasks/build-$DATE.sh
-		exit $CODE
+
+		if git log --format=%B -n 1 HEAD | grep " Expect failed" >& /dev/null; then
+			if [[ $CODE -ne 0 ]]; then
+				exit 0
+			else
+				exit -1
+			fi
+		else
+			exit $CODE
+		fi
 	fi
 }
 

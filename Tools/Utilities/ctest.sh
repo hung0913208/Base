@@ -124,6 +124,8 @@ coredump(){
 	if echo "$($SU cat /proc/sys/kernel/core_pattern)" | grep "false" >& /dev/null; then
 		return 0
 	else
+		exec 2>&-
+
 		PATTERN=$(python -c """
 import os
 
@@ -156,6 +158,7 @@ else:
 
 		find . -maxdepth 1 -name "$PATTERN"
 		COREFILE=$(find . -maxdepth 1 -name "$PATTERN" | head -n 1)
+		exec 2>&1
 
 		if [[ -f "$COREFILE" ]]; then
 			info "check coredump of $FILE -> found $COREFILE"
