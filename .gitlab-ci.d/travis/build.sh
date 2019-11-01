@@ -55,7 +55,10 @@ function run() {
 
 			if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
 				$BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
-				exit $?
+				CODE=$?
+
+				$BASE/Tools/Utilities/travis.sh delete --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}	
+				exit $CODE
 			fi
 		done
 	done
