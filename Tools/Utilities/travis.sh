@@ -238,6 +238,15 @@ print(unquote_plus(raw.get('content') or ''))
 """
 }
 
+function delete() {
+	BUILD=$1
+	JOB=$2
+	curl -sS --request DELETE                           \
+		 --header "Authorization: token $TOKEN"     \
+		 --header "Travis-API-Version: 3"           \
+		https://api.travis-ci.org/job/$(job $BUILD $JOB)/log >& /dev/null
+}
+
 function console() {
 	USER=$(curl -sS --request GET 				            \
 			        --header "Authorization: token $TOKEN" 	\
@@ -447,7 +456,7 @@ import json, sys
 print(json.load(sys.stdin)['pusher']['key'])
 """)
 
-if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console' ]; then
+if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console' ] || [ $1 = 'delete' ]; then
 	TASK=$1
 
 	if [ $1 = 'log' ] || [ $1 = 'status' ]; then
@@ -488,7 +497,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console'
 	REPO=$(repository $REPO)
 	BUILD=$(build $BUILD)
 
-	if [ $TASK = 'log' ]; then
+	if [ $TASK = 'log' ] || [ $TASK = 'delete' ]; then
 		STATUS=$(status $BUILD $JOB)
         
         	if [[ ${#STATUS} -eq 0 ]]; then
@@ -507,6 +516,10 @@ except ImportError:
 
 print(unquote_plus(json.load(sys.stdin)['content']))
 			"""
+		fi
+
+		if [ $TASK = 'delete' ]; then
+			delete $BUILD $JOB
 		fi
 	elif [ $TASK = 'status' ]; then
 		status $BUILD $JOB
