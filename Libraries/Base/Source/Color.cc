@@ -26,8 +26,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <Logcat.h>
-#include <Utils.h>
+#include "Logcat.h"
+#include "Utils.h"
 #include <stdio.h>
 
 namespace Base {

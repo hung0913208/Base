@@ -1,8 +1,8 @@
-#include <Macro.h>
+#include "Macro.h"
 
 #if !defined(BASE_TYPE_VECTOR_H_) && (USE_BASE_VECTOR || APPLE)
 #define BASE_TYPE_VECTOR_H_
-#include <Array.h>
+#include "Array.h"
 
 namespace Base {
 template <typename Type>

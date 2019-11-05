@@ -1,9 +1,9 @@
-#include <Macro.h>
+#include "Macro.h"
 
 #if !defined(BASE_TYPE_ARRAY_H_) && (USE_BASE_VECTOR || APPLE)
 #define BASE_TYPE_ARRAY_H_
-#include <Common.h>
-#include <Refcount.h>
+#include "Common.h"
+#include "Refcount.h"
 
 namespace Base {
 template <typename Type>

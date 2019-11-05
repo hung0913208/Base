@@ -1,10 +1,10 @@
 #ifndef BASE_TYPE_COMMON_H_
 #define BASE_TYPE_COMMON_H_
-#include <Macro.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "Macro.h"
 
 enum ErrorCodeE {
   ENoError = 0,

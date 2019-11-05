@@ -1,6 +1,6 @@
-#include <Atomic.h>
-#include <Macro.h>
-#include <Logcat.h>
+#include "Atomic.h"
+#include "Macro.h"
+#include "Logcat.h"
 
 #if LINUX
 #include <stdlib.h>

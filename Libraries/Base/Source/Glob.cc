@@ -1,7 +1,7 @@
-#include <Exception.h>
-#include <Macro.h>
-#include <Glob.h>
-#include <Type.h>
+#include "Exception.h"
+#include "Macro.h"
+#include "Glob.h"
+#include "Type.h"
 
 #if WINDOW
 #else

@@ -81,12 +81,12 @@ fi
 
 unameOut="$(uname -s)"
 case "${unameOut}" in
-	Linux*)     make -j $(($(grep -c ^processor /proc/cpuinfo)*2));;
-	Darwin*)    make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2));;
-	CYGWIN*)    make ;;
-	MINGW*)     make ;;
-	FreeBSD*)   make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2));;
-	*)          make;;
+	Linux*)     make -j $(($(grep -c ^processor /proc/cpuinfo)*2)) VERBOSE=$VERBOSE;;
+	Darwin*)    make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=$VERBOSE;;
+	CYGWIN*)    make VERBOSE=1;;
+	MINGW*)     make VERBOSE=1;;
+	FreeBSD*)   make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=$VERBOSE;;
+	*)          make VERBOSE=1;;
 esac
 
 if [ $? -ne 0 ]; then

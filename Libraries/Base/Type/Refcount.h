@@ -1,7 +1,7 @@
 #if !defined(BASE_REFCOUNT_H_)
 #define BASE_REFCOUNT_H_
-#include <Common.h>
-#include <Function.h>
+#include "Common.h"
+#include "Function.h"
 
 #if __cplusplus
 namespace Base {
