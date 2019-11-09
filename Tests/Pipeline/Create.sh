@@ -153,7 +153,7 @@ function stop() {
 	SAVE=$IFS
 	IFS=$'\n'
 
-	HOOKS=($(printenv | grep HOOK))
+	HOOKS=($(printenv | grep DEPART))
 	IFS=$SAVE
 	
 	if [[ ${#HOOKS[@]} -gt 0 ]]; then
