@@ -541,7 +541,7 @@ print(unquote_plus(json.load(sys.stdin)['content']))
 			fi
 		elif restart 'job' $JOB $BUILD; then
 			if [[ ${#SCRIPT} -gt 0 ]]; then
-				$SCRIPT
+				bash $SCRIPT
 			fi
 
 			console 'restarted' $JOB $PUSHER

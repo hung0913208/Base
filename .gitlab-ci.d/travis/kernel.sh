@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASE=$(dirname $0)/../../
+BASE=$(realpath $(dirname $0)/../../)
 SAVE=$IFS
 KEEP=1
 
@@ -34,12 +34,37 @@ STOP="NOTIFY"
 HOOK="\\\"export JOB='build'; sudo apt install qemu; echo '$REPOSITORY $BRANCH' >> ./repo.list\\\""
 NOTIFY="\\\"../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}\\\""
 
-function run() {
-	LABs=''
+function clean() {
+	VERBOSE="bash"
 
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	set -x;;
+			--verbose)	VERBOSE="bash -x";;
+			(--)		shift; break;;
+			(*)		break;;
+		esac
+		shift
+	done
+
+	if [ -f /var/lock/travis/${CI_JOB_TOKEN} ]; then
+		while ! $VERBOSE /var/lock/travis/${CI_JOB_TOKEN}; do
+			sleep 1
+		done
+
+		rm -fr /var/lock/travis/${CI_JOB_TOKEN}
+	else
+		$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
+		$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}
+	fi
+}
+
+function run() {
+	LABs=''
+	VERBOSE="bash"
+
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	VERBOSE="bash -x";;
 			--labs)		LABs="$2"; shift;;
 			--os)		shift;;
 			(--) 		shift; break;;
@@ -50,13 +75,19 @@ function run() {
 
 	for IDX in $(seq $BEGIN $END); do
 		for JOB in $(python -c "for v in '$LABs'.split(';'): print(v)"); do
-			STATUS=$($BASE/Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
+			STATUS=$($VERBOSE $BASE/Tools/Utilities/travis.sh status --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO})
 
 			if [ $STATUS = 'passed' ] || [ $STATUS = 'failed' ] || [ $STATUS = 'canceled' ] || [ $STATUS = 'errored' ]; then
-				$BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
-				CODE=$?
+				if [ -f /var/lock/travis/${CI_JOB_TOKEN} ]; then
+					$VERBOSE $BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO} --script /var/lock/travis/${CI_JOB_TOKEN}
+					CODE=$?
+				else
+					$VERBOSE $BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
+					CODE=$?
+				fi
 
-				$BASE/Tools/Utilities/travis.sh delete --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}	
+				$VERBOSE $BASE/Tools/Utilities/travis.sh delete --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}	
+				rm -fr /var/lock/travis/${CI_JOB_TOKEN}
 				exit $CODE
 			fi
 		done
@@ -66,33 +97,53 @@ function run() {
 }
 
 function probe() {
+	VERBOSE="bash"
+
 	mkdir -p /var/lock/travis
 
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	set -x;;
+			--verbose)	VERBOSE="bash -x";;
 			(--)		shift; break;;
 			(*)		break;;
 		esac
 		shift
 	done
 
-	if $BASE/Tools/Utilities/travis.sh env exist --name "$START" --token ${TRAVIS} --repo ${REPO}; then
+	if $VERBOSE $BASE/Tools/Utilities/travis.sh env exist --name "$START" --token ${TRAVIS} --repo ${REPO}; then
 		exit -1
 	fi
 }
 
 function plan() {
+	VERBOSE="bash"
+
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	set -x;;
+			--verbose)	VERBOSE="bash -x";;
 			(--)		shift; break;;
 			(*)		break;;
 		esac
 		shift
 	done
-	$BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}
-	$BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}
+
+	if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}; then
+		exit -1
+	fi
+
+	if [[ $(ls -1l /var/lock/travis/ | wc -l) -gt 4 ]]; then
+		if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}; then
+			$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
+			exit -1
+		fi
+	else
+		cat > /var/lock/travis/${CI_JOB_TOKEN} << EOF
+#!/bin/bash
+
+$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
+EOF
+		chmod +x /var/lock/travis/${CI_JOB_TOKEN}
+	fi
 }
 
 CMD=$1
@@ -102,5 +153,6 @@ case $CMD in
 	run) 		run $@;;
 	plan) 		plan $@;;
 	probe) 		probe $@;;
+	clean) 		clean $@;;
 	(*)		exit -1;;
 esac

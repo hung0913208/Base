@@ -34,26 +34,62 @@ STOP="NOTIFY"
 HOOK="export JOB=build; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
 NOTIFY="/pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; /pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}"
 
-function run() {
+function clean() {
+	VERBOSE="bash"
+
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	set -x;;
+			--verbose)	VERBOSE="bash -x";;
+			(--)		shift; break;;
+			(*)		break;;
+		esac
+		shift
+	done
+
+	if [ -f /var/lock/wercker/${CI_JOB_TOKEN} ]; then
+		while ! $VERBOSE /var/lock/wercker/${CI_JOB_TOKEN}; do
+			sleep 1
+		done
+
+		rm -fr /var/lock/wercker/${CI_JOB_TOKEN}
+	else
+		$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
+		$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}
+	fi
+}
+
+function run() {
+	VERBOSE="bash"
+
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	VERBOSE="bash -x";;
 			(--) 		shift; break;;
 			(*) 		break;;
 		esac
 		shift
 	done
 
-	$BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
-	exit $?
+	if [ -f /var/lock/wercker/${CI_JOB_TOKEN} ]; then
+		$VERBOSE $BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO} --script /var/lock/wercker/${CI_JOB_TOKEN}
+		CODE=$?
+	else
+		$VERBOSE $BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
+		CODE=$?
+	fi
+
+	rm -fr /var/lock/wercker/${CI_JOB_TOKEN}
+	exit $CODE
 }
 
 function probe() {
+	VERBOSE="bash"
+
 	mkdir -p /var/lock/wercker
 
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	set -x;;
+			--verbose)	VERBOSE="bash -x";;
 			--os)		OS="$2"; shift;;
 			--labs)		shift;;
 			(--) 		shift; break;;
@@ -63,7 +99,7 @@ function probe() {
 	done
 
 	if [ $OS = 'linux' ]; then
-		if ! $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
+		if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
 			exit -1
 		fi
 	else
@@ -72,17 +108,29 @@ function probe() {
 }
 
 function plan() {
+	VERBOSE="bash"
+
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	set -x;;
-			(--) 		shift; break;;
-			(*) 		break;;
+			--verbose)	VERBOSE="bash -x";;
+			(--)		shift; break;;
+			(*)		break;;
 		esac
 		shift
 	done
 
-	if ! $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
-		exit -1
+	if [[ $(ls -1l /var/lock/wercker/ | wc -l) -gt 2 ]]; then
+		if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
+			$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
+			exit -1
+		fi
+	else
+		cat > /var/lock/wercker/${CI_JOB_TOKEN} << EOF
+#!/bin/bash
+
+$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
+EOF
+		chmod +x /var/lock/wercker/${CI_JOB_TOKEN}
 	fi
 }
 
@@ -93,6 +141,7 @@ case $CMD in
 	run) 		run $@;;
 	plan) 		plan $@;;
 	probe) 		probe $@;;
+	clean) 		clean $@;;
 	(*)		exit -1;;
 esac
 

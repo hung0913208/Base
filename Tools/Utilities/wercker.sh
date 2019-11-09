@@ -143,7 +143,7 @@ for item in json.load(sys.stdin)['items']:
 
 
 		if [[ ${#SCRIPT} -gt 0 ]]; then
-			$SCRIPT
+			bash $SCRIPT
 		fi
 
 		while [ 1 ]; do

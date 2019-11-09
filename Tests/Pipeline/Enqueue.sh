@@ -19,7 +19,19 @@ shift
 function cleanup() {
 	if [ -f $PIPELINE/cleanup.pid ]; then
 		cat $PIPELINE/cleanup.pid | while read JOB; do
-			rm -fr /tmp/.enqueue/$JOB
+			if [ -f /var/enqueue/$JOB ]; then
+				rm -fr /var/enqueue/$JOB
+
+				if [[ ${#VERBOSE} -gt 0 ]]; then
+					if $VERBOSE $SCRIPT clean --verbose $@; then
+						break
+					fi
+				else
+					if $VERBOSE $SCRIPT clean $@; then
+						break
+					fi
+				fi
+			fi
 		done
 
 		rm -fr $PIPELINE/cleanup.pid
@@ -62,13 +74,13 @@ while [ 1 ]; do
 		if $VERBOSE $SCRIPT probe --verbose $@; then
 			break
 		else
-			sleep 30
+			sleep 3
 		fi
 	else
 		if $VERBOSE $SCRIPT probe $@; then
 			break
 		else
-			sleep 30
+			sleep 3
 		fi
 	fi
 done

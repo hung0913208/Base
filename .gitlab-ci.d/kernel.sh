@@ -29,6 +29,12 @@ fi
 
 ROOT=$(realpath $(dirname $0)/../)
 
+function clean() {
+	if [ -f $(dirname $0)/tasks/build.sh ]; then
+		$(dirname $0)/tasks/build.sh $@
+	fi
+}
+
 function run() {
 	DATE=$(date +%s)
 
@@ -89,6 +95,7 @@ case $CMD in
 	run) 		run $@;;
 	plan) 		plan $@;;
 	probe) 		probe $@;;
+	clean) 		clean $@;;
 	(*)		exit -1;;
 esac
 
