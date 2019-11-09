@@ -71,13 +71,29 @@ function probe() {
 			done
 		fi
 	fi
+
+	if [[ $CODE -eq 0 ]]; then
+		echo $CI_JOB_TOKEN > /var/lock/resignd.lck
+	fi
+
 	exit $CODE
 }
 
 function plan() {
-	if ! $(dirname $0)/tasks/build.sh plan $@; then
-		rm -fr $(dirname $0)/tasks/build.sh
+	if [ ! -f /var/lock/resignd.lck ]; then
 		exit -1
+	elif [ $(cat /var/lock/resignd.lck) != ${CI_JOB_TOKEN} ]; then
+		exit -1
+	else
+		CODE=0
+
+		if ! $(dirname $0)/tasks/build.sh plan $@; then
+			rm -fr $(dirname $0)/tasks/build.sh
+			CODE=-1
+		fi
+
+		rm -fr /var/lock/resignd.lck
+		exit $CODE
 	fi
 }
 
