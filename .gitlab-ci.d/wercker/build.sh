@@ -100,7 +100,31 @@ function probe() {
 
 	if [ $OS = 'linux' ]; then
 		if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
-			exit -1
+			if [[ $(ls -1l /var/lock/travis/ | wc -l) -lt 2 ]]; then
+				if $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
+					while ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}; do
+						sleep 1
+					done
+
+					if $VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; then
+						exit -1
+					else
+						if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
+							exit -1
+						fi
+
+						exit 0
+					fi
+				elif $VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; then
+					$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}
+					
+					if $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
+						exit 0
+					fi
+				fi
+
+				exit -1
+			fi
 		fi
 	else
 		exit -1

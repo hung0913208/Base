@@ -112,6 +112,18 @@ function probe() {
 	done
 
 	if $VERBOSE $BASE/Tools/Utilities/travis.sh env exist --name "$START" --token ${TRAVIS} --repo ${REPO}; then
+		if [[ $(ls -1l /var/lock/travis/ | wc -l) -lt 4 ]]; then
+			if $VERBOSE $BASE/Tools/Utilities/travis.sh env exist --name "$STOP" --token ${TRAVIS} --repo ${REPO}; then
+				if $VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}; then
+					exit -1
+				elif $VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; then
+					exit -1
+				else
+					exit 0
+				fi
+			fi
+		fi
+
 		exit -1
 	fi
 }
@@ -133,6 +145,8 @@ function plan() {
 	fi
 
 	if [[ $(ls -1l /var/lock/travis/ | wc -l) -gt 4 ]]; then
+		touch /var/lock/travis/${CI_JOB_TOKEN}
+
 		if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}; then
 			$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
 			exit -1
