@@ -63,7 +63,7 @@ add_executable(json ${CMAKE_CURRENT_SOURCE_DIR}/Data/Json.cc)
 target_link_libraries(memmap base data unittest)
 target_link_libraries(json base data unittest)
 
-if (NOT BUILD_STATIC_EXEC)
+if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT CMAKE_BUILD_TYPE STREQUAL "Profiling")
 	# @NOTE: define test cases from Wrapping
 	add_executable(function ${CMAKE_CURRENT_SOURCE_DIR}/Wrapping/Function.cc)
 
