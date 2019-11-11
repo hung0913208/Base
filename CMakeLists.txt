@@ -149,7 +149,7 @@ if (BUILD_TESTS)
 	add_test(NAME memmap COMMAND Tests/memmap)
 	add_test(NAME json COMMAND Tests/json)
 
-	if (NOT BUILD_STATIC_EXEC)
+	if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT CMAKE_BUILD_TYPE STREQUAL "Profiling")
 		add_test(NAME function COMMAND Tests/function)
 	endif()
 
