@@ -32,13 +32,14 @@ class Python : public Wrapping {
     _Wrappers[name] = [&](PyObject* pyargs) -> PyObject* {
       try {
         Vector<Void*> arguments{};
+        Vector<Byte> types{};
 
         /* @NOTE: convert python's parameters to c/c++ parameters */
         ParseTuple<Args...>(pyargs, arguments);
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, arguments);
+        Wrapping::Instruct((void*)function, arguments, types);
 
         return Py_None;
       } catch (Error& error) {
@@ -64,10 +65,11 @@ class Python : public Wrapping {
     _Wrappers[name] = [&](PyObject* UNUSED(pyargs)) -> PyObject* {
       try {
         Vector<Void*> arguments{};
+        Vector<Byte> types{};
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, arguments);
+        Wrapping::Instruct((void*)function, arguments, types);
 
         return Py_None;
       } catch (Error& error) {
@@ -95,6 +97,7 @@ class Python : public Wrapping {
     _Wrappers[name] = [&](PyObject* pyargs) -> PyObject* {
       try {
         Vector<Void*> arguments{};
+        Vector<Byte> types{};
         ResultT result{};
 
         /* @NOTE: convert python's parameters to c/c++ parameters */
@@ -102,7 +105,7 @@ class Python : public Wrapping {
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, &result, arguments);
+        Wrapping::Instruct((void*)function, &result, arguments, types);
 
         /* @NOTE: convert ResultT to PyObjectT */
         return To<PyObject>(Auto::As(result));
@@ -130,11 +133,12 @@ class Python : public Wrapping {
     _Wrappers[name] = [&](PyObject* UNUSED(pyargs)) -> PyObject* {
       try {
         Vector<Void*> arguments{};
+        Vector<Byte> types{};
         ResultT result{};
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, &result, arguments);
+        Wrapping::Instruct((void*)function, &result, arguments, types);
 
         /* @NOTE: convert ResultT to PyObjectT */
         return To<PyObject>(Auto::As(result));
@@ -192,18 +196,19 @@ class Python : public Wrapping {
 
  private:
   template <typename... Args>
-  static ErrorCodeE ParseTuple(PyObject* pyargs, Vector<Void*>& output) {
-    return ParseTuple<Args...>(pyargs, 0, output);
+  static ErrorCodeE ParseTuple(PyObject* pyargs, Vector<Void*>& output,
+                               Vector<Byte>& types) {
+    return ParseTuple<Args...>(pyargs, 0, output, types);
   }
 
   template <typename T, typename... Args>
   static ErrorCodeE ParseTuple(PyObject* pyargs, UInt begin,
-                               Vector<Void*>& output) {
+                               Vector<Void*>& output, Vector<Byte>& types) {
     if (PyTuple_Check(pyargs)) {
       auto error = ParseTuple<T>(pyargs, begin, output);
 
       if (!error && sizeof...(Args) > 0) {
-        return ParseTuple<Args...>(pyargs, begin + 1, output);
+        return ParseTuple<Args...>(pyargs, begin + 1, output, types);
       } else {
         return error;
       }
@@ -214,10 +219,16 @@ class Python : public Wrapping {
 
   template <typename T>
   static ErrorCodeE ParseTuple(PyObject* tuple, UInt index,
-                               Vector<Void*>& output) {
+                               Vector<Void*>& output, Vector<Byte>& types) {
     try {
       if (typeid(T) != typeid(void)) {
         output.push_back(To<T>(PyTuple_GetItem(tuple, index)));
+
+        if (typeid(T) == typeid(Double) || typeid(T) == typeid(Float)) {
+          types.push_back(True);
+        } else {
+          types.push_back(False);
+        }
       }
       return ENoError;
     } catch (Exception& except) {

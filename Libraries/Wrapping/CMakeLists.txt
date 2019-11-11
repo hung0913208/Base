@@ -11,7 +11,9 @@ endif()
 file(GLOB HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 file(GLOB DEBUGS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Debug/*.cc")
 file(GLOB SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cc"
-		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Debug/*.cc"
+		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Instruct/*.c"
+		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Instruct/*.cc"
+		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Internale/*.c"
 		  "${CMAKE_CURRENT_SOURCE_DIR}/Source/Internal/*.cc")
 
 find_package(Threads)
