@@ -540,6 +540,20 @@ print(unquote_plus(json.load(sys.stdin)['content']))
 				log $BUILD $ID
 			fi
 		elif restart 'job' $JOB $BUILD; then
+			while [ 1 ]; do
+	        		STATUS=$(status $BUILD $JOB)
+
+				if [ $? != 0 ]; then
+					break
+				elif [ ${#STATUS} = 0 ]; then
+					break
+				elif [ $STATUS = 'started' ]; then
+					break
+				fi
+
+				sleep 1
+			done
+
 			if [[ ${#SCRIPT} -gt 0 ]]; then
 				bash $SCRIPT
 			fi
