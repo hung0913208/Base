@@ -121,7 +121,7 @@ compress_coredump(){
 coredump(){
 	FILE=$1
 
-	if echo "$($SU cat /proc/sys/kernel/core_pattern)" | grep "false" >& /dev/null; then
+	if echo "$($SU cat /proc/sys/kernel/core_pattern)" | grep "false"; then
 		return 0
 	else
 		exec 2>&-
@@ -257,6 +257,8 @@ if [ -d "./$1" ]; then
 			fi
 		else
 			IDX=0
+			FAILLIST=()
+
 			for FILE in ./Tests/*; do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
 					IDX=$((IDX+1))
@@ -266,6 +268,8 @@ if [ -d "./$1" ]; then
 					echo ""
 
 					if ! exec_with_timeout -1 $FILE; then
+						FAILLIST=("${FAILLIST[@]}" "$(basename $FILE)")
+
 						echo "$IDX/ Test  #$IDX:  .............................   Failed"
 						echo ""
 						FAIL=1
@@ -275,7 +279,18 @@ if [ -d "./$1" ]; then
 					fi
 				fi
 			done
+
+			if [[ $FAIL -ne 0 ]]; then
+				echo "------------------------------------------------------------------------------"
+				info "you suite has failed at:"
+	
+				for NAME in ${FAILLIST[@]}; do
+					echo "  - $NAME"
+				done
+				echo ""
+			fi
 		fi
+
 		echo "------------------------------------------------------------------------------"
 		echo ""
 
@@ -330,7 +345,7 @@ if [ -d "./$1" ]; then
 			fi
 		fi
 
-		if [[ $FAIL -eq 0 ]] && [[ $# -lt 2 ]] && [ "$1" != "Sanitize" ]; then
+		if [[ $FAIL -eq 0 ]] && [[ $# -ge 2 ]] && [ "$1" != "Sanitize" ]; then
 			# @NOTE: test with gdb in order to verify slowing down effect to detect rare issues
 
 			echo "Run with GDB"
@@ -339,9 +354,7 @@ if [ -d "./$1" ]; then
 			for FILE in ./Tests/*; do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
 					exec 2>&-
-					OUTPUT=$(gdb -ex="set confirm on" -ex=run -ex="thread apply all bt" -ex=quit \
-					    			--args $FILE 2>&1 | tee /dev/fd/2)
-
+					OUTPUT=$(gdb -ex="set confirm on" -ex=run -ex="bt" -ex=quit --args $FILE 1>& /dev/null | tee /dev/fd/2)
 					exec 2>&1
 
 					echo "$OUTPUT"

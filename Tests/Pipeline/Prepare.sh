@@ -259,10 +259,18 @@ else
 	fi
 
 	# @NOTE: migrate Pipeline's libraries
-	cp -a "$BASE/Tests/Pipeline/Libraries" "$ROOT/Tests/Pipeline/Libraries"
+	if [ ! -d $ROOT/Tests/Pipeline/Libraries ]; then
+		mkdir -p $ROOT/Tests/Pipeline/Libraries
+	fi
+
+	cp -a "$BASE/Tests/Pipeline/Libraries"/* "$ROOT/Tests/Pipeline/Libraries/"
 
 	# @NOTE: migrate Pipeline's installing scripts
-	cp -a "$BASE/Tests/Pipeline/Packages" "$ROOT/Tests/Pipeline/Packages"
+	if [ ! -d $ROOT/Tests/Pipeline/Packages ]; then
+		mkdir -p $ROOT/Tests/Pipeline/Packages
+	fi
+
+	cp -a "$BASE/Tests/Pipeline/Packages"/* "$ROOT/Tests/Pipeline/Packages/"
 
 	# @NOTE: migrate reproduce script
 	cp -a "$BASE/Tests/Pipeline/Reproduce.sh" "$ROOT/Tests/Pipeline"
