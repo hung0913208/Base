@@ -242,7 +242,7 @@ if [ -d "./$1" ]; then
 	$SU sysctl -w kernel.core_pattern="core-%e.%p.%h.%t"
 	ulimit -c unlimited
 
-	if [ "$1" == "Debug" ] || [ "$1" == "Release" ] || [ "$1" == "Coverage" ]; then
+	if [ "$1" == "Debug" ] || [ "$1" == "Release" ] || [ "$1" == "Coverage" ] || [ "$1" == "Sanitize" ] || [ "$1" == "Profiling" ]; then
 		export ASAN_SYMBOLIZER_PATH=$LLVM_SYMBOLIZER
 		export LSAN_OPTIONS=verbosity=1:log_threads=1
 		export TSAN_OPTIONS=second_deadlock_stack=1
@@ -251,7 +251,7 @@ if [ -d "./$1" ]; then
 		echo "=============================================================================="
 
 		FAIL=0
-		if [ "$1" != "Coverage" ]; then
+		if [ "$1" != "Coverage" ] && [ "$1" != "Sanitize" ] && [ "$1" != "Profiling" ]; then
 			if ! ctest --verbose --timeout 1; then
 				FAIL=1
 			fi
