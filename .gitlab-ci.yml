@@ -1,8 +1,7 @@
 stages:
   - test
   - deploy
-
-default:
+  - status
 
 perform_testing_on_linux:
   stage: test
@@ -14,7 +13,6 @@ perform_testing_on_linux:
     - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/build.sh --cleanup
   tags:
     - Yggdrasil
-  allow_failure: true
 
 perform_reproducing_on_linux:
   stage: test
@@ -26,4 +24,23 @@ perform_reproducing_on_linux:
     - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/reproduce.sh --cleanup
   tags:
     - Yggdrasil
-  allow_failure: true
+
+success:
+  stage: status
+  before_script:
+    - ""
+  after_script:
+    - ""
+  script:
+    - BUILD_STATUS=passed BUILD_KEY=push ./.gitlab-ci.d/bitbucket-status.sh
+  when: on_success
+
+failure:
+  stage: status
+  before_script:
+    - ""
+  after_script:
+    - ""
+  script:
+    - BUILD_STATUS=failed BUILD_KEY=push ./.gitlab-ci.d/bitbucket-status.sh
+  when: on_failure
