@@ -10,7 +10,7 @@ perform_testing_on_linux:
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
     - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/build.sh -- --labs ${LINUX} --os linux
   after_script:
-    - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/build.sh --cleanup
+    - ./Tests/Pipeline/Enqueue.sh ./.gitlab-ci.d/build.sh --cleanup
   tags:
     - Yggdrasil
 
@@ -21,7 +21,7 @@ perform_reproducing_on_linux:
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
     - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/reproduce.sh -- --labs ${LINUX} --os linux
   after_script:
-    - ./Tests/Pipeline/Enqueue.sh ./gitlab-ci.d/reproduce.sh --cleanup
+    - ./Tests/Pipeline/Enqueue.sh ./.gitlab-ci.d/reproduce.sh --cleanup
   tags:
     - Yggdrasil
 
