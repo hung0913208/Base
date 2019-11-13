@@ -46,12 +46,12 @@ function clean() {
 		shift
 	done
 
-	if [ -f /var/lock/wercker/${CI_JOB_TOKEN} ]; then
-		while ! $VERBOSE /var/lock/wercker/${CI_JOB_TOKEN}; do
+	if [ -f /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN} ]; then
+		while ! $VERBOSE /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN}; do
 			sleep 1
 		done
 
-		rm -fr /var/lock/wercker/${CI_JOB_TOKEN}
+		rm -fr /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN}
 	else
 		$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
 		$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}
@@ -70,22 +70,22 @@ function run() {
 		shift
 	done
 
-	if [ -f /var/lock/wercker/${CI_JOB_TOKEN} ]; then
-		$VERBOSE $BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO} --script /var/lock/wercker/${CI_JOB_TOKEN}
+	if [ -f /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN} ]; then
+		$VERBOSE $BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO} --script /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN}
 		CODE=$?
 	else
 		$VERBOSE $BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
 		CODE=$?
 	fi
 
-	rm -fr /var/lock/wercker/${CI_JOB_TOKEN}
+	rm -fr /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN}
 	exit $CODE
 }
 
 function probe() {
 	VERBOSE="bash"
 
-	mkdir -p /var/lock/wercker
+	mkdir -p /var/lock/$(whoami)/wercker
 
 	while [ $# -gt 0 ]; do
 		case $1 in
@@ -143,18 +143,18 @@ function plan() {
 		shift
 	done
 
-	if [[ $(ls -1l /var/lock/wercker/ | wc -l) -gt 2 ]]; then
+	if [[ $(ls -1l /var/lock/$(whoami)/wercker/ | wc -l) -gt 2 ]]; then
 		if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
 			$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
 			exit -1
 		fi
 	else
-		cat > /var/lock/wercker/${CI_JOB_TOKEN} << EOF
+		cat > /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN} << EOF
 #!/bin/bash
 
 $VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
 EOF
-		chmod +x /var/lock/wercker/${CI_JOB_TOKEN}
+		chmod +x /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN}
 	fi
 }
 

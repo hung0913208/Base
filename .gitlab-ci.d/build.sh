@@ -58,7 +58,7 @@ function run() {
 
 function probe() {
 	CODE=-1
-	exec 200>/var/lock/lockd.lck
+	exec 200>/var/lock/$(whoami)-lockd.lck
 
 	if flock -n -x 200; then
 		trap "flock --unlock 200" EXIT
@@ -79,16 +79,16 @@ function probe() {
 	fi
 
 	if [[ $CODE -eq 0 ]]; then
-		echo $CI_JOB_TOKEN > /var/lock/resignd.lck
+		echo $CI_JOB_TOKEN > /var/lock/$(whoami)-resignd.lck
 	fi
 
 	exit $CODE
 }
 
 function plan() {
-	if [ ! -f /var/lock/resignd.lck ]; then
+	if [ ! -f /var/lock/$(whoami)-resignd.lck ]; then
 		exit -1
-	elif [ $(cat /var/lock/resignd.lck) != ${CI_JOB_TOKEN} ]; then
+	elif [ $(cat /var/lock/$(whoami)-resignd.lck) != ${CI_JOB_TOKEN} ]; then
 		exit -1
 	else
 		CODE=0
@@ -98,7 +98,7 @@ function plan() {
 			CODE=-1
 		fi
 
-		rm -fr /var/lock/resignd.lck
+		rm -fr /var/lock/$(whoami)-resignd.lck
 		exit $CODE
 	fi
 }

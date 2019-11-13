@@ -19,8 +19,8 @@ shift
 function cleanup() {
 	if [ -f $PIPELINE/cleanup.pid ]; then
 		cat $PIPELINE/cleanup.pid | while read JOB; do
-			if [ -f /var/enqueue/$JOB ]; then
-				rm -fr /var/enqueue/$JOB
+			if [ -f /tmp/enqueue-$(whoami)/$JOB ]; then
+				rm -fr /tmp/enqueue-$(whoami)/$JOB
 
 				if [[ ${#VERBOSE} -gt 0 ]]; then
 					if $VERBOSE $SCRIPT clean --verbose $@; then
@@ -50,13 +50,14 @@ while [ $# -gt 0 ]; do
 done
 
 # @STEP 1: init a new job
-mkdir -p /tmp/.enqueue
+mkdir -p /tmp/enqueue-$(whoami)
+
 while [ 1 ]; do
 	JOB=$(date +%s)
 
-	if [ -f /tmp/.enqueue/$JOB ]; then
+	if [ -f /tmp/enqueue-$(whoami)/$JOB ]; then
 		sleep 1
-	elif touch /tmp/.enqueue/$JOB; then
+	elif touch /tmp/enqueue-$(whoami)/$JOB; then
 		break
 	fi
 done
