@@ -57,7 +57,7 @@ function run() {
 
 function probe() {
 	CODE=-1
-	exec 200>/var/lock/lockd.lck
+	exec 200>/var/lock/$(whoami)-lockd.lck
 
 	if flock -n -x 200; then
 		trap "flock --unlock 200" EXIT
