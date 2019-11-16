@@ -50,22 +50,20 @@ function show_all_network_interface() {
 }
 
 function get_new_bridge() {
-	ID=-1
+	ID=0
 
-	for IF_PATH in /sys/class/net/*; do
-		echo $(basename $IF_PATH) | grep "^$1" >& /dev/null
-
-		if [ $? != 0 ]; then
-			continue
+	while [ 1 ]; do
+		if [ ! -e /sys/class/net/"$1""$ID" ]; then
+			echo "$1""$ID"
+			break
 		else
-			ID=$(echo $(basename $IF_PATH) | sed 's/[^0-9]*//g')
+			ID=$(($ID+1))
 		fi
 	done
-
-	echo "$1$(($ID + 1))"
 }
 
 function get_latest_bridge() {
+	MAX=0
 	ID=-1
 
 	for IF_PATH in /sys/class/net/*; do
@@ -75,11 +73,15 @@ function get_latest_bridge() {
 			continue
 		else
 			ID=$(echo $(basename $IF_PATH) | sed 's/[^0-9]*//g')
+
+			if [[ $MAX -lt $ID ]]; then
+				MAX=$ID
+			fi
 		fi
 	done
 
 	if [[ $ID -gt -1 ]]; then
-		echo "$1$(($ID))"
+		echo "$1$(($MAX))"
 	else
 		echo ""
 	fi
@@ -120,6 +122,47 @@ function get_ip_interface() {
 
 function get_netmask_interface() {
 	ip addr show $1 | grep inet | awk '{ print $2 }' | awk '{ split($0,a,"/"); print a[2]; }'
+}
+
+function get_range_interface() {
+	python -c """
+ip = '$1'
+mask = $2
+
+id = ip.split('.')
+splited = bin(int(id[int(mask/8)]))[2:]
+
+if len(splited) < 8:
+	for i in range(len(splited), 8):
+		splited = '0{}'.format(splited)
+
+if mask % 8 > 0:
+	splited = [c for c in splited]
+
+	for i in range(0, 8 - mask % 8):
+		splited[7 - i] = '1'
+	else:
+		splited = str(int(''.join(splited), 2))
+else:
+	splited = 255
+
+result = ''
+
+for i in range(4):
+	if int(mask/8) == i:
+		num = splited
+	elif 8*i < mask:
+		num = id[i]
+	else:
+		num = 255
+
+	if len(result) == 0:
+		result = str(num)
+	else:
+		result += '.{}'.format(str(num))
+else:
+	print('{} {}'.format(ip, result))
+"""
 }
 
 function create_tuntap() {
@@ -180,4 +223,21 @@ function snift() {
 	else
 		return 1
 	fi
+}
+
+function start_dhcpd() {
+	IP=$(get_ip_interface $1)
+	MASK=$(get_netmask_interface $1)
+	RANGE=($(get_range_interface $IP $MASK))
+
+	if !which dnsmasq >& /dev/null; then
+		return 1
+	fi
+
+	screen -S "dhcpd.pid" -dm 		\
+		$SU dnsmasq --interface=$1 --bind-interfaces --dhcp-range=${RANGE[0]},${RANGE[1]}
+}
+
+function stop_dhcpd() {
+	screen -ls "dhcpd.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print \$1}' | while read s; do screen -XS \$s quit; done
 }
