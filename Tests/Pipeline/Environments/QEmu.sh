@@ -70,29 +70,6 @@ if [ $? != 0 ]; then
 	fi
 fi
 
-function snift() {
-	if [ $(get_state_interface $1) = 'DOWN' ]; then
-		return 1
-	fi
-
-	if which tcpdump >& /dev/null; then
-		info "turn on snifting on $1"
-		mkdir -p /tmp/dump
-
-		if [ $ETH = $1 ]; then
-			($SU tcpdump -vvi $1 -x >/tmp/dump/$1.tcap) & PID=$!
-		else
-			($SU tcpdump -nnvvi $1 -x >/tmp/dump/$1.tcap) & PID=$!
-		fi
-
-		if $SU ps -p $PID >& /dev/null; then
-			echo "$PID" >> /tmp/tcpdump.pid
-		fi
-	else
-		return 1
-	fi
-}
-
 function troubleshoot() {
 	SCRIPT=$2
 
