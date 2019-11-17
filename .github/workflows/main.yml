@@ -1,0 +1,26 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Run a multi-line script
+      env:
+        USERNAME: ${{ secrets.USERNAME }}
+        PASSWORD: ${{ secrets.PASSWORD }}
+        TRAVIS: ${{ secrets.TRAVIS }}
+        WERCKER: ${{ secrets.WERCKER }}
+        REPO: ${{ secrets.REPO }}
+        BEGIN: ${{ secrets.BEGIN }}
+        END: ${{ secrets.END }}
+        LINUX: ${{ secrets.LINUX }}
+        MACOS: ${{ secrets.MACOS }}
+      run: |
+        export CI_JOB_TOKEN=${GITHUB_ACTION}
+        export CI_COMMIT_REF_NAME=${GITHUB_REF##*/}
+        export CI_REPOSITORY_URL="https://${USERNAME}:${PASSWORD}@github.com/${GITHUB_REPOSITORY}"
+        ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/build.sh -- --labs ${LINUX} --os linux
