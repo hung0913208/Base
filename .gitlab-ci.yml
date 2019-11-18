@@ -34,6 +34,8 @@ success:
   script:
     - BUILD_STATUS=passed BUILD_KEY=push ./.gitlab-ci.d/bitbucket-status.sh
   when: on_success
+  tags:
+    - Yggdrasil
 
 failure:
   stage: status
@@ -44,3 +46,5 @@ failure:
   script:
     - BUILD_STATUS=failed BUILD_KEY=push ./.gitlab-ci.d/bitbucket-status.sh
   when: on_failure
+  tags:
+    - Yggdrasil
