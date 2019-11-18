@@ -205,6 +205,12 @@ elif [[ $PROJECT == "Base" ]]; then
 elif [[ $PROJECT == "Base.git" ]]; then
 	info "Congratulation, you have passed ${SCRIPT}"
 	exit 0
+elif [[ $PROJECT == "libbase" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
+elif [[ $PROJECT == "libbase.git" ]]; then
+	info "Congratulation, you have passed ${SCRIPT}"
+	exit 0
 elif [[ $PROJECT == "base" ]]; then
 	info "Congratulation, you have passed ${SCRIPT}"
 	exit 0
@@ -221,6 +227,8 @@ elif [[ -d "${ROOT}/Eden" ]]; then
 	BASE="${ROOT}/Eden"
 elif [[ -d "${ROOT}/Base" ]]; then
 	BASE="${ROOT}/Base"
+elif [[ -d "${ROOT}/libbase" ]]; then
+	BASE="${ROOT}/libbase"
 elif [[ -d "${ROOT}/base" ]]; then
 	BASE="${ROOT}/base"
 elif [[ -d "${ROOT}/LibBase" ]]; then
@@ -232,6 +240,7 @@ else
 	Not found LibBase, it must be:
 	- ${ROOT}/Base
 	- ${ROOT}/base
+	- ${ROOT}/libbase
 	- ${ROOT}/LibBase
 	- ${ROOT}/Eevee
 	- ${ROOT}/Eden

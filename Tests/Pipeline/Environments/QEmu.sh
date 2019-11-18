@@ -526,6 +526,8 @@ function detect_libbase() {
 		echo "${PROJECT}/Base"
 	elif [[ -d "${PROJECT}/base" ]]; then
 		echo "${PROJECT}/base"
+	elif [[ -d "${PROJECT}/libbase" ]]; then
+		echo "${PROJECT}/libbase"
 	elif [[ -d "${PROJECT}/LibBase" ]]; then
 		echo "${PROJECT}/LibBase"
 	elif [[ -d "${PROJECT}/Eevee" ]]; then

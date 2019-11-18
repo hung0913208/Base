@@ -67,6 +67,18 @@ if [ $(which git) ]; then
 		fi
 
 		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'libbase' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
+		BUILDER="${ROOT}/Tools/Builder/build"
+	elif [[ $PROJECT == 'libbase.git' ]]; then
+		if [ $REROUTE = 1 ]; then
+			ROOT=$(pwd)
+		fi
+
+		BUILDER="${ROOT}/Tools/Builder/build"
 	elif [[ $PROJECT == 'Eevee' ]]; then
 		if [ $REROUTE = 1 ]; then
 			ROOT=$(pwd)
@@ -95,6 +107,8 @@ if [ $(which git) ]; then
 		BUILDER="${ROOT}/Base/Tools/Builder/build"
 	elif [[ -d "${ROOT}/base" ]]; then
 		BUILDER="${ROOT}/base/Tools/Builder/build"
+	elif [[ -d "${ROOT}/libbase" ]]; then
+		BUILDER="${ROOT}/libbase/Tools/Builder/build"
 	elif [[ -d "${ROOT}/LibBase" ]]; then
 		BUILDER="${ROOT}/LibBase/Tools/Builder/build"
 	elif [[ -d "${ROOT}/Eden" ]]; then
@@ -106,6 +120,7 @@ if [ $(which git) ]; then
 		Not found LibBase, it must be inside
 		- ${ROOT}/Base
 		- ${ROOT}/base
+		- ${ROOT}/libbase
 		- ${ROOT}/LibBase
 		- ${ROOT}/Eevee
 		- ${ROOT}/Eden
