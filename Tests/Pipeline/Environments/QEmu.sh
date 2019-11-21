@@ -395,7 +395,7 @@ function generate_initrd() {
 	cp -fR examples/bootfloppy/etc initramfs >& /dev/null
 
 	rm -f initramfs/linuxrc
-	mkdir -p initramfs/{dev,proc,sys,tests} >& /dev/null
+	mkdir -p initramfs/{dev,proc,sys,tests,modules} >& /dev/null
 	$SU cp -a /dev/{null,console,tty,tty1,tty2,tty3,tty4} initramfs/dev/ >& /dev/null
 
 	# @NOTE: generate our initscript which is used to call our testing system
@@ -409,8 +409,23 @@ function generate_initrd() {
 
 	chmod a+x initramfs/init
 
+	# @NOTE: copy only kernel modules
+	for FILE in $(find $1 -type f -name '*.ko'); do
+		if [ -d "$FILE" ]; then
+			continue
+		else
+			COUNT=$(($COUNT + 1))
+
+			cp $FILE initramfs/modules
+			echo "insmod ./modules/$(basename $FILE)" >> initramfs/init
+		fi
+	done
+
 	# @NOTE: copy only execuators that don't support dynamic link
 	for FILE in $(find $1 -executable); do
+		FILENAME=$(basename -- "$FILE")
+		EXTENSION="${FILENAME##*.}"
+
 		if [ -d "$FILE" ]; then
 			continue
 		fi
