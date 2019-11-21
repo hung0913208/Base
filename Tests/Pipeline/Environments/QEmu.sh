@@ -38,7 +38,7 @@ BBOX_FILENAME=$(basename $BBOX_URL)
 BBOX_DIRNAME=$(basename $BBOX_FILENAME ".tar.bz2")
 
 KERNEL_NAME=$(basename $KERNEL_URL)
-KERNEL_DIRNAME=$(basename $KERNEL_NAME ",git")
+KERNEL_DIRNAME=$(basename $KERNEL_NAME ".git")
 
 git branch | egrep 'Pipeline/QEmu$' >& /dev/null
 if [ $? != 0 ]; then
@@ -103,12 +103,12 @@ function troubleshoot() {
 			return 0
 		fi
 
-		if [ -f /tmp/tcpdump.pid ]; then
-			cat /tmp/tcpdump.pid | while read PID; do
+		if [ -f $ROOT/tcpdump.pid ]; then
+			cat $ROOT/tcpdump.pid | while read PID; do
 				$SU kill -15 $PID >& /dev/null
 			done
 
-			for FILE in /tmp/dump/*.tcap; do
+			for FILE in $ROOT/dump/*.tcap; do
 				if [[ $(wc -c < $FILE) -gt 0 ]]; then
 					info "tcpdump $(basename $FILE) from host view:"
 					cat $FILE
@@ -116,8 +116,8 @@ function troubleshoot() {
 				fi
 			done
 
-			rm -fr /tmp/tcpdump.pid
-			rm -fr /tmp/dump
+			rm -fr $ROOT/tcpdump.pid
+			rm -fr $ROOT/dump
 		fi
 
 		if which iptables >& /dev/null; then
@@ -156,12 +156,13 @@ function troubleshoot() {
 			ip neigh show
 			echo ""
 		fi
-		
+
 		if [ -d $SCRIPT ]; then
 			bash $SCRIPT/stop
 		else
 			bash $SCRIPT stop
 		fi
+		stop_dhcpd
 	fi
 }
 
@@ -305,28 +306,39 @@ EOF
 		fi
 	elif [ $MODE = "bridge" ]; then
 		IDX=$((IDX+1))
+		NETWORK=''
 
 		# @NOTE: set ip address of this TAP interface
-		TAP="$(get_new_bridge "tap")"
-		create_tuntap "$TAP"
+		ITAP="$(get_new_bridge "tap")"
 
-		if [ $? != 0 ]; then
-			error "can't create a new tap interface"
-		else
-			$SU ip link set dev $TAP master $BRD
-			$SU ip link set $TAP up
+		if ! create_tuntap "$ITAP"; then
+			error "can't create a new tap interface $ITAP"
+		fi
 
-			NETWORK="-device e1000,netdev=network$IDX -netdev tap,ifname=$TAP,id=network$IDX,script=no,downscript=no"
+		# @NOTE: set ip address of this TAP interface
+		ETAP="$(get_new_bridge "tap")"
+		if ! create_tuntap "$ETAP"; then
+			error "can't create a new tap interface $ETAP"
+		fi
 
-			cat > $CLOSE << EOF
+		$SU ip link set dev $ITAP master $IBRD
+		$SU ip link set $ITAP up
+		$SU ip link set dev $ETAP master $EBRD
+		$SU ip link set $ETAP up
+
+		NETWORK="$NETWORK -device virtio-net-pci,netdev=network_0_$IDX -netdev tap,ifname=$ITAP,id=network_0_$IDX,script=no,downscript=no"
+		NETWORK="$NETWORK -device e1000,netdev=network_1_$IDX -netdev tap,ifname=$ETAP,id=network_1_$IDX,script=no,downscript=no"
+
+		cat > $CLOSE << EOF
 #!/bin/sh
 
-$SU ip addr flush dev $TAP
-$SU ip link set $TAP down
-$SU ovs-vsctl del-port $BRD $TAP
+$SU ip addr flush dev $ITAP
+$SU ip link set $ITAP down
+$SU ip addr flush dev $ETAP
+$SU ip link set $ETAP down
 EOF
 
-			cat > $NET << EOF
+		cat > $NET << EOF
 #!/bin/sh
 
 # @NOTE: config nameserver
@@ -337,9 +349,15 @@ ifconfig lo 127.0.0.1
 
 # @NOTE: config eth0 interface to connect to outside
 ifconfig eth0 up
+ifconfig eth1 up
 
-ifconfig eth0 192.168.1.$IDX
-route add default gw 192.168.1.1 
+udhcpc -i eth1 -s /etc/udhcpc/sample.script
+
+if [[ $IDX -eq 2 ]]; then
+	ifconfig eth0 192.168.100.$IDX
+else
+	udhcpc -i eth0 -s /etc/udhcpc/sample.script
+fi
 
 echo "The VM's network configuration:"
 ifconfig -a
@@ -357,7 +375,6 @@ if ! ping -c 5 google.com >& /dev/null; then
 	echo "can't access to DNS server"
 fi
 EOF
-		fi
 	fi
 
 	if [ -f $NET ]; then
@@ -471,10 +488,13 @@ function compile_linux_kernel() {
 	# @NOTE: by default, we should use linux as convention kernel to deploy
 	# a minimal system
 	if [ -d "$INIT_DIR/$KERNEL_DIRNAME" ]; then
-		cd "$INIT_DIR/$KERNEL_DIRNAME"
-		git pull origin $KERNEL_BRANCH
+		cd "$INIT_DIR/$KERNEL_DIRNAME" && git pull origin $KERNEL_BRANCH
 	else
-		git clone --branch $KERNEL_BRANCH $KERNEL_URL
+		if ! git clone --branch $KERNEL_BRANCH $KERNEL_URL; then
+			curl -k $KERNEL_URL -o $KERNEL_DIRNAME
+			return $?
+		fi
+
 		cd "$INIT_DIR/$KERNEL_DIRNAME"
 	fi
 
@@ -498,17 +518,14 @@ function compile_linux_kernel() {
 		*)          make -j16;;
 	esac
 
-	if [[ ! -e ${KER_FILENAME} ]]; then
+	if [ ! -e ${KER_FILENAME} ]; then
 		error "can't create ${KER_FILENAME}"
 	elif [[ ${#FTP} -gt 0 ]]; then
-		tar -czf $ROOT/$KERNEL_NAME.tar.gz -C "$INIT_DIR/$KERNEL_DIRNAME" .
-
-		if [ $? != 0 ]; then
+		if ! tar -czf $ROOT/$KERNEL_NAME.tar.gz -C "$INIT_DIR/$KERNEL_DIRNAME" .; then
 			error "can't compress $KERNEL_NAME.tar.gz"
 		fi
 
-		wput -p -B  $ROOT/$KERNEL_NAME.tar.gz "$FTP"
-		if [ $? != 0 ]; then
+		if ! wput -p -B  $ROOT/$KERNEL_NAME.tar.gz "$FTP"; then
 			warning "wput fail to upload to $FTP"
 		fi
 
@@ -541,7 +558,7 @@ function boot_kernel() {
 	RAM_FILENAME=$1
 	KER_FILENAME=$2
 
-	mkdir -p /tmp/vms
+	mkdir -p $ROOT/vms
 
 	if [ -f "$RAM_FILENAME" ]; then
 		if [ ! -f $KER_FILENAME ]; then
@@ -562,7 +579,7 @@ function boot_kernel() {
 			info "run the slave VM($IDX) with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
 			if [[ ${#CPU} -gt 0 ]]; then
-				cat >> /tmp/vms/start << EOF
+				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 					\
 qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
 		-initrd "${RAM_FILENAME}"			\
@@ -572,7 +589,7 @@ qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
 		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
 EOF
 			else
-				cat >> /tmp/vms/start << EOF
+				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 				\
 qemu-system-x86_64 -s -kernel "${KER_FILENAME}"		\
 		-initrd "${RAM_FILENAME}"		\
@@ -585,7 +602,7 @@ EOF
 		elif [[ ${#CPU} -gt 0 ]]; then
 			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
-			cat >> /tmp/vms/start << EOF
+			cat >> $ROOT/vms/start << EOF
 echo "console log from master VM:"
 $TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
 	-initrd "${RAM_FILENAME}"					\
@@ -599,7 +616,7 @@ EOF
 		else
 			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
-			cat >> /tmp/vms/start << EOF
+			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM:"
 $TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
 		-initrd "${RAM_FILENAME}"			\
@@ -611,10 +628,10 @@ echo "--------------------------------------------------------------------------
 echo ""
 EOF
 		fi
-			cat >> /tmp/vms/stop << EOF
+			cat >> $ROOT/vms/stop << EOF
 screen -ls "vms.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print \$1}' | while read s; do screen -XS \$s quit; done
 rm -fr "$RAM_FILENAME"
-rm -fr /tmp/vms
+rm -fr $ROOT/vms
 EOF
 	else
 		warning "i can't start QEmu because i don't see any approviated test suites"
@@ -624,6 +641,81 @@ EOF
 
 function boot_image() {
 	IMG_FILENAME=$1
+
+	mkdir -p $ROOT/vms
+
+	if [ -f "$RAM_FILENAME" ]; then
+		if [ ! -f $KER_FILENAME ]; then
+			compile_linux_kernel
+		fi
+
+		if [[ ${#DEBUG} -gt 0 ]]; then
+			TIMEOUT="timeout 2700"
+		else
+			TIMEOUT=""
+		fi
+
+		if [[ ${#RAM} -eq 0 ]]; then
+			RAM="1G"
+		fi
+
+		if [[ $3 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
+			info "run the slave VM($IDX) with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+
+			if [[ ${#CPU} -gt 0 ]]; then
+				cat >> $ROOT/vms/start << EOF
+screen -S "vms.pid" -dm 					\
+qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"	\
+		-nographic 					\
+		-smp $(nproc) -m $RAM				\
+		$NETWORK
+EOF
+			else
+				cat >> $ROOT/vms/start << EOF
+screen -S "vms.pid" -dm 				\
+qemu-system-x86_64 -s -hda "${IMG_FILENAME}"		\
+		-nographic 				\
+		-smp $(nproc) -m $RAM			\
+		$NETWORK
+EOF
+				fi
+		elif [[ ${#CPU} -gt 0 ]]; then
+			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+
+			cat >> $ROOT/vms/start << EOF
+echo "console log from master VM:"
+$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"	\
+	-nographic 							\
+	-smp $(nproc) -m $RAM						\
+	$NETWORK
+echo "--------------------------------------------------------------------------------------------------------------------"
+echo ""
+EOF
+		else
+			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+
+			cat >> $ROOT/vms/start << EOF
+echo "[   INFO  ]: console log from master VM:"
+$TIMEOUT qemu-system-x86_64 -s -hda "${IMG_FILENAME}"	\
+		-nographic 					\
+		-smp $(nproc) -m $RAM				\
+		$NETWORK
+echo "--------------------------------------------------------------------------------------------------------------------"
+echo ""
+EOF
+		fi
+			cat >> $ROOT/vms/stop << EOF
+screen -ls "vms.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print \$1}' | while read s; do screen -XS \$s quit; done
+rm -fr $ROOT/vms
+EOF
+	else
+		warning "i can't start QEmu because i don't see any approviated test suites"
+		CODE=1
+	fi
+}
+
+function boot_pxelinux() {
+	error "no support netboot"
 }
 
 function start_vms() {
@@ -632,13 +724,18 @@ function start_vms() {
 	if [ $MODE = "bridge" ]; then
 		# @NOTE: assign specific ip to this bridge
 
-		if $SU ip addr add 192.168.1.1/24 dev $BRD; then
-			$SU ip link set $BRD up
+		if $SU ip addr add 192.168.100.1/24 dev $EBRD; then
+			$SU ip link set $EBRD up
+			$SU kill -15 $(pgrep dnsmasq)
+
+			if ! start_dhcpd $EBRD; then
+				error "can't start dhcpd service"
+			fi
 		fi
 	fi
 
-	troubleshoot 'start' /tmp/vms
-	if [ -f /tmp/startvm ]; then
+	troubleshoot 'start' $ROOT/vms
+	if [ -f $ROOT/startvm ]; then
 		if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
 			$WORKSPACE/Tests/Pipeline/Test.sh
 
@@ -650,15 +747,15 @@ function start_vms() {
 		fi
 	fi
 
-	troubleshoot 'end' /tmp/vms
+	troubleshoot 'end' $ROOT/vms
 	return $CODE
 }
 
 function create_image() {
 	KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
 	RAM_FILENAME="$INIT_DIR/initramfs-$1.cpio.gz"
-	IFUP_FILENAME="/tmp/ifup-$1"
-	IPDOWN_FILENAME="/tmp/ifdown-$1"
+	IFUP_FILENAME="$ROOT/ifup-$1"
+	IPDOWN_FILENAME="$ROOT/ifdown-$1"
 
 	$WORKSPACE/Tests/Pipeline/Build.sh $2 1 $1
 
@@ -696,13 +793,15 @@ function create_image() {
 			boot_kernel $RAM_FILENAME $KER_FILENAME $MASTER
 		elif [ ${#IMG_FILENAME} -gt 0 ]; then
 			boot_image $IMG_FILENAME
+		else
+			boot_pxelinux
 		fi
 	fi
 }
 
 function process() {
 	git submodule update --init --recursive
-	
+
 	if [ $METHOD != "build" ]; then
 		return 0
 	fi
@@ -731,7 +830,7 @@ function process() {
 		fi
 
 		if [ "$MODE" = "bridge" ]; then
-			$SU ip addr flush dev $BRD
+			$SU ip addr flush dev $EBRD
 		fi
 
 		if [ $? != 0 ]; then
@@ -741,7 +840,7 @@ function process() {
 			for IDX in $(seq 1 1 $VMS_NUMBER); do
 				create_image $IDX $1
 			done
-			
+
 			start_vms
 		fi
 	else
@@ -759,23 +858,35 @@ ETH="$(get_internet_interface)"
 echo 1 | $SU tee -a /proc/sys/net/ipv4/ip_forward >& /dev/null
 
 if [ "$MODE" = "bridge" ]; then
-	# @NOTE: create a new vswitch
-	BRD=$(get_new_bridge "brd")
-
+	# @NOTE: config nat table to the internet interface to response packets from bridges
 	$SU iptables -t nat -A POSTROUTING -o $ETH -j MASQUERADE
-	if create_bridge $BRD; then
+
+	# @NOTE: config iptables to allow bridges can response packet to them
+	$SU iptables -I FORWARD -m physdev --physdev-is-bridged -j ACCEPT
+
+	# @NOTE: create a new external bridge
+	EBRD=$(get_new_bridge "brd")
+
+	if create_bridge $EBRD; then
 		# @NOTE: redirect network between the bridge and the internet interface
-		$SU iptables -A FORWARD -i $BRD -o $ETH -j ACCEPT	
-		$SU iptables -A FORWARD -i $ETH -o $BRD -m state --state ESTABLISHED,RELATED \
-				                -j ACCEPT
+		$SU iptables -A FORWARD -i $EBRD -o $ETH -j ACCEPT
+		$SU iptables -A FORWARD -i $ETH -o $EBRD -m state --state ESTABLISHED,RELATED \
+						-j ACCEPT
 
 		# @NOTE: we will use this tool to troubleshoot the network issues
 		install_package tcpdump
 	else
-		error "can't create $BRD"
+		error "can't create $EBRD"
+	fi
+
+	# @NOTE: create a new internal bridge
+	IBRD=$(get_new_bridge "brd")
+
+	if ! create_bridge $IBRD; then
+		error "can't create $IBRD"
 	fi
 elif [ "$MODE" = "isolate" ]; then
-	NETWORK="-net nic -net user"	
+	NETWORK="-net nic -net user"
 fi
 
 if [ "$METHOD" == "reproduce" ]; then
@@ -783,7 +894,7 @@ if [ "$METHOD" == "reproduce" ]; then
 		if [ -e  $PIPELINE/Environment.sh ]; then
 			rm -fr  $PIPELINE/Environment.sh
 		fi
-		
+
 		# @NOTE: create a shortcut to connect directly with this environment
 		ln -s $0 $PIPELINE/Environment.sh
 
@@ -816,7 +927,7 @@ elif [ "$METHOD" = "prepare" ]; then
 		fi
 
 		if [ "$MODE" = "bridge" ]; then
-			$SU ip addr flush dev $BRD
+			$SU ip addr flush dev $EBRD
 		fi
 
 		if [ $? != 0 ]; then
@@ -865,8 +976,8 @@ elif [ "$METHOD" = "inject" ]; then
 			continue
 		fi
 
-		cat > /tmp/$(basename $PLUGIN).conf << EOF
-logfile /tmp/$(basename $SCRIPT).log
+		cat > $ROOT/$(basename $PLUGIN).conf << EOF
+logfile $ROOT/$(basename $SCRIPT).log
 logfile flush 1
 log on
 logtstamp after 1
@@ -874,7 +985,7 @@ logtstamp after 1
 logtstamp on
 EOF
 
-		screen -c /tmp/$(basename $PLUGIN).conf -L -S $SCREEN -md $PLUGIN
+		screen -c $ROOT/$(basename $PLUGIN).conf -L -S $SCREEN -md $PLUGIN
 	done
 elif [ "$METHOD" = "report" ]; then
 	BASE="$(detect_libbase $(pwd))"
@@ -1016,8 +1127,8 @@ except Exception as error:
 	rm -fr "$INIT_DIR/$BBOX_DIRNAME"
 	rm -fr "$INIT_DIR/$KERNEL_DIRNAME"
 
-	if [ -f /tmp/fail ]; then
-		rm -fr /tmp/fail
+	if [ -f $ROOT/fail ]; then
+		rm -fr $ROOT/fail
 		exit -1
 	else
 		exit 0
