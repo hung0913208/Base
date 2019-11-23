@@ -43,7 +43,8 @@ function run() {
 		CODE=$?
 
 		rm -fr $(dirname $0)/tasks/kernel-$DATE.sh
-		if git log --format=%B -n 1 HEAD | grep " Expect failed"; then
+
+		if git log --format=%B -n 1 HEAD | grep " Expect failed" >& /dev/null; then
 			if [[ $CODE -ne 0 ]]; then
 				exit 0
 			else
@@ -52,6 +53,8 @@ function run() {
 		else
 			exit $CODE
 		fi
+	else
+		clean $@
 	fi
 }
 
@@ -76,13 +79,29 @@ function probe() {
 			done
 		fi
 	fi
+
+	if [[ $CODE -eq 0 ]]; then
+		echo $CI_JOB_TOKEN > /var/lock/$(whoami)-resignd.lck
+	fi
+
 	exit $CODE
 }
 
 function plan() {
-	if ! $(dirname $0)/tasks/kernel.sh plan $@; then
-		rm -fr $(dirname $0)/tasks/kernel.sh
+	if [ ! -f /var/lock/$(whoami)-resignd.lck ]; then
 		exit -1
+	elif [ $(cat /var/lock/$(whoami)-resignd.lck) != ${CI_JOB_TOKEN} ]; then
+		exit -1
+	else
+		CODE=0
+
+		if ! $(dirname $0)/tasks/kernel.sh plan $@; then
+			rm -fr $(dirname $0)/tasks/kernel.sh
+			CODE=-1
+		fi
+
+		rm -fr /var/lock/$(whoami)-resignd.lck
+		exit $CODE
 	fi
 }
 
@@ -90,7 +109,6 @@ CMD=$1
 shift
 
 mkdir -p $(dirname $0)/tasks
-
 case $CMD in
 	run) 		run $@;;
 	plan) 		plan $@;;

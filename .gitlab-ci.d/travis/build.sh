@@ -48,11 +48,11 @@ function clean() {
 	done
 
 	if [ -f /var/lock/$(whoami)/travis/${CI_JOB_TOKEN} ]; then
-		while ! $VERBOSE /var/lock/travis/${CI_JOB_TOKEN}; do
+		while ! $VERBOSE /var/lock/$(whoami)/travis/${CI_JOB_TOKEN}; do
 			sleep 1
 		done
 
-		rm -fr /var/lock/$(whoami)/ttravis/${CI_JOB_TOKEN}
+		rm -fr /var/lock/$(whoami)/travis/${CI_JOB_TOKEN}
 	else
 		$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
 		$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}
@@ -85,6 +85,14 @@ function run() {
 				else
 					$VERBOSE $BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
 					CODE=$?
+	
+					if [[ $CODE -ne 0 ]]; then
+						if [[ ${#VERBOSE} -gt 0 ]]; then
+							clean --verbose
+						else
+							clean
+						fi
+					fi
 				fi
 
 				$VERBOSE $BASE/Tools/Utilities/travis.sh delete --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}	
@@ -93,6 +101,12 @@ function run() {
 			fi
 		done
 	done
+
+	if [[ ${#VERBOSE} -gt 0 ]]; then
+		clean --verbose
+	else
+		clean
+	fi
 
 	exit -1
 }
