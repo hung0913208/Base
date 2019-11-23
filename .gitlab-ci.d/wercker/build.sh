@@ -76,6 +76,14 @@ function run() {
 	else
 		$VERBOSE $BASE/Tools/Utilities/wercker.sh restart --token ${WERCKER} --repo ${REPO}
 		CODE=$?
+
+		if [[ $CODE -ne 0 ]]; then
+			if [[ ${#VERBOSE} -eq 0 ]]; then
+				clean
+			else
+				clean --verbose
+			fi
+		fi
 	fi
 
 	rm -fr /var/lock/$(whoami)/wercker/${CI_JOB_TOKEN}
@@ -100,7 +108,7 @@ function probe() {
 
 	if [ $OS = 'linux' ]; then
 		if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
-			if [[ $(ls -1l /var/lock/travis/ | wc -l) -lt 2 ]]; then
+			if [[ $(ls -1l /var/lock/$(whoami)/wercker/ | wc -l) -lt 2 ]]; then
 				if $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
 					while ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}; do
 						sleep 1
@@ -117,7 +125,7 @@ function probe() {
 					fi
 				elif $VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; then
 					$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}
-					
+
 					if $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
 						exit 0
 					fi

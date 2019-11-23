@@ -53,6 +53,8 @@ function run() {
 		else
 			exit $CODE
 		fi
+	else
+		clean $@
 	fi
 }
 

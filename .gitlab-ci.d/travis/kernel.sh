@@ -84,6 +84,14 @@ function run() {
 				else
 					$VERBOSE $BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
 					CODE=$?
+
+					if [[ $CODE -ne 0 ]]; then
+						if [[ ${#VERBOSE} -gt 0 ]]; then
+							clean --verbose
+						else
+							clean
+						fi
+					fi
 				fi
 
 				$VERBOSE $BASE/Tools/Utilities/travis.sh delete --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}	
@@ -93,6 +101,11 @@ function run() {
 		done
 	done
 
+	if [[ ${#VERBOSE} -gt 0 ]]; then
+		clean --verbose
+	else
+		clean
+	fi
 	exit -1
 }
 
@@ -118,11 +131,7 @@ function probe() {
 				elif $VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; then
 					exit -1
 				else
-					if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}; then
-						exit -1
-					else
-						exit 0
-					fi
+					exit 0
 				fi
 			fi
 		fi
@@ -148,6 +157,8 @@ function plan() {
 	fi
 
 	if [[ $(ls -1l /var/lock/$(whoami)/travis/ | wc -l) -gt 4 ]]; then
+		touch /var/lock/$(whoami)/travis/${CI_JOB_TOKEN}
+
 		if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}; then
 			$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
 			exit -1

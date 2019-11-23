@@ -92,6 +92,14 @@ function run() {
 				else
 					$VERBOSE $BASE/Tools/Utilities/travis.sh restart --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}
 					CODE=$?
+
+					if [[ $CODE -ne 0 ]]; then
+						if [[ ${#VERBOSE} -gt 0 ]]; then
+							clean --verbose
+						else
+							clean
+						fi
+					fi
 				fi
 
 				$VERBOSE $BASE/Tools/Utilities/travis.sh delete --job ${JOB} --patch ${IDX} --token ${TRAVIS} --repo ${REPO}	
@@ -101,6 +109,11 @@ function run() {
 		done
 	done
 
+	if [[ ${#VERBOSE} -gt 0 ]]; then
+		clean --verbose
+	else
+		clean
+	fi
 	exit -1
 }
 
