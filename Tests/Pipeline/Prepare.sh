@@ -100,15 +100,25 @@ if [ -d "$ROOT/.requirement.d" ]; then
 	info "found $ROOT/.requirement.d -> check $SYS"
 
 	if [ -e "$ROOT/.requirement.d/$SYS" ]; then
+		SAVE=$IFS
+		IFS=$'\n'
+
 		cat "$ROOT/.requirement.d/$SYS" | while read DEFINE; do
 			if [[ ${#DEFINE} -gt 0 ]]; then
-				install_package $DEFINE
+				if ! install_package $DEFINE; then
+					warning "fail install $DEFINE"
+				fi
 			fi
 		done
+
+		IFS=$SAVE
 	else
 		warning "not found "$ROOT/.requirement.d/$SYS""
 	fi
 elif [ -f "$ROOT/.requirement" ]; then
+	SAVE=$IFS
+	IFS=$'\n'
+
 	cat "$ROOT/.requirement" | while read DEFINE; do
 		if [[ ${#DEFINE} -gt 0 ]]; then
 			install_package $DEFINE
@@ -118,6 +128,7 @@ elif [ -f "$ROOT/.requirement" ]; then
 			fi
 		fi
 	done
+	IFS=$SAVE
 else
 	warning "not found $ROOT/.requirement.d/$SYS or $ROOT/.requirement"
 fi
@@ -128,6 +139,9 @@ if [ -d "$ROOT/.recompile.d" ]; then
 	info "found $ROOT/.recompile.d -> check $SYS"
 
 	if [ -e "$ROOT/.recompile.d/$SYS" ]; then
+		SAVE=$IFS
+		IFS=$'\n'
+
 		cat "$ROOT/.recompile.d/$SYS" | while read DEFINE; do
 			if [[ ${#DEFINE} -gt 0 ]]; then
 				SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
@@ -147,10 +161,15 @@ if [ -d "$ROOT/.recompile.d" ]; then
 				fi
 			fi
 		done
+
+		IFS=$SAVE
 	else
 		warning "not found "$ROOT/.recompile.d/$SYS""
 	fi
 elif [ -f "$ROOT/.recompile" ]; then
+	SAVE=$IFS
+	IFS=$'\n'
+
 	cat "$ROOT/.recompile" | while read DEFINE; do
 		if [[ ${#DEFINE} -gt 0 ]]; then
 			SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
@@ -170,6 +189,7 @@ elif [ -f "$ROOT/.recompile" ]; then
 			fi
 		fi
 	done
+	IFS=$SAVE
 else
 	warning "not found $ROOT/.recompile.d/$SYS or $ROOT/.recompile"
 fi

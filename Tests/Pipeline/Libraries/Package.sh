@@ -92,12 +92,12 @@ function install_package() {
 		$SU ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
 	fi
 
-	info "install $1 now"
-	$SU $INSTALL $1 >& /dev/null
+	info "install $(eval "echo $1")"
+	bash -c "$SU $INSTALL $(eval "echo $1")" >& /dev/null
 
 	if [ $? != 0 ]; then
-		$SU $INSTALL $1
-		error "install $1 fail"
+		bash -c "$SU $INSTALL $(eval "echo $1")"
+		error "install $(eval "echo $1") fail"
 	else
 		return 0
 	fi
