@@ -30,7 +30,7 @@ fi
 BASE=$(realpath $(dirname $0)/../../)
 START="HOOK"
 STOP="NOTIFY"
-HOOK="export JOB=build; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
+HOOK="export JOB=build; apt install -y qemu; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
 NOTIFY="/pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; /pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}; apt install -y qemu"
 
 function clean() {
