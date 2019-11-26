@@ -127,13 +127,13 @@ function troubleshoot() {
 			echo ""
 		fi
 
-		if which ifconfig >& /dev/null; then
+		if which ip >& /dev/null; then
 			info "network configuration from host view:"
-			$SU ifconfig
+			$SU ip addr show
 			echo ""
 		else
 			info "network configuration from host view:"
-			$SU ip addr show
+			$SU ifconfig
 			echo ""
 		fi
 
@@ -326,7 +326,7 @@ EOF
 		$SU ip link set dev $ETAP master $EBRD
 		$SU ip link set $ETAP up
 
-		NETWORK="$NETWORK -device virtio-net-pci,netdev=network_0_$IDX -netdev tap,ifname=$ITAP,id=network_0_$IDX,script=no,downscript=no"
+		NETWORK="$NETWORK -device e1000,netdev=network_0_$IDX -netdev tap,ifname=$ITAP,id=network_0_$IDX,script=no,downscript=no"
 		NETWORK="$NETWORK -device e1000,netdev=network_1_$IDX -netdev tap,ifname=$ETAP,id=network_1_$IDX,script=no,downscript=no"
 
 		cat > $CLOSE << EOF
@@ -575,6 +575,10 @@ function boot_kernel() {
 
 	mkdir -p $ROOT/vms
 
+	if [ "$CPU" = 'host' ]; then
+		KVM='-enable-kvm'
+	fi
+
 	if [ -f "$RAM_FILENAME" ]; then
 		if [ ! -f $KER_FILENAME ]; then
 			compile_linux_kernel
@@ -601,30 +605,30 @@ qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
 		-nographic 					\
 		-smp $(nproc) -m $RAM				\
 		$NETWORK					\
-		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		-append "console=ttyS0 loglevel=8 $KER_COMMANDS" $KVM
 EOF
 			else
 				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 				\
-qemu-system-x86_64 -s -kernel "${KER_FILENAME}"		\
+qemu-system-x86_64 -kernel "${KER_FILENAME}"		\
 		-initrd "${RAM_FILENAME}"		\
 		-nographic 				\
-		-smp $(nproc) -m $RAM			\
+		-m $RAM					\
 		$NETWORK				\
 		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
 EOF
-				fi
+			fi
 		elif [[ ${#CPU} -gt 0 ]]; then
 			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
 			cat >> $ROOT/vms/start << EOF
-echo "console log from master VM:"
+echo "[   INFO  ]: console log from master VM($CPU):"
 $TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
 	-initrd "${RAM_FILENAME}"					\
 	-nographic 							\
 	-smp $(nproc) -m $RAM						\
 	$NETWORK							\
-	-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+	-append "console=ttyS0 loglevel=8 $KER_COMMANDS" $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
 EOF
@@ -636,7 +640,7 @@ echo "[   INFO  ]: console log from master VM:"
 $TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
 		-initrd "${RAM_FILENAME}"			\
 		-nographic 					\
-		-smp $(nproc) -m $RAM				\
+		-m $RAM						\
 		$NETWORK					\
 		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
 echo "--------------------------------------------------------------------------------------------------------------------"
@@ -659,6 +663,10 @@ function boot_image() {
 
 	mkdir -p $ROOT/vms
 
+	if [ $CPU = 'host' ]; then
+		KVM='-enable-kvm'
+	fi
+
 	if [ -f "$RAM_FILENAME" ]; then
 		if [ ! -f $KER_FILENAME ]; then
 			compile_linux_kernel
@@ -680,29 +688,29 @@ function boot_image() {
 			if [[ ${#CPU} -gt 0 ]]; then
 				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 					\
-qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"	\
+qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"		\
 		-nographic 					\
 		-smp $(nproc) -m $RAM				\
-		$NETWORK
+		$NETWORK $KVM
 EOF
 			else
 				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 				\
-qemu-system-x86_64 -s -hda "${IMG_FILENAME}"		\
+qemu-system-x86_64 -hda "${IMG_FILENAME}"		\
 		-nographic 				\
-		-smp $(nproc) -m $RAM			\
-		$NETWORK
+		-m $RAM					\
+		$NETWORK $KVM
 EOF
-				fi
+			fi
 		elif [[ ${#CPU} -gt 0 ]]; then
 			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
 			cat >> $ROOT/vms/start << EOF
-echo "console log from master VM:"
-$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"	\
+echo "[   INFO  ]: console log from master VM($CPU):"
+$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"		\
 	-nographic 							\
 	-smp $(nproc) -m $RAM						\
-	$NETWORK
+	$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
 EOF
@@ -711,10 +719,10 @@ EOF
 
 			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM:"
-$TIMEOUT qemu-system-x86_64 -s -hda "${IMG_FILENAME}"	\
+$TIMEOUT qemu-system-x86_64 -hda "${IMG_FILENAME}"		\
 		-nographic 					\
-		-smp $(nproc) -m $RAM				\
-		$NETWORK
+		-m $RAM						\
+		$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
 EOF
@@ -750,7 +758,7 @@ function start_vms() {
 	fi
 
 	troubleshoot 'start' $ROOT/vms
-	if [ -f $ROOT/startvm ]; then
+	if [ -f $ROOT/vms/start ]; then
 		if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
 			$WORKSPACE/Tests/Pipeline/Test.sh
 
@@ -1040,8 +1048,8 @@ elif [ "$METHOD" == "build" ]; then
 
 	HOST=""
 
-	if ! $SU grep vmx /proc/cpuinfo; then
-		if ! $SU modprobe kvm; then
+	if $SU egrep '(vmx|svm)' /proc/cpuinfo; then
+		if $SU modprobe kvm; then
 			HOST="host"
 		fi
 	fi
