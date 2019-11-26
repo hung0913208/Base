@@ -613,10 +613,12 @@ function boot_kernel() {
 			compile_linux_kernel
 		fi
 
-		if [[ ${#DEBUG} -gt 0 ]]; then
-			TIMEOUT="timeout 2700"
-		else
-			TIMEOUT=""
+		if [[ ${#TIMEOUT} -eq 0 ]]; then
+			if [[ ${#DEBUG} -gt 0 ]]; then
+				TIMEOUT="timeout 2700"
+			else
+				TIMEOUT=""
+			fi
 		fi
 
 		if [[ ${#RAM} -eq 0 ]]; then
