@@ -600,22 +600,24 @@ function boot_kernel() {
 			if [[ ${#CPU} -gt 0 ]]; then
 				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 					\
-qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
+qemu-system-x86_64 -serial stdio 				\
+		-cpu $CPU -s -kernel "${KER_FILENAME}"		\
 		-initrd "${RAM_FILENAME}"			\
 		-nographic 					\
 		-smp $(nproc) -m $RAM				\
 		$NETWORK					\
-		-append "console=ttyS0 loglevel=8 $KER_COMMANDS" $KVM
+		-append "console=ttyAMA0,115200 console=tty  highres=off console=ttyS0 loglevel=8 $KER_COMMANDS" $KVM
 EOF
 			else
 				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 				\
-qemu-system-x86_64 -kernel "${KER_FILENAME}"		\
+qemu-system-x86_64 -serial stdio 			\
+		-kernel "${KER_FILENAME}"		\
 		-initrd "${RAM_FILENAME}"		\
 		-nographic 				\
 		-m $RAM					\
 		$NETWORK				\
-		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		-append "console=ttyAMA0,115200 console=tty  highres=off console=ttyS0 loglevel=8 $KER_COMMANDS"
 EOF
 			fi
 		elif [[ ${#CPU} -gt 0 ]]; then
@@ -623,12 +625,13 @@ EOF
 
 			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM($CPU):"
-$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
+$TIMEOUT qemu-system-x86_64 -serial stdio 				\
+	-cpu $CPU -s -kernel "${KER_FILENAME}"				\
 	-initrd "${RAM_FILENAME}"					\
 	-nographic 							\
 	-smp $(nproc) -m $RAM						\
 	$NETWORK							\
-	-append "console=ttyS0 loglevel=8 $KER_COMMANDS" $KVM
+	-append "console=ttyAMA0,115200 console=tty  highres=off console=ttyS0 loglevel=8 $KER_COMMANDS" $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
 EOF
@@ -642,7 +645,7 @@ $TIMEOUT qemu-system-x86_64 -s -kernel "${KER_FILENAME}"	\
 		-nographic 					\
 		-m $RAM						\
 		$NETWORK					\
-		-append "console=ttyS0 loglevel=8 $KER_COMMANDS"
+		-append "console=ttyAMA0,115200 console=tty  highres=off console=ttyAMA0,115200 console=tty  highres=off console=ttyS0 loglevel=8 $KER_COMMANDS"
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
 EOF
@@ -688,7 +691,8 @@ function boot_image() {
 			if [[ ${#CPU} -gt 0 ]]; then
 				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 					\
-qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"		\
+qemu-system-x86_64 -serial stdio 				\
+		-cpu $CPU -s -hda "${IMG_FILENAME}"		\
 		-nographic 					\
 		-smp $(nproc) -m $RAM				\
 		$NETWORK $KVM
@@ -696,7 +700,8 @@ EOF
 			else
 				cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 				\
-qemu-system-x86_64 -hda "${IMG_FILENAME}"		\
+qemu-system-x86_64 -serial stdio 			\
+		-hda "${IMG_FILENAME}"			\
 		-nographic 				\
 		-m $RAM					\
 		$NETWORK $KVM
@@ -707,9 +712,10 @@ EOF
 
 			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM($CPU):"
-$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"		\
-	-nographic 							\
-	-smp $(nproc) -m $RAM						\
+$TIMEOUT qemu-system-x86_64 -serial stdio 		\
+	-cpu $CPU -s -hda "${IMG_FILENAME}"		\
+	-nographic 					\
+	-smp $(nproc) -m $RAM				\
 	$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
@@ -719,9 +725,10 @@ EOF
 
 			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM:"
-$TIMEOUT qemu-system-x86_64 -hda "${IMG_FILENAME}"		\
-		-nographic 					\
-		-m $RAM						\
+$TIMEOUT qemu-system-x86_64 -serial stdio 	\
+		-hda "${IMG_FILENAME}"		\
+		-nographic 			\
+		-m $RAM				\
 		$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
