@@ -82,10 +82,11 @@ function troubleshoot() {
 			return 0
 		fi
 
-		INTERFACES=($(show_all_network_interface))
+		snift $EBRD $ROOT 1
+		snift $IBRD $ROOT 1
 
 		for IF_PATH in /sys/class/net/*; do
-			snift $(basename $IF_PATH)
+			snift $(basename $IF_PATH) $ROOT
 		done
 
 		if [ -d $SCRIPT ]; then
