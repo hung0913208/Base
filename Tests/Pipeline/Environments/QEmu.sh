@@ -755,6 +755,10 @@ function start_vms() {
 				error "can't start dhcpd service"
 			fi
 		fi
+
+		if $SU ip addr add 192.168.101.1/24 dev $IBRD; then
+			$SU ip link set $IBRD up
+		fi
 	fi
 
 	troubleshoot 'start' $ROOT/vms
@@ -854,6 +858,7 @@ function process() {
 
 		if [ "$MODE" = "bridge" ]; then
 			$SU ip addr flush dev $EBRD
+			$SU ip addr flush dev $IBRD
 		fi
 
 		if [ $? != 0 ]; then
@@ -951,6 +956,7 @@ elif [ "$METHOD" = "prepare" ]; then
 
 		if [ "$MODE" = "bridge" ]; then
 			$SU ip addr flush dev $EBRD
+			$SU ip addr flush dev $IBRD
 		fi
 
 		if [ $? != 0 ]; then
