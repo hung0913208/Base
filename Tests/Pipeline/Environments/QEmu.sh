@@ -395,8 +395,12 @@ function generate_initrd() {
 	cp -fR examples/bootfloppy/etc initramfs >& /dev/null
 
 	rm -f initramfs/linuxrc
-	mkdir -p initramfs/{dev,proc,sys,tests,modules} >& /dev/null
+	mkdir -p initramfs/{dev,proc,lib/modules,sys,tests,modules} >& /dev/null
 	$SU cp -a /dev/{null,console,tty,tty1,tty2,tty3,tty4} initramfs/dev/ >& /dev/null
+
+	if [ -d "$MOD_PATHNAME" ]; then
+		$SU cp -a $MOD_PATHNAME initramfs/lib/modules
+	fi
 
 	# @NOTE: generate our initscript which is used to call our testing system
 	if [ $MODE = "isolate" ]; then
@@ -787,6 +791,7 @@ function start_vms() {
 
 function create_image() {
 	KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
+	MOD_PATHNAME=""
 	RAM_FILENAME="$INIT_DIR/initramfs-$1.cpio.gz"
 	IFUP_FILENAME="$ROOT/ifup-$1"
 	IPDOWN_FILENAME="$ROOT/ifdown-$1"
