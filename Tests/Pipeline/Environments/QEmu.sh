@@ -251,6 +251,10 @@ free -m
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
+if [ -f /config ]; then
+	/config start
+fi
+
 if [ -f /network ]; then
 	/network
 fi
@@ -302,6 +306,9 @@ EOF
 			$SU iptables -A FORWARD -i $ETH -o $TAP -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 			cat > $NET << EOF
+if [ -f /config ]; then
+	sh /config network $IDX
+fi
 EOF
 		fi
 	elif [ $MODE = "bridge" ]; then
@@ -341,6 +348,10 @@ EOF
 		cat > $NET << EOF
 #!/bin/sh
 
+if [ -f /config ]; then
+	sh /config start $IDX
+fi
+
 # @NOTE: config nameserver
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
@@ -374,6 +385,10 @@ fi
 if ! ping -c 5 google.com >& /dev/null; then
 	echo "can't access to DNS server"
 fi
+
+if [ -f /config ]; then
+	sh /config network $IDX
+fi
 EOF
 	fi
 
@@ -400,6 +415,10 @@ function generate_initrd() {
 
 	if [ -d "$MOD_PATHNAME" ]; then
 		$SU cp -a $MOD_PATHNAME initramfs/lib/modules
+	fi
+
+	if [ -f "$HIJ_FILENAME" ]; then
+		$SU cp -a $HIJ_FILENAME initramfs/config
 	fi
 
 	# @NOTE: generate our initscript which is used to call our testing system
@@ -455,7 +474,13 @@ function generate_initrd() {
 		fi
 
 		if [[ ${#DEBUG} -eq 0 ]]; then
-			echo "poweroff -f" >> initramfs/init
+			echo """
+if [ -f /config ]; then
+	sh /config stop $4
+fi
+
+poweroff -f
+""" >> initramfs/init
 		fi
 
 		# @NOTE: okey, everything is done from host machine, from now we should
