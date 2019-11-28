@@ -158,6 +158,16 @@ function troubleshoot() {
 			echo ""
 		fi
 
+		if which netstat >& /dev/null; then
+			info "netstat table from host view:"
+			$SU netstat -tuanlp
+			echo ""
+		elif which ss >& /dev/null; then
+			info "ss table from host view:"
+			$SU ss -tuanlp
+			echo ""
+		fi
+
 		if [ -d $SCRIPT ]; then
 			bash $SCRIPT/stop
 		else
