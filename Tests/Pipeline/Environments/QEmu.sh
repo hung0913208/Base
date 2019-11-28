@@ -376,7 +376,7 @@ ifconfig eth1 up
 udhcpc -i eth1 -s /etc/udhcpc/sample.script
 
 if [[ $IDX -eq 2 ]]; then
-	ifconfig eth0 192.168.100.$IDX
+	ifconfig eth0 192.168.101.$IDX
 else
 	udhcpc -i eth0 -s /etc/udhcpc/sample.script
 fi
