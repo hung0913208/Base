@@ -272,8 +272,8 @@ free -m
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
-if [ -f /config ]; then
-	/config start
+if [ -f /config/modules/start ]; then
+	sh /config/modules/start
 fi
 
 if [ -f /network ]; then
@@ -331,9 +331,6 @@ EOF
 			$SU iptables -A FORWARD -i $ETH -o $TAP -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 			cat > $NET << EOF
-if [ -f /config ]; then
-	sh /config network $IDX
-fi
 EOF
 		fi
 	elif [ $MODE = "bridge" ]; then
@@ -358,8 +355,8 @@ EOF
 		$SU ip link set dev $ETAP master $EBRD
 		$SU ip link set $ETAP up
 
-		NETWORK="$NETWORK -device e1000,netdev=network_0_$IDX -netdev tap,ifname=$ITAP,id=network_0_$IDX,script=no,downscript=no"
-		NETWORK="$NETWORK -device e1000,netdev=network_1_$IDX -netdev tap,ifname=$ETAP,id=network_1_$IDX,script=no,downscript=no"
+		NETWORK="$NETWORK -device e1000,netdev=network_0_$IDX,mac=$(get_new_macaddr) -netdev tap,ifname=$ITAP,id=network_0_$IDX,script=no,downscript=no"
+		NETWORK="$NETWORK -device e1000,netdev=network_1_$IDX,mac=$(get_new_macaddr) -netdev tap,ifname=$ETAP,id=network_1_$IDX,script=no,downscript=no"
 
 		cat > $CLOSE << EOF
 #!/bin/sh
@@ -373,10 +370,6 @@ EOF
 		cat > $NET << EOF
 #!/bin/sh
 
-if [ -f /config ]; then
-	sh /config start $IDX
-fi
-
 # @NOTE: config nameserver
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
@@ -386,19 +379,20 @@ ifconfig lo 127.0.0.1
 # @NOTE: config eth0 interface to connect to outside
 touch /var/lib/misc/udhcpd.leases
 
-echo "config eth1 with udhcpc"
-udhcpc -R -n -b -p /var/run/udhcpc.eth1.pid -i eth1 -s /etc/udhcpc/udhcpc-external.script
+if [ -f /etc/udhcpc/udhcpc-external.script ]; then
+	echo "config eth1 with udhcpc"
+	udhcpc -R -n -b -p /var/run/udhcpc.eth1.pid -i eth1 -s /etc/udhcpc/udhcpc-external.script
+fi
 
 if [ -f /etc/udhcpd.conf ]; then
 	echo "start udhcpd daemon"
 	udhcpd /etc/udhcpd.conf
+fi
 
+if [ -f /etc/udhcpc/udhcpc-internal.script ]; then
 	echo "config eth0 with udhcpc"
 	udhcpc -R -n -b -p /var/run/udhcpc.eth0.pid -i eth0 -s /etc/udhcpc/udhcpc-internal.script
 fi
-
-echo "The VM's network configuration:"
-ifconfig -a
 EOF
 	fi
 
@@ -583,8 +577,8 @@ function generate_initrd() {
 		$SU cp -a $MOD_PATHNAME initramfs/lib/modules
 	fi
 
-	if [ -f "$HIJ_FILENAME" ]; then
-		$SU cp -a $HIJ_FILENAME initramfs/config
+	if [ -d "$ETC_PATHNAME" ]; then
+		$SU cp -a $ETC_PATHNAME initramfs/config
 	fi
 
 	# @NOTE: generate our initscript which is used to call our testing system
@@ -595,12 +589,9 @@ function generate_initrd() {
 	elif [ $MODE = "bridge" ]; then
 		generate_bridge_initscript $4
 
-		if [ ! -f "$ETC_PATHNAME/etc/udhcpd.conf" ]; then
-			generate_udhcpd_internal_config initramfs/etc/udhcpd.conf
-		fi
-
-		generate_udhcpc_internal_script initramfs/etc/udhcpc/udhcpc-internal.script
-		generate_udhcpc_external_script initramfs/etc/udhcpc/udhcpc-external.script
+		generate_udhcpd_internal_config udhcpd.conf && cp udhcpd.conf initramfs/etc/
+		generate_udhcpc_internal_script udhcpc-internal.script && cp udhcpc-internal.script initramfs/etc/udhcpc/
+		generate_udhcpc_external_script udhcpc-external.script && cp udhcpc-external.script  initramfs/etc/udhcpc/
 	fi
 
 	chmod a+x initramfs/init
@@ -1338,7 +1329,7 @@ if [ "$MODE" = "bridge" ]; then
 		error "can't create $IBRD"
 	fi
 elif [ "$MODE" = "isolate" ]; then
-	NETWORK="-net nic -net user"
+	NETWORK="-net nic,mac=$(get_new_macaddr) -net user"
 fi
 
 if [ "$METHOD" == "reproduce" ]; then

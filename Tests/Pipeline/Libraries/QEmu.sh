@@ -192,6 +192,10 @@ function create_bridge() {
 	fi
 }
 
+function get_new_macaddr() {
+	printf 'DE:AD:BE:EF:%02X:%02X\n' $((RANDOM%256)) $((RANDOM%256))
+}
+
 function make_bridge_slaving() {
 	$SU ip link set dev $2 master $1
 
