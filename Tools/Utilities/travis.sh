@@ -178,13 +178,16 @@ for idx, item in enumerate(json.load(sys.stdin)['builds']):
 }
 
 function status() {
-	ID=$1
-	RESP=$(curl -sS --request GET 				\
-			--header "Authorization: token $TOKEN" 	\
-			--header "Travis-API-Version: 3" 	\
-			https://api.travis-ci.org/build/$ID/jobs)
+	if [ $# != 2 ]; then
+		echo 'unknown'
+	else
+		ID=$1
+		RESP=$(curl -sS --request GET 				\
+				--header "Authorization: token $TOKEN" 	\
+				--header "Travis-API-Version: 3" 	\
+				https://api.travis-ci.org/build/$ID/jobs)
 
-	echo $RESP | python -c """
+		echo $RESP | python -c """
 import json, sys
 
 raw = json.load(sys.stdin)
@@ -194,15 +197,23 @@ try:
 			print(item['state'])
 			break
 except Exception:
-	print(raw)
+	if raw.get('@type') == 'error':
+		print('unknown')
+	else:
+		print(raw)
 """
+	fi
 }
 
 function job() {
+	if [ $# != 2 ]; then
+		exit -1
+	fi
+
 	ID=$1
-	RESP=$(curl -sS --request GET 				    \
-			--header "Authorization: token $TOKEN" 	\
-			--header "Travis-API-Version: 3" 	    \
+	RESP=$(curl -sS --request GET 					\
+			--header "Authorization: token $TOKEN" 		\
+			--header "Travis-API-Version: 3" 		\
 			https://api.travis-ci.org/build/$ID/jobs)
 
 	echo $RESP | python -c """
@@ -220,6 +231,10 @@ except Exception:
 }
 
 function log() {
+	if [ $# != 2 ]; then
+		exit -1
+	fi
+
 	BUILD=$1
 	JOB=$2
 	curl -sS --request GET                              \
@@ -234,11 +249,18 @@ except ImportError:
     from urllib.parse import unquote_plus
 raw = json.load(sys.stdin)
 
-print(unquote_plus(raw.get('content') or ''))
+if raw.get('@type') == 'error':
+	sys.exit(-1)
+else:
+	print(unquote_plus(raw.get('content') or ''))
 """
 }
 
 function delete() {
+	if [ $# != 2 ]; then
+		exit -1
+	fi
+
 	BUILD=$1
 	JOB=$2
 	curl -sS --request DELETE                           \
@@ -248,9 +270,9 @@ function delete() {
 }
 
 function console() {
-	USER=$(curl -sS --request GET 				            \
+	USER=$(curl -sS --request GET 					\
 			        --header "Authorization: token $TOKEN" 	\
-        			--header "Travis-API-Version: 3" 	    \
+        			--header "Travis-API-Version: 3" 	\
             https://api.travis-ci.org/user?include=owner.installation |
             python -c "import json, sys; print(json.load(sys.stdin)['id'])")
 	if [ "$1" = 'started' ] || [ $1 = 'restarted' ]; then
