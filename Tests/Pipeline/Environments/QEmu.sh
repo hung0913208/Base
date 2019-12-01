@@ -86,7 +86,11 @@ function troubleshoot() {
 		snift $IBRD $ROOT 1
 
 		for IF_PATH in /sys/class/net/*; do
-			snift $(basename $IF_PATH) $ROOT
+			if [ $(basename $IF_PATH) = $ETH ]; then
+				snift $(basename $IF_PATH) $ROOT 0 'net net 192.168.100.0/24'
+			else
+				snift $(basename $IF_PATH) $ROOT
+			fi
 		done
 
 		if [ -d $SCRIPT ]; then
@@ -282,6 +286,10 @@ free -m
 # @NOTE: increase maximum fd per process
 ulimit -n 65536
 
+if [ -f /config/modules/start ]; then
+	sh /config/modules/start
+fi
+
 if [ -f /network ]; then
 	/network
 fi
@@ -370,36 +378,21 @@ echo "nameserver 8.8.8.8" > /etc/resolv.conf
 ifconfig lo 127.0.0.1
 
 # @NOTE: config eth0 interface to connect to outside
-ifconfig eth0 up
-ifconfig eth1 up
+touch /var/lib/misc/udhcpd.leases
 
-udhcpc -i eth1 -s /etc/udhcpc/sample.script
+echo "config eth1 with udhcpc"
+udhcpc -R -n -b -p /var/run/udhcpc.eth1.pid -i eth1 -s /etc/udhcpc/udhcpc-external.script
 
-if [[ $IDX -eq 2 ]]; then
-	ifconfig eth0 192.168.101.$IDX
-else
-	udhcpc -i eth0 -s /etc/udhcpc/sample.script
+if [ -f /etc/udhcpd.conf ]; then
+	echo "start udhcpd daemon"
+	udhcpd /etc/udhcpd.conf
+
+	echo "config eth0 with udhcpc"
+	udhcpc -R -n -b -p /var/run/udhcpc.eth0.pid -i eth0 -s /etc/udhcpc/udhcpc-internal.script
 fi
 
 echo "The VM's network configuration:"
 ifconfig -a
-echo ""
-
-echo "The VM's routing table:"
-route -n
-echo ""
-
-if ! ping -c 5 8.8.8.8 >& /dev/null; then
-	echo "can't connect to internet"
-fi
-
-if ! ping -c 5 google.com >& /dev/null; then
-	echo "can't access to DNS server"
-fi
-
-if [ -f /config ]; then
-	sh /config network $IDX
-fi
 EOF
 	fi
 
@@ -411,17 +404,173 @@ EOF
 	fi
 }
 
+function generate_udhcpd_internal_config() {
+	cat > $1 << EOF
+start 		192.168.101.4
+end 		192.168.101.254
+interface 	eth0
+lease 	file 	/var/lib/misc/udhcpd.leases
+opt 	dns 	8.8.8.8 8.8.4.4
+option 	subnet 	255.255.255.0
+opt 	router 	192.168.101.1
+option 	lease 	864000
+EOF
+}
+
+function generate_udhcpc_internal_script() {
+	cat > $1 << EOF
+#!/bin/sh
+# udhcpc script edited by Tim Riker <Tim@Rikers.org>
+
+RESOLV_CONF="/etc/resolv.conf"
+
+[ -n "\$1" ] || { echo "Error: should be called from udhcpc"; exit 1; }
+
+NETMASK=""
+if command -v ip >/dev/null; then
+	[ -n "\$subnet" ] && NETMASK="/\$subnet"
+else
+	[ -n "\$subnet" ] && NETMASK="netmask \$subnet"
+fi
+BROADCAST="broadcast +"
+[ -n "\$broadcast" ] && BROADCAST="broadcast \$broadcast"
+
+case "\$1" in
+	deconfig)
+		if command -v ip >/dev/null; then
+			ip addr flush dev \$interface
+			ip link set dev \$interface up
+		else
+			ifconfig \$interface 0.0.0.0
+		fi
+
+		if [ -f /config/internal/stop ]; then
+			sh /config/internal/stop \$interface
+		fi
+		;;
+
+	renew|bound)
+		if command -v ip >/dev/null; then
+			ip addr add \$ip\$NETMASK \$BROADCAST dev \$interface
+		else
+			ifconfig \$interface \$ip \$NETMASK \$BROADCAST
+		fi
+
+		if [ -f /config/internal/start ]; then
+			sh /config/internal/start \$ip
+		fi
+		;;
+esac
+
+exit 0
+EOF
+	chmod +x $1
+}
+
+function generate_udhcpc_external_script() {
+	cat > $1 << EOF
+#!/bin/sh
+# udhcpc script edited by Tim Riker <Tim@Rikers.org>
+
+RESOLV_CONF="/etc/resolv.conf"
+
+[ -n "\$1" ] || { echo "Error: should be called from udhcpc"; exit 1; }
+
+NETMASK=""
+if command -v ip >/dev/null; then
+	[ -n "\$subnet" ] && NETMASK="/\$subnet"
+else
+	[ -n "\$subnet" ] && NETMASK="netmask \$subnet"
+fi
+BROADCAST="broadcast +"
+[ -n "\$broadcast" ] && BROADCAST="broadcast \$broadcast"
+
+case "\$1" in
+	deconfig)
+		if command -v ip >/dev/null; then
+			ip addr flush dev \$interface
+			ip link set dev \$interface up
+		else
+			ifconfig \$interface 0.0.0.0
+		fi
+
+		if [ -f /config/external/stop ]; then
+			sh /config/external/stop \$interface
+		fi
+		;;
+
+	renew|bound)
+		if command -v ip >/dev/null; then
+			ip addr add \$ip\$NETMASK \$BROADCAST dev \$interface
+		else
+			ifconfig \$interface \$ip \$NETMASK \$BROADCAST
+		fi
+
+		if [ -n "\$router" ] ; then
+			while route del default gw 0.0.0.0 dev \$interface ; do
+				:
+			done
+
+			metric=0
+			for i in \$router ; do
+				if [ "\$subnet" = "255.255.255.255" ]; then
+					ip route add \$i dev \$interface
+				fi
+
+				route add default gw \$i dev \$interface metric \$((metric++))
+			done
+		fi
+
+		if test -L "\$RESOLV_CONF"; then
+			# If it's a dangling symlink, try to create the target.
+			test -e "\$RESOLV_CONF" || touch "\$RESOLV_CONF"
+		fi
+		realconf=\$(readlink -f "\$RESOLV_CONF" 2>/dev/null || echo "\$RESOLV_CONF")
+
+		tmpfile="\$realconf-\$$"
+		> "\$tmpfile"
+
+		[ -n "\$domain" ] && echo "search \$domain" >> "\$tmpfile"
+		for i in \$dns ; do
+			echo "nameserver \$i" >> "\$tmpfile"
+		done
+
+		mv "\$tmpfile" "\$realconf"
+
+		if ! ping -c 5 8.8.8.8 >& /dev/null; then
+			echo "can't connect to internet"
+		fi
+
+		if ! ping -c 5 google.com >& /dev/null; then
+			echo "can't access to DNS server"
+		fi
+
+		if [ -f /config/external/start ]; then
+			sh /config/external/start \$ip
+		fi
+		;;
+esac
+
+exit 0
+EOF
+	chmod +x $1
+}
+
 function generate_initrd() {
 	local COUNT=0
 
 	CURRENT=$(pwd)
 	cd "$INIT_DIR/$BBOX_DIRNAME/" || error "can't cd to $INIT_DIR/$BBOX_DIRNAME"
 
+	rm -fr initramfs
+
 	cp -rf _install/ initramfs/ >& /dev/null
 	cp -fR examples/bootfloppy/etc initramfs >& /dev/null
 
-	rm -f initramfs/linuxrc
-	mkdir -p initramfs/{dev,proc,lib/modules,sys,tests,modules} >& /dev/null
+	rm -fr initramfs/linuxrc
+	rm -fr initramfs/etc/udhcpd.conf
+
+	mkdir -p initramfs/{dev,etc/udhcpc,proc,lib/modules,sys,tests,modules,var/lib/misc} >& /dev/null
 	$SU cp -a /dev/{null,console,tty,tty1,tty2,tty3,tty4} initramfs/dev/ >& /dev/null
 
 	if [ -d "$MOD_PATHNAME" ]; then
@@ -439,6 +588,13 @@ function generate_initrd() {
 		generate_nat_initscript $4
 	elif [ $MODE = "bridge" ]; then
 		generate_bridge_initscript $4
+
+		if [ ! -f "$ETC_PATHNAME/etc/udhcpd.conf" ]; then
+			generate_udhcpd_internal_config initramfs/etc/udhcpd.conf
+		fi
+
+		generate_udhcpc_internal_script initramfs/etc/udhcpc/udhcpc-internal.script
+		generate_udhcpc_external_script initramfs/etc/udhcpc/udhcpc-external.script
 	fi
 
 	chmod a+x initramfs/init
@@ -486,11 +642,12 @@ function generate_initrd() {
 
 		if [[ ${#DEBUG} -eq 0 ]]; then
 			echo """
-if [ -f /config ]; then
-	sh /config stop $4
+if [ -f /config/modules/stop ]; then
+	sh /config/modules/stop
+else
+	poweroff -f
 fi
 
-poweroff -f
 """ >> initramfs/init
 		fi
 
@@ -619,6 +776,12 @@ function boot_kernel() {
 		KVM='-enable-kvm'
 	fi
 
+	if [[ $IDX -lt 10 ]]; then
+		PORT="0$IDX"
+	else
+		PORT=$IDX
+	fi
+
 	if [ -f "$RAM_FILENAME" ]; then
 		if [ ! -f $KER_FILENAME ]; then
 			compile_linux_kernel
@@ -641,24 +804,24 @@ function boot_kernel() {
 
 			if [[ ${#CPU} -gt 0 ]]; then
 				cat >> $ROOT/vms/start << EOF
-screen -S "vms.pid" -dm 					\
-qemu-system-x86_64 -serial stdio 				\
-		-cpu $CPU -s -kernel "${KER_FILENAME}"		\
-		-initrd "${RAM_FILENAME}"			\
-		-nographic 					\
-		-smp $(nproc) -m $RAM				\
-		$NETWORK					\
+screen -S "vms.pid" -dm 						\
+qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"		\
+		-initrd "${RAM_FILENAME}"				\
+		-nographic 						\
+		-smp $(nproc) -m $RAM					\
+		$NETWORK						\
+		-serial telnet:localhost:101$PORT,server,nowait 	\
 		-append "console=ttyAMA0,115200 console=tty  highres=off console=ttyS0 loglevel=8 $KER_COMMANDS" $KVM
 EOF
 			else
 				cat >> $ROOT/vms/start << EOF
-screen -S "vms.pid" -dm 				\
-qemu-system-x86_64 -serial stdio 			\
-		-kernel "${KER_FILENAME}"		\
-		-initrd "${RAM_FILENAME}"		\
-		-nographic 				\
-		-m $RAM					\
-		$NETWORK				\
+screen -S "vms.pid" -dm 						\
+qemu-system-x86_64 -kernel "${KER_FILENAME}"				\
+		-initrd "${RAM_FILENAME}"				\
+		-nographic 						\
+		-m $RAM							\
+		$NETWORK						\
+		-serial telnet:localhost:101$PORT,server,nowait 	\
 		-append "console=ttyAMA0,115200 console=tty  highres=off console=ttyS0 loglevel=8 $KER_COMMANDS"
 EOF
 			fi
@@ -667,8 +830,7 @@ EOF
 
 			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM($CPU):"
-$TIMEOUT qemu-system-x86_64 -serial stdio 				\
-	-cpu $CPU -s -kernel "${KER_FILENAME}"				\
+$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -kernel "${KER_FILENAME}"	\
 	-initrd "${RAM_FILENAME}"					\
 	-nographic 							\
 	-smp $(nproc) -m $RAM						\
@@ -727,6 +889,12 @@ function boot_image() {
 			RAM="1G"
 		fi
 
+		if [[ $IDX -lt 10 ]]; then
+			PORT="0$IDX"
+		else
+			PORT=$IDX
+		fi
+
 		if [[ $3 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
 			info "run the slave VM($IDX) with kernel $KER_FILENAME and initrd $RAM_FILENAME"
 
@@ -745,10 +913,10 @@ EOF
 				else
 					cat >> $ROOT/vms/start << EOF
 screen -S "vms.pid" -dm 					\
-qemu-system-x86_64 -serial stdio 				\
-		-cpu $CPU -s -hda "${IMG_FILENAME}"		\
+qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"		\
 		-nographic 					\
 		-smp $(nproc) -m $RAM				\
+		-serial telnet:localhost:101$PORT,server,nowait \
 		$NETWORK $KVM
 EOF
 				fi
@@ -792,10 +960,9 @@ EOF
 			else
 				cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM($CPU):"
-$TIMEOUT qemu-system-x86_64 -serial stdio 		\
-	-cpu $CPU -s -hda "${IMG_FILENAME}"		\
-	-nographic 					\
-	-smp $(nproc) -m $RAM				\
+$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -hda "${IMG_FILENAME}"	\
+	-nographic 						\
+	-smp $(nproc) -m $RAM					\
 	$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
@@ -818,10 +985,9 @@ EOF
 			else
 				cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM:"
-$TIMEOUT qemu-system-x86_64 -serial stdio 	\
-		-hda "${IMG_FILENAME}"		\
-		-nographic 			\
-		-m $RAM				\
+$TIMEOUT qemu-system-x86_64 -hda "${IMG_FILENAME}"		\
+		-nographic 					\
+		-m $RAM						\
 		$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
@@ -836,6 +1002,10 @@ EOF
 		warning "i can't start QEmu because i don't see any approviated test suites"
 		CODE=1
 	fi
+}
+
+function boot_netkernel() {
+	error "no support booting kernel with nfs"
 }
 
 function boot_pxelinux() {
@@ -1007,11 +1177,11 @@ function start_vms() {
 }
 
 function create_image() {
-	KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
 	MOD_PATHNAME=""
-	RAM_FILENAME="$INIT_DIR/initramfs-$1.cpio.gz"
-	IFUP_FILENAME="$ROOT/ifup-$1"
-	IPDOWN_FILENAME="$ROOT/ifdown-$1"
+	KER_FILENAME="$INIT_DIR/$KERNEL_DIRNAME/arch/x86_64/boot/bzImage"
+	RAM_FILENAME="initramfs.cpio.gz"
+	IFUP_FILENAME="$ROOT/ifup"
+	IPDOWN_FILENAME="$ROOT/ifdown"
 
 	$WORKSPACE/Tests/Pipeline/Build.sh $2 1 $1
 
@@ -1027,6 +1197,10 @@ function create_image() {
 
 		if [ -f $WORKSPACE/.environment ]; then
 			source $WORKSPACE/.environment
+		fi
+
+		if [ ! -f $RAM_FILENAME ] && [[ ${#RAM_FILENAME} -gt 0 ]]; then
+			RAM_FILENAME="$INIT_DIR/$RAM_FILENAME"
 		fi
 
 		if ! generate_netscript $IDX $IFUP_FILENAME $IPDOWN_FILENAME; then
@@ -1051,6 +1225,8 @@ function create_image() {
 			boot_kernel $RAM_FILENAME $KER_FILENAME $MASTER
 		elif [ ${#IMG_FILENAME} -gt 0 ]; then
 			boot_image $IMG_FILENAME
+		elif [[ ${#KER_FILENAME} -gt 0 ]]; then
+			boot_netkernel
 		else
 			boot_pxelinux $1
 		fi
