@@ -172,6 +172,12 @@ function troubleshoot() {
 			echo ""
 		fi
 
+		if [ -f $ROOT/dump/dhcpd.log ]; then
+			info "dump the dhcpd history log:"
+			cat $ROOT/dump/dhcpd.log
+			echo ""
+		fi
+
 		if [ -d $SCRIPT ]; then
 			bash $SCRIPT/stop
 		else
@@ -1149,7 +1155,18 @@ function start_vms() {
 			$SU ip link set $EBRD up
 			$SU kill -15 $(pgrep dnsmasq)
 
-			if ! start_dhcpd $EBRD; then
+			cat > $ROOT/vms/dhcpd.script << EOF
+OP="\${1:-op}"
+MAC="\${2:-mac}"
+IP="\${3:-ip}"
+HOSTNAME="\${4}"
+
+TIMESTAMP="\$(date '+%Y-%m-%d %H:%M:%S')"
+echo "\$TIMESTAMP: <\$MAC> \$OP \$HOSTNAME/\$IP" >> $ROOT/dump/dhcpd.log
+EOF
+			chmod +x $ROOT/vms/dhcpd.script
+
+			if ! start_dhcpd $EBRD $ROOT/vms/dhcpd.script; then
 				error "can't start dhcpd service"
 			fi
 		fi

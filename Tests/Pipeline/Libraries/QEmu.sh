@@ -241,8 +241,13 @@ function start_dhcpd() {
 		return 1
 	fi
 
-	screen -S "dhcpd.pid" -dm 		\
-		$SU dnsmasq --interface=$1 --bind-interfaces --dhcp-range=${RANGE[0]},${RANGE[1]}
+	if [[ $# -gt 1 ]]; then
+		screen -S "dhcpd.pid" -dm 		\
+			$SU dnsmasq --interface=$1 --bind-interfaces --dhcp-range=${RANGE[0]},${RANGE[1]} --dhcp-script=$2
+	else
+		screen -S "dhcpd.pid" -dm 		\
+			$SU dnsmasq --interface=$1 --bind-interfaces --dhcp-range=${RANGE[0]},${RANGE[1]}
+	fi
 }
 
 function stop_dhcpd() {
