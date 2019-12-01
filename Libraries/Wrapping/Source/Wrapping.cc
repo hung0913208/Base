@@ -9,7 +9,7 @@ Wrapping::Wrapping(String language, String module, UInt sz_config):
     _Language{language}, _Module{module} {
   using namespace Internal;
 
-  if (!(_Config = ABI::Calloc(sz_config, 1))) {
+  if (sz_config > 0 && !(_Config = ABI::Calloc(sz_config, 1))) {
       throw Except(EDrainMem, "");
   } else if (Modules.find(language) == Modules.end()) {
     Modules[language] = Map<String, Wrapping*>{};

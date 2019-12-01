@@ -3,6 +3,56 @@
 #include <Utils.h>
 
 namespace Base {
+Bool Python::Compile() {
+  UInt i = 0;
+
+  if (_Size == 0 || _Config == None) {
+    _Size = _Procedures.size() + _Functions.size();
+    _Methods = (PyMethodDef*) ABI::Calloc(sizeof(PyMethodDef), _Size + 1);
+  } else if (_Size < _Procedures.size() + _Functions.size()) {
+    return False;
+  }
+
+  /* @NOTE: the ending should be a NULL method definition */
+  _Methods[_Size].ml_doc = None;
+  _Methods[_Size].ml_name = None;
+  _Methods[_Size].ml_meth = None;
+  _Methods[_Size].ml_flags = 0;
+
+  /* @NOTE: by default, we always set procedures first */
+  for (auto it = _Procedures.begin(); it != _Procedures.end(); ++it, ++i) {
+    auto& name = it->first;
+
+    _Methods[i].ml_name = name.c_str();
+    _Methods[i].ml_meth = (PyCFunction) GetAddress(_Wrappers[name]);
+    _Methods[i].ml_flags = _Flags[name];
+
+    if (_Documents[name].size() == 0) {
+      _Methods[i].ml_doc = None;
+    } else {
+      _Methods[i].ml_doc = _Documents[name].c_str();
+    }
+
+  }
+
+  /* @NOTE: after finishing seting the procedures, we will set functions */
+  for (auto it = _Functions.begin(); it != _Functions.end(); ++it, ++i) {
+    auto& name = it->first;
+
+    _Methods[i].ml_name = name.c_str();
+    _Methods[i].ml_meth = (PyCFunction) GetAddress(_Wrappers[name]);
+    _Methods[i].ml_flags = _Flags[name];
+
+    if (_Documents[name].size() == 0) {
+      _Methods[i].ml_doc = None;
+    } else {
+      _Methods[i].ml_doc = _Documents[name].c_str();
+    }
+  }
+
+  return True;
+}
+
 PyObject* Python::Throw(ErrorCodeE code, String& message) {
   return Throw(code, std::move(message));
 }
@@ -174,5 +224,11 @@ Auto Python::Down(PyObject* input) {
     return Auto();
   }
 }
+
+void Python::Init() {}
+
+void Python::Enter(String UNUSED(function), PyObject* UNUSED(thiz)) {}
+
+void Python::Exit(String UNUSED(function), PyObject* UNUSED(thiz)) {}
 } // namespace Base
 #endif  // USE_PYTHON

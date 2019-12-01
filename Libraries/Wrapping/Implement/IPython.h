@@ -4,6 +4,7 @@
 #include <Auto.h>
 #include <Exception.h>
 #include <Python.h>
+#include <Vertex.h>
 #include <Type.h>
 
 #ifndef BASE_WRAPPING_H_
@@ -13,23 +14,31 @@
 namespace Base {
 class Python : public Wrapping {
  private:
-  typedef Function<PyObject*(PyObject*)> Wrapper;
+  typedef Function<PyObject*(PyObject*, PyObject*)> Wrapper;
 
  public:
   explicit Python(String name, UInt version) :
-    Wrapping("Python", name, 100), _Version{version} {}
+    Wrapping("Python", name, sizeof(PyModuleDef)), _Version{version} {}
 
   virtual ~Python() {}
 
   /* @NOTE this function is used to define a standard procedure */
   template <typename... Args>
-  ErrorCodeE Procedure(String name, void (*function)(Args...)) {
+  ErrorCodeE Procedure(String name, void (*function)(Args...),
+                       String document = "",
+                       Int flags = 0) {
     if (_Wrappers.find(name) != _Wrappers.end()) {
       return (BadLogic << (Format{"redefine function {}"} << name)).code();
     }
 
     _Procedures[name] = reinterpret_cast<Void*>(function);
-    _Wrappers[name] = [&](PyObject* pyargs) -> PyObject* {
+    _Documents[name] = document;
+    _Flags[name] = flags;
+    _Wrappers[name] = [=](PyObject* UNUSED(thiz),
+                          PyObject* pyargs) -> PyObject* {
+      Base::Vertex<void> escaping{[&](){ Enter(name, thiz); },
+                                  [&](){ Exit(name, thiz); }};
+
       try {
         Vector<Void*> arguments{};
         Vector<Byte> types{};
@@ -39,7 +48,7 @@ class Python : public Wrapping {
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, arguments, types);
+        Wrapping::Instruct((void*)_Procedures[name], arguments, types);
 
         return Py_None;
       } catch (Error& error) {
@@ -56,13 +65,20 @@ class Python : public Wrapping {
     return ENoError;
   }
 
-  ErrorCodeE Procedure(String name, void (*function)()) {
+  ErrorCodeE Procedure(String name, void (*function)(), String document = "",
+                       Int flags = 0) {
     if (_Wrappers.find(name) != _Wrappers.end()) {
       return (BadLogic << (Format{"redefine function {}"} << name)).code();
     }
 
     _Procedures[name] = reinterpret_cast<Void*>(function);
-    _Wrappers[name] = [&](PyObject* UNUSED(pyargs)) -> PyObject* {
+    _Documents[name] = document;
+    _Flags[name] = flags;
+    _Wrappers[name] = [=](PyObject* UNUSED(thiz), 
+                          PyObject* UNUSED(pyargs)) -> PyObject* {
+      Base::Vertex<void> escaping{[&](){ Enter(name, thiz); },
+                                  [&](){ Exit(name, thiz); }};
+
       try {
         Vector<Void*> arguments{};
         Vector<Byte> types{};
@@ -88,13 +104,21 @@ class Python : public Wrapping {
 
   /* @NOTE this function is used to define a standard function */
   template <typename ResultT, typename... Args>
-  ErrorCodeE Execute(String name, ResultT (*function)(Args...)) {
+  ErrorCodeE Execute(String name, ResultT (*function)(Args...),
+                     String document = "",
+                     Int flags = 0) {
     if (_Wrappers.find(name) != _Wrappers.end()) {
       return (BadLogic << (Format{"redefine function {}"} << name)).code();
     }
 
     _Functions[name] = reinterpret_cast<Void*>(function);
-    _Wrappers[name] = [&](PyObject* pyargs) -> PyObject* {
+    _Documents[name] = document;
+    _Flags[name] = flags;
+    _Wrappers[name] = [=](PyObject* UNUSED(thiz),
+                          PyObject* pyargs) -> PyObject* {
+      Base::Vertex<void> escaping{[&](){ Enter(name, thiz); },
+                                  [&](){ Exit(name, thiz); }};
+
       try {
         Vector<Void*> arguments{};
         Vector<Byte> types{};
@@ -124,13 +148,20 @@ class Python : public Wrapping {
   }
 
   template <typename ResultT>
-  ErrorCodeE Execute(String name, ResultT (*function)()) {
+  ErrorCodeE Execute(String name, ResultT (*function)(), String document = "",
+                     Int flags = 0) {
     if (_Wrappers.find(name) != _Wrappers.end()) {
       return (BadLogic << (Format{"redefine function {}"} << name)).code();
     }
 
     _Functions[name] = reinterpret_cast<Void*>(function);
-    _Wrappers[name] = [&](PyObject* UNUSED(pyargs)) -> PyObject* {
+    _Documents[name] = document;
+    _Flags[name] = flags;
+    _Wrappers[name] = [=](PyObject* UNUSED(thiz),
+                          PyObject* UNUSED(pyargs)) -> PyObject* {      
+      Base::Vertex<void> escaping{[&](){ Enter(name, thiz); },
+                                  [&](){ Exit(name, thiz); }};
+
       try {
         Vector<Void*> arguments{};
         Vector<Byte> types{};
@@ -159,7 +190,13 @@ class Python : public Wrapping {
   Int Verison() { return _Version; }
 
  protected:
-  virtual void Init() = 0;
+  virtual void Init();
+  virtual void Enter(String function, PyObject* thiz);
+  virtual void Exit(String function, PyObject* thiz);
+
+  /* @NOTE: this function is used to compile the python wrapping functions to the
+   * function table which are stored inside the variable _Config. */
+  Bool Compile() final;
 
   /* @NOTE: these funtions are used to throw an error fron C/C++ to Python */
   PyObject* Throw(ErrorCodeE error, String&& message);
@@ -203,8 +240,11 @@ class Python : public Wrapping {
     }
   }
 
+  UInt _Size;
+  Map<String, Int> _Flags;
   Map<String, Void*> _Procedures;
   Map<String, Void*> _Functions;
+  Map<String, String> _Documents;
 
  private:
   template <typename... Args>
@@ -252,6 +292,7 @@ class Python : public Wrapping {
   }
 
   Map<String, Wrapper> _Wrappers;
+  PyMethodDef* _Methods;
   UInt _Version;
 };
 }  // namespace Base
@@ -308,7 +349,13 @@ class Python : public Wrapping {
                                                                 \
     module->Init();                                             \
     if (module->IsLoaded()) {                                   \
-      Py_InitModule(#Module, module->Configure<PyMethodDef>()); \
+      auto table = module->Configure<PyMethodDef>();            \
+                                                                \
+      if (table) {                                              \
+        Py_InitModule(#Module, table);                          \
+      } else {                                                  \
+        Py_InitModule(#Module, );                               \
+      }                                                         \
     } else {                                                    \
       throw Except(ENoSupport, #Module);                        \
     }                                                           \

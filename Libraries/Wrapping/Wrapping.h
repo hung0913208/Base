@@ -33,7 +33,13 @@ class Wrapping {
 
   /* @NOTE: get Configure of a wrapper */
   template<typename ResultT>
-  ResultT* Configure() { return (ResultT*)_Config; }
+  ResultT* Configure() { 
+    if (Compile()) {
+      return (ResultT*)_Config; 
+    } else {
+      return None;
+    }
+  }
 
   /* @NOTE: access modules of specific languages */
   static Wrapping* Module(String language, String module);
@@ -87,6 +93,12 @@ class Wrapping {
    * a procedure, a class or any kind of data */
   virtual Auto Address(String object, String type = "") = 0;
 
+  /* @NOTE: this function is used to compile the function table, it should be
+   * called automaticaly when the language installs our module or when you
+   * want to change the current functions with another ones. This is call live
+   * patching */
+  virtual Bool Compile() = 0;
+
   template<typename ...Args>
   Vector<Auto> Stack(Args... args) {
     Vector<Auto> result;
@@ -94,6 +106,8 @@ class Wrapping {
     Stack(result, args...);
     return result;
   }
+
+  Void* _Config;
 
  private:
   template<typename T, typename ...Args>
@@ -110,7 +124,6 @@ class Wrapping {
     result.push_back(Auto::As(value));
   }
 
-  Void* _Config;
   String _Language, _Module;
 };
 } // namespace Base
