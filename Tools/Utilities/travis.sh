@@ -521,10 +521,10 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console'
 
 	if [ $TASK = 'log' ] || [ $TASK = 'delete' ]; then
 		STATUS=$(status $BUILD $JOB)
-        
+       	
         	if [[ ${#STATUS} -eq 0 ]]; then
 			exit 0
-		elif [  $STATUS != 'started' ]; then
+		elif [  $STATUS != 'started' ] && [ $TASK = 'log' ]; then
                 	curl -sS --request GET                              \
                         	 --header "Authorization: token $TOKEN"     \
 	                         --header "Travis-API-Version: 3"           \
