@@ -449,6 +449,7 @@ String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);
 UInt Pagesize();
 Int PID();
+ErrorCodeE Protect(Void* address, UInt len, Int codes);
 }  // namespace Base
 #endif
 #endif  // BASE_UTILS_H_
