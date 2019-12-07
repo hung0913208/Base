@@ -1,5 +1,6 @@
 #if USE_PYTHON
 #include <IPython.h>
+#include <Utils.h>
 
 namespace Base {
 PyObject* Python::Throw(ErrorCodeE code, String& message) {
@@ -100,6 +101,78 @@ Auto Python::Address(String object, String type) {
   }
 
   return result;
+}
+
+PyObject* Python::Up(Auto& input) {
+  return Python::Up(std::move(input));
+}
+
+PyObject* Python::Up(Auto&& input) {
+  if (input.Type() == typeid(Int)) {
+#if PY_MAJOR_VERSION < 3
+    return PyInt_FromLong(Long(input.Get<Int>()));
+#else
+    return PyLong_FromLong(Long(input.Get<Int>()));
+#endif
+  } else if (input.Type() == typeid(UInt)) {
+#if PY_MAJOR_VERSION < 3
+    return PyInt_FromLong(Long(input.Get<UInt>()));
+#else
+    return PyLong_FromUnsignedLong(ULong(input.Get<UInt>()));
+#endif
+  } else if (input.Type() == typeid(Short)) {
+#if PY_MAJOR_VERSION < 3
+    return PyInt_FromLong(Long(input.Get<Short>()));
+#else
+    return PyLong_FromLong(Long(input.Get<Short>()));
+#endif
+  } else if (input.Type() == typeid(UShort)) {
+#if PY_MAJOR_VERSION < 3
+    return PyInt_FromLong(Long(input.Get<UShort>()));
+#else
+    return PyLong_FromUnsignedLong(ULong(input.Get<UShort>()));
+#endif
+  } else if (input.Type() == typeid(Long)) {
+    return PyLong_FromLong(input.Get<Long>());
+  } else if (input.Type() == typeid(ULong)) {
+    return PyLong_FromUnsignedLong(input.Get<ULong>());
+  } else if (input.Type() == typeid(LLong)) {
+    return PyLong_FromLongLong(input.Get<LLong>());
+  } else if (input.Type() == typeid(ULLong)) {
+    return PyLong_FromUnsignedLongLong(input.Get<ULLong>());
+  } else if (input.Type() == typeid(Bool)) {
+    return input.Get<Bool>()? Py_True: Py_False;
+  } else if (input.Type() == typeid(Float)) {
+    return PyFloat_FromDouble(Double(input.Get<Float>()));
+  } else if (input.Type() == typeid(Double)) {
+    return PyFloat_FromDouble(input.Get<Double>());
+  } else {
+    return Py_None;
+  }
+}
+
+Auto Python::Down(PyObject* input) {
+#if PY_MAJOR_VERSION < 3
+  if (PyInt_Check(input)) {
+    return Auto::As<Int>(PyInt_AsLong(input));
+  }
+#endif
+
+  if (PyBool_Check(input)) {
+    if (input == Py_True) {
+      return Auto::As<Bool>(True);
+    } else if (input == Py_False) {
+      return Auto::As<Bool>(False);
+    } else {
+      throw Except(EBadLogic, "receive unexpected values");
+    }
+  } else if (PyLong_Check(input)) {
+    return Auto::As<Long>(PyLong_AsLong(input));
+  } else if (PyFloat_Check(input)) {
+    return Auto::As<Float>(PyFloat_AsDouble(input));
+  } else {
+    return Auto();
+  }
 }
 } // namespace Base
 #endif  // USE_PYTHON

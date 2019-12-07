@@ -162,7 +162,7 @@ void CallFunct(Void* UNUSED(callback), Void** UNUSED(params),
   __asm__("   je      revert0              ; ");
   __asm__("   movl    %eax,(%r13)          ; ");
 
-  /* @NOTE: unlease the values are stucks inside our stack to prevent 
+  /* @NOTE: unlease the values are stucks inside our stack to prevent
    * memory unalignement */
   __asm__("   xor    %eax, %eax            ; ");
   __asm__("revert0:                          ");
@@ -210,6 +210,7 @@ void CallFunct(Void* UNUSED(callback), Void** UNUSED(params),
 
 void CallProc(Void* UNUSED(callback),  Void** UNUSED(params),
               Byte* UNUSED(types), UInt size) {
+#if USE_HIJACK
 #if defined(__GNUC__) && defined(__clang__)
   __asm__("   pushq   %rdi                 ; ");
   __asm__("   pushq   %rsi                 ; ");
@@ -231,5 +232,8 @@ void CallProc(Void* UNUSED(callback),  Void** UNUSED(params),
   __asm__("   popq    %rdx                 ; ");
   __asm__("   popq    %rsi                 ; ");
   __asm__("   popq    %rdi                 ; ");
+#endif
+#else
+  CallFunct(callback, params, types, size, None);
 #endif
 }

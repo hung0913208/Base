@@ -176,19 +176,31 @@ class Python : public Wrapping {
    * a procedure, a class or any kind of data */
   Auto Address(String object, String type = "") final;
 
+  static Auto Down(PyObject* input);
+  static PyObject* Up(Auto& input);
+  static PyObject* Up(Auto&& input);
+
+  template <typename ResultT>
+  static ResultT* To(PyObject* input) {
+    return &Python::Down(input).Get<ResultT>();
+  }
+
+  template <typename ResultT>
+  static ResultT* To(Auto&& input) {
+    if (typeid(ResultT) == typeid(PyObject)) {
+      return (ResultT*)Python::Up(input);
+    } else {
+      return &input.Get<ResultT>();
+    }
+  }
+
   template <typename ResultT>
   static ResultT* To(Auto& input) {
-    return To<ResultT>(std::move(input));
-  }
-
-  template <typename ResultT>
-  static ResultT* To(Auto&& UNUSED(input)) {
-    return None;
-  }
-
-  template <typename ResultT>
-  static ResultT* To(PyObject* UNUSED(input)) {
-    return None;
+    if (typeid(ResultT) == typeid(PyObject)) {
+      return (ResultT*)Python::Up(input);
+    } else {
+      return &input.Get<ResultT>();
+    }
   }
 
   Map<String, Void*> _Procedures;

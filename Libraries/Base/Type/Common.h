@@ -54,6 +54,8 @@ typedef bool Bool;
 typedef char Char;
 typedef int Int;
 typedef int* Ints;
+typedef short Short;
+typedef short* Shorts;
 typedef unsigned short UShort;
 typedef unsigned short* UShorts;
 typedef unsigned int UInt;

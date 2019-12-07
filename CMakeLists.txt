@@ -7,6 +7,8 @@ option(BUILD_TESTS "Build the test suite" ON)
 
 # @NOTE: add our custom module
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 if (BUILD_STATIC_EXEC)
 	set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 	set(BUILD_SHARED_LIBS OFF)
@@ -149,6 +151,7 @@ if (BUILD_TESTS)
 	add_test(NAME vertex COMMAND Tests/vertex)
 	add_test(NAME memmap COMMAND Tests/memmap)
 	add_test(NAME json COMMAND Tests/json)
+	add_test(NAME hello COMMAND bash -c "cd Tests && python ./Hello.py")
 
 	if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT CMAKE_BUILD_TYPE STREQUAL "Profiling")
 		add_test(NAME function COMMAND Tests/function)
