@@ -1,6 +1,7 @@
 #include <Type.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <malloc.h>
 
 namespace Base {
 namespace Internal {
@@ -11,6 +12,10 @@ extern void (*Crasher)(int, siginfo_t*, void*);
 } // namespace Base
 
 namespace ABI{
+void* Memallign(ULong alignment, Float size) {
+  return memalign(alignment, ULong(alignment*size));
+}
+
 void* Realloc(Void* buffer, ULong resize) { return realloc(buffer, resize); }
 
 void* Calloc(ULong count, ULong size) { return calloc(count, size); }

@@ -68,6 +68,7 @@ using Weak = std::weak_ptr<Type>;
 
 namespace ABI {
 /* @NOTE: memory allocation */
+void* Memallign(ULong alignment, Float size);
 void* Realloc(Void* buffer, ULong resize);
 void* Calloc(ULong count, ULong size);
 void* Malloc(ULong size);
