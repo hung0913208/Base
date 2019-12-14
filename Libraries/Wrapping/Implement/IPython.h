@@ -49,13 +49,15 @@ class Python : public Wrapping {
         Vector<Byte> types{};
 
         /* @NOTE: convert python's parameters to c/c++ parameters */
-        ParseTuple<Args...>(pyargs, arguments, types);
+        if (ParseTuple<Args...>(pyargs, arguments, types)) {
+          Py_RETURN_NONE;
+        }
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
         Wrapping::Instruct((void*)_Procedures[name], arguments, types);
 
-        return Py_None;
+        Py_RETURN_NONE;
       } catch (Error& error) {
         return Throw(error.code(), error.message());
       } catch (Exception& except) {
@@ -92,7 +94,7 @@ class Python : public Wrapping {
          * from Python */
         Wrapping::Instruct((void*)function, arguments, types);
 
-        return Py_None;
+        Py_RETURN_NONE;
       } catch (Error& error) {
         return Throw(error.code(), error.message());
       } catch (Exception& except) {
@@ -130,7 +132,9 @@ class Python : public Wrapping {
         ResultT result{};
 
         /* @NOTE: convert python's parameters to c/c++ parameters */
-        ParseTuple<Args...>(pyargs, arguments, types);
+        if (ParseTuple<Args...>(pyargs, arguments, types)) {
+          Py_RETURN_NONE;
+        }
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
