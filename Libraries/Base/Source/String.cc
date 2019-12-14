@@ -524,11 +524,19 @@ Bool String::operator!=(const CString dst) const{
 }
 
 Bool String::operator!=(const Base::String& dst) const{
-  return this->operator!=(dst.data());
+  if (_Size == dst.size()) {
+    return this->operator!=(dst.data());
+  } else {
+    return True;
+  }
 }
 
 Bool String::operator!=(Base::String&& dst) const{
-  return this->operator!=(dst.data());
+  if (_Size == dst.size()) {
+    return this->operator!=(dst.data());
+  } else {
+    return True;
+  }
 }
 
 String& String::copy() {
