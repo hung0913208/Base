@@ -459,6 +459,14 @@ PyObject* Python::Up(Auto&& input) {
     return PyFloat_FromDouble(Double(input.Get<Float>()));
   } else if (input.Type() == typeid(Double)) {
     return PyFloat_FromDouble(input.Get<Double>());
+  } else if (input.Type() == typeid(String)) {
+#if PY_MAJOR_VERSION < 3
+    return PyString_FromStringAndSize(input.Get<String>().c_str(),
+                                      input.Get<String>().size());
+#else
+    return PyUnicode_FromStringAndSize(input.Get<String>().c_str(),
+                                       input.Get<String>().size());
+#endif
   } else {
     return Py_None;
   }
@@ -483,6 +491,15 @@ Auto Python::Down(PyObject* input) {
     return Auto::As<Long>(PyLong_AsLong(input));
   } else if (PyFloat_Check(input)) {
     return Auto::As<Float>(PyFloat_AsDouble(input));
+#if PY_MAJOR_VERSION < 3
+  } else if (PyString_Check(input)) {
+    return Auto::As(String{PyString_AsString(input), PyString_Size(input)});
+#endif
+  } else if (PyUnicode_Check(input)) {
+    Py_ssize_t size = 0;
+    CString data = PyUnicode_AsUTF8AndSize(input, &size);
+
+    return Auto::As(String{data, size});
   } else {
     return Auto();
   }
