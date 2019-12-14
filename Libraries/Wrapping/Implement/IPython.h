@@ -255,31 +255,45 @@ class Python : public Wrapping {
   template <typename... Args>
   static ErrorCodeE ParseTuple(PyObject* pyargs, Vector<Void*>& output,
                                Vector<Byte>& types) {
-    return ParseTuple<Args...>(pyargs, 0, output, types);
+    return TupleParser<Args...>{}.Parse(pyargs, 0u, output, types);
   }
 
   template <typename T, typename... Args>
-  static ErrorCodeE ParseTuple(PyObject* pyargs, UInt begin,
-                               Vector<Void*>& output, Vector<Byte>& types) {
-    if (PyTuple_Check(pyargs)) {
-      auto error = ParseTuple<T>(pyargs, begin, output);
+  struct TupleParser {
+      ErrorCodeE Parse(PyObject* pyargs, UInt begin,
+                       Vector<Void*>& output, Vector<Byte>& types) {
+      if (PyTuple_Check(pyargs)) {
+        auto error = ParseTupleS<T>(PyTuple_GetItem(pyargs, begin), output, types);
 
-      if (!error && sizeof...(Args) > 0) {
-        return ParseTuple<Args...>(pyargs, begin + 1, output, types);
+        if (!error && sizeof...(Args) > 0) {
+          return TupleParser<Args...>{}.Parse(pyargs, begin + 1, output, types);
+        } else {
+          return error;
+        }
       } else {
-        return error;
+        return (BadAccess << "pyargs must be a tuple").code();
       }
-    } else {
-      return (BadAccess << "pyargs must be a tuple").code();
     }
-  }
+  };
 
   template <typename T>
-  static ErrorCodeE ParseTuple(PyObject* tuple, UInt index,
-                               Vector<Void*>& output, Vector<Byte>& types) {
+  struct TupleParser<T> {
+      ErrorCodeE Parse(PyObject* pyargs, UInt begin,
+                       Vector<Void*>& output, Vector<Byte>& types) {
+      if (PyTuple_Check(pyargs)) {
+        return ParseTupleS<T>(PyTuple_GetItem(pyargs, begin), output, types);
+      } else {
+        return (BadAccess << "pyargs must be a tuple").code();
+      }
+    }
+  };
+
+  template <typename T>
+  static ErrorCodeE ParseTupleS(PyObject* arg, Vector<Void*>& output,
+                               Vector<Byte>& types) {
     try {
       if (typeid(T) != typeid(void)) {
-        output.push_back(To<T>(PyTuple_GetItem(tuple, index)));
+        output.push_back(To<T>(arg));
 
         if (typeid(T) == typeid(Double) || typeid(T) == typeid(Float)) {
           types.push_back(True);

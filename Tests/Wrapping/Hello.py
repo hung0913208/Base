@@ -5,3 +5,4 @@ if os.path.exists('./libhello.so'):
 
 import Hello
 Hello.Print()
+Hello.PrintText('this is from python')
