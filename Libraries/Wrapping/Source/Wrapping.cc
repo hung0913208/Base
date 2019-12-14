@@ -2,7 +2,7 @@
 
 namespace Base {
 namespace Internal {
-static Map<String, Map<String, Wrapping*>> Modules;
+static Map<String, Map<String, Shared<Wrapping>>> Modules;
 } // namespace Internal
 
 Wrapping::Wrapping(String language, String module, UInt sz_config):
@@ -12,13 +12,11 @@ Wrapping::Wrapping(String language, String module, UInt sz_config):
   if (sz_config > 0 && !(_Config = ABI::Calloc(sz_config, 1))) {
       throw Except(EDrainMem, "");
   } else if (Modules.find(language) == Modules.end()) {
-    Modules[language] = Map<String, Wrapping*>{};
+    Modules[language] = Map<String, Shared<Wrapping>>{};
   } else if (Modules[language].find(module) != Modules[language].end()) {
     throw Except(EBadLogic, Format{"duplicate module {} of "
                                    "language {}"}.Apply(module, language));
   }
-
-  Modules[language][module] = this;
 }
 
 Wrapping::~Wrapping() {
@@ -75,19 +73,22 @@ ErrorCodeE Wrapping::Invoke(String function, Vector<Auto> arguments,
   return ENoError;
 }
 
-Bool Wrapping::Create(Wrapping* module) {
+Bool Wrapping::Create(Shared<Wrapping> module) {
   using namespace Base::Internal;
 
   if (Modules.find(module->Language()) == Modules.end()) {
     return !(NotFound(module->Language()));
   } else if (Modules[module->Language()].find(module->Name()) ==
              Modules[module->Language()].end()) {
-    return !(NotFound(module->Name()));
-  } else {
-    module->Init();
+    Modules[module->Language()][module->Name()] = module;
   }
-
+  
+  module->Init(); 
   return True;
+}
+
+Bool Wrapping::Create(Wrapping* module) {
+  return Wrapping::Create(Shared<Wrapping>(module));
 }
 
 Wrapping* Wrapping::Module(String language, String module) {
@@ -99,6 +100,6 @@ Wrapping* Wrapping::Module(String language, String module) {
     return None;
   }
 
-  return Modules[language][module];
+  return Modules[language][module].get();
 }
 } // namespace Base

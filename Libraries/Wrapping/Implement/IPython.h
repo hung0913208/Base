@@ -318,8 +318,9 @@ class Python : public Wrapping {
     using namespace Base::Implement::Python;                    \
     auto module = std::make_shared<Module>();                   \
                                                                 \
-    module->Init();                                             \
-    if (module->IsLoaded()) {                                   \
+    if (!Base::Wrapping::Create(module)) {                      \
+      throw Except(EBadLogic, #Module);                         \
+    } else if (module->IsLoaded()) {                            \
       return PyModule_Create(module->Configure<PyModuleDef>()); \
     } else {                                                    \
       throw Except(ENoSupport, #Module);                        \
@@ -347,9 +348,10 @@ class Python : public Wrapping {
     using namespace Base::Implement::Python;                    \
     auto module = std::make_shared<Module>();                   \
                                                                 \
-    module->Init();                                             \
-    if (module->IsLoaded()) {                                   \
-      auto table = module->Configure<PyMethodDef>();            \
+    if (!Base::Wrapping::Create(module)) {                      \
+      throw Except(EBadLogic, #Module);                         \
+    } else if (module->IsLoaded()) {                            \
+      auto table = module->Configure<ModuleDef>();              \
                                                                 \
       if (table) {                                              \
         Py_InitModule(#Module, table);                          \
