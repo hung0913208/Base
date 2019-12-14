@@ -251,7 +251,7 @@ if [ -d "./$1" ]; then
 		echo "=============================================================================="
 
 		FAIL=0
-		if [ "$1" != "Coverage" ] && [ "$1" != "Sanitize" ] && [ "$1" != "Profiling" ]; then
+		if [ "$1" != "Coverage" ] && [ "$1" != "Profiling" ]; then
 			if ! ctest --verbose --timeout 1; then
 				FAIL=1
 			fi
@@ -261,8 +261,13 @@ if [ -d "./$1" ]; then
 
 			for FILE in ./Tests/*; do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
+					if ! file $FILE | grep "executable" >& /dev/null; then
+						continue
+					fi
+
 					IDX=$((IDX+1))
 
+					echo ""
 					echo "        Start  $IDX: $(basename $FILE)"
 					echo "Test command: $FILE"
 					echo ""

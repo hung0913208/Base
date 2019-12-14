@@ -12,21 +12,26 @@
 #endif
 
 namespace Base {
+namespace IPython {
+PyObject* Jump(Int index, PyObject* thiz, PyObject* args);
+} // namespace IPython
+
 class Python : public Wrapping {
  private:
   typedef Function<PyObject*(PyObject*, PyObject*)> Wrapper;
 
  public:
   explicit Python(String name, UInt version) :
-    Wrapping("Python", name, sizeof(PyModuleDef)), _Version{version} {}
+    Wrapping("Python", name, sizeof(PyModuleDef)), _Size{0}, _Version{version}
+  {}
 
-  virtual ~Python() {}
+  virtual ~Python();
 
   /* @NOTE this function is used to define a standard procedure */
   template <typename... Args>
   ErrorCodeE Procedure(String name, void (*function)(Args...),
                        String document = "",
-                       Int flags = 0) {
+                       Int flags = METH_VARARGS) {
     if (_Wrappers.find(name) != _Wrappers.end()) {
       return (BadLogic << (Format{"redefine function {}"} << name)).code();
     }
@@ -66,7 +71,7 @@ class Python : public Wrapping {
   }
 
   ErrorCodeE Procedure(String name, void (*function)(), String document = "",
-                       Int flags = 0) {
+                       Int flags = METH_VARARGS) {
     if (_Wrappers.find(name) != _Wrappers.end()) {
       return (BadLogic << (Format{"redefine function {}"} << name)).code();
     }
@@ -291,8 +296,10 @@ class Python : public Wrapping {
     }
   }
 
+  friend PyObject* Base::IPython::Jump(Int index, PyObject* thiz, 
+                                      PyObject* args);
+
   Map<String, Wrapper> _Wrappers;
-  PyMethodDef* _Methods;
   UInt _Version;
 };
 }  // namespace Base

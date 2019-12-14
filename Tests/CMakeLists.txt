@@ -68,6 +68,11 @@ target_link_libraries(json base data unittest)
 if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT CMAKE_BUILD_TYPE STREQUAL "Profiling")
 	# @NOTE: define test cases from Wrapping
 	add_executable(function ${CMAKE_CURRENT_SOURCE_DIR}/Wrapping/Function.cc)
+	add_library(hello SHARED ${CMAKE_CURRENT_SOURCE_DIR}/Wrapping/Hello.cc)
 
 	target_link_libraries(function base data unittest wrapping ${LANGUAGE_LIBRARIES})
+	target_link_libraries(hello base wrapping unittest ${LANGUAGE_LIBRARIES})
+
+	file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Wrapping/Hello.py 
+	     DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 endif()

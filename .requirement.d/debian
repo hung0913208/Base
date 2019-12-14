@@ -2,7 +2,8 @@ clang
 gdb
 lcov
 make
-cmake
 bison
 valgrind
-python-dev
+python3-dev
+python3-dbg
+cmake

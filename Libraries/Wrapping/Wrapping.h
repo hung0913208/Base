@@ -5,8 +5,10 @@
 
 namespace Base {
 class Wrapping {
- public:
+ protected:
   explicit Wrapping(String language, String module, UInt szconfig);
+
+ public:
   virtual ~Wrapping();
 
   /* @NOTE: this function will be redefined to init a specific wrapper */
@@ -45,6 +47,7 @@ class Wrapping {
   static Wrapping* Module(String language, String module);
 
   /* @NOTE: wrap around to help create module without saving any trace */
+  static Bool Create(Shared<Wrapping> module);
   static Bool Create(Wrapping* module);
 
 #if defined(__GNUC__) && !defined(__clang__)
@@ -81,6 +84,19 @@ class Wrapping {
   static void Instruct(Void* callback, Vector<Void*>& params,
                        Vector<Byte>& types);
 
+  /* @NOTE: this function is used to allocate a defined block memory*/
+  static Void* Allocate(UInt size);
+
+  /* @NOTE: this function is used to deallocate an allocated block memory */
+  static Void Deallocate(Void* address);
+
+  /* @NOTE: this function is used to switch a page memory to be readonly */
+  static Void Readonly(Void* address);
+
+  /* @NOTE: this function is used to switch a page memory to be writeable */
+  static Void Writeable(Void* address);
+
+
  protected:
   /* @NOTE: this function is used to check if the object is existed or not */
   virtual Bool IsExist(String object, String type = "") = 0;
@@ -108,6 +124,7 @@ class Wrapping {
   }
 
   Void* _Config;
+  String _Language, _Module;
 
  private:
   template<typename T, typename ...Args>
@@ -123,8 +140,6 @@ class Wrapping {
   void Stack(Vector<Auto>& result, T value) {
     result.push_back(Auto::As(value));
   }
-
-  String _Language, _Module;
 };
 } // namespace Base
 
