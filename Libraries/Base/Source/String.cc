@@ -103,7 +103,7 @@ String::String(const CString str): _Autoclean{False} {
   _String = const_cast<CString>(str);
 }
 
-String::String(const CString str, UInt size): _Autoclean{True} {
+String::String(const CString str, ULong size): _Autoclean{True} {
   _Ref = (Int*)ABI::Malloc(sizeof(Int));
 
   if (!_Ref) {
@@ -122,7 +122,7 @@ String::String(const CString str, UInt size): _Autoclean{True} {
   }
 }
 
-String::String(UInt size, Char c): _Autoclean{True} {
+String::String(ULong size, Char c): _Autoclean{True} {
   _Ref = (Int*)ABI::Malloc(sizeof(Int));
 
   if (!_Ref) {
@@ -133,7 +133,7 @@ String::String(UInt size, Char c): _Autoclean{True} {
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
 
     if (_String) {
-      for (UInt i = 0; i < size; ++i) {
+      for (ULong i = 0; i < size; ++i) {
         _String[i] = c;
       }
     } else {
@@ -152,7 +152,7 @@ String& String::append(const Char c) {
 }
 
 String& String::append(Int n, const Char c) {
-  UInt current_size = size();
+  ULong current_size = size();
 
   resize(current_size + n);
   for (auto i = 0; i < n; ++i) {
@@ -175,7 +175,7 @@ Base::String& String::append(const CString s) {
 }
 
 Base::String& String::append(const CString s, Int n) {
-  UInt current_size = size();
+  ULong current_size = size();
 
   resize(size() + n);
   for (auto i = 0; i < n; ++i) {
@@ -205,7 +205,7 @@ Char& String::back() const {
   return _String[_Size - 1];
 }
 
-UInt String::size() const { return _Size; }
+ULong String::size() const { return _Size; }
 
 Bool String::empty() const { return _Size == 0 || _String == None; }
 
@@ -234,7 +234,7 @@ Void String::clear() {
   _Ref = None;
 }
 
-Void String::resize(UInt size) {
+Void String::resize(ULong size) {
   if (!_String || !_Autoclean) {
     auto tmp = (CString)ABI::Calloc(size + 1, sizeof(Char));
     auto saved = _String? (size > _Size? _Size: size): 0;
@@ -284,7 +284,7 @@ Void String::resize(UInt size) {
 }
 
 Void String::reverse() {
-  for (UInt i = 0; i < _Size/2; ++i) {
+  for (ULong i = 0; i < _Size/2; ++i) {
     Char tmp = _String[i];
 
     _String[i] = _String[_Size - 1 - i];
@@ -292,11 +292,11 @@ Void String::reverse() {
   }
 }
 
-String String::substr(UInt pos, Int len) {
+String String::substr(ULong pos, Int len) {
   if (len < 0) {
     return String{&(_String[pos])}.copy();
   } else {
-    return String{&(_String[pos]), UInt(len)}.copy();
+    return String{&(_String[pos]), ULong(len)}.copy();
   }
 }
 
@@ -471,7 +471,7 @@ Bool String::operator<(const Base::String& dst) const {
   if (size() != dst.size()) {
     return size() < dst.size();
   } else {
-    for (UInt i = 0; i < _Size; ++i) {
+    for (ULong i = 0; i < _Size; ++i) {
       if (_String[i] != dst._String[i]) {
         return _String[i] < dst._String[i];
       }
@@ -485,7 +485,7 @@ Bool String::operator<(Base::String&& dst) const{
   if (size() != dst.size()) {
     return size() < dst.size();
   } else {
-    for (UInt i = 0; i < _Size; ++i) {
+    for (ULong i = 0; i < _Size; ++i) {
       if (_String[i] != dst._String[i]) {
         return _String[i] < dst._String[i];
       }
@@ -514,7 +514,7 @@ Bool String::operator!=(const CString dst) const{
     return True;
   }
 
-  for (UInt i = 0; i < _Size; ++i) {
+  for (ULong i = 0; i < _Size; ++i) {
     if (dst[i] != _String[i]) {
       return True;
     }

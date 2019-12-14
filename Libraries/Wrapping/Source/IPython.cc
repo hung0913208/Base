@@ -499,7 +499,7 @@ Auto Python::Down(PyObject* input) {
     Py_ssize_t size = 0;
     CString data = PyUnicode_AsUTF8AndSize(input, &size);
 
-    return Auto::As(String{data, size});
+    return Auto::As(String{data, ULong(size)});
   } else {
     return Auto();
   }

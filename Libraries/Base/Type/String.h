@@ -21,8 +21,8 @@ class String{
   String(String&& str);
   String(const String& str);
   String(const CString str);
-  String(const CString str, UInt size);
-  String(UInt size, Char c);
+  String(const CString str, ULong size);
+  String(ULong size, Char c);
 
   String();
   virtual ~String();
@@ -40,14 +40,14 @@ class String{
   CString data() const;
   Char& front() const;
   Char& back() const;
-  UInt size() const;
+  ULong size() const;
   Bool empty() const;
 
   /* @NOTE: clear */
   Void clear();
 
   /* @NOTE: resize String */
-  Void resize(UInt size);
+  Void resize(ULong size);
 
   /* @NOTE: make a reverse string */
   Void reverse();
@@ -92,7 +92,7 @@ class String{
   Bool operator!=(Base::String&& dst) const;
 
   /* @NOTE: create substring */
-  String substr(UInt pos, Int len = -1);
+  String substr(ULong pos, Int len = -1);
 
   /* @NOTE: swap 2 strings */
   friend void swap(Base::String& str1, Base::String& str2);
@@ -100,7 +100,7 @@ class String{
  private:
   CString _String;
   Bool _Autoclean;
-  UInt _Size;
+  ULong _Size;
   Int* _Ref;
 };
 } // namespace Base
