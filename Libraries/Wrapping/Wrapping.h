@@ -70,8 +70,10 @@ class Wrapping {
   /* @NOTE: these functions will help to instruct CPU to run a callback */
   static void Instruct(Void* callback, Void* result, Vector<Auto>& params);
   static void Instruct(Void* callback, Vector<Auto>& params);
-  static void Instruct(Void* callback, Void* result, Vector<Void*>& params);
-  static void Instruct(Void* callback, Vector<Void*>& params);
+  static void Instruct(Void* callback, Void* result, Vector<Void*>& params,
+                       Vector<Byte>& types);
+  static void Instruct(Void* callback, Vector<Void*>& params,
+                       Vector<Byte>& types);
 
  protected:
   /* @NOTE: this function is used to check if the object is existed or not */
