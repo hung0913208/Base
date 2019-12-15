@@ -33,6 +33,46 @@ STOP="NOTIFY"
 HOOK="export JOB=build; apt install -y qemu; echo \\\"$REPOSITORY $BRANCH\\\" >> ./repo.list"
 NOTIFY="/pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; /pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}; apt install -y qemu"
 
+function lock() {
+	while [ 1 ]; do
+		if flock -n -x 200; then
+			trap "flock --unlock 200" EXIT
+
+			echo $(($(date +%s))) > /var/lock/$(whoami)/wercker-timelock.lck
+			break
+		fi
+	done
+}
+
+function unlock() {
+	if flock -n -x 200; then
+		trap "flock --unlock 200" EXIT
+
+		if [ -f /var/lock/$(whoami)/wercker-timelock.lck ]; then
+			if [[ $(date +%s) -lt $(cat /var/lock/$(whoami)/wercker-timelock.lck) ]]; then
+				exit -1
+			fi
+		fi
+	else
+		exit -1
+	fi
+}
+
+function check() {
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	set -x;;
+			(--)		shift; break;;
+			(*)		break;;
+		esac
+		shift
+	done
+
+	if ! unlock; then
+		exit -1
+	fi
+}
+
 function clean() {
 	VERBOSE="bash"
 
@@ -105,6 +145,10 @@ function probe() {
 		shift
 	done
 
+	if ! unlock; then
+		exit -1
+	fi
+
 	if [ $OS = 'linux' ]; then
 		if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$START" --value "$HOOK" --token ${WERCKER} --repo ${REPO}; then
 			if [[ $(ls -1l /var/lock/$(whoami)/wercker/ | wc -l) -lt 2 ]]; then
@@ -153,6 +197,8 @@ function plan() {
 	if [[ $(ls -1l /var/lock/$(whoami)/wercker/ | wc -l) -gt 2 ]]; then
 		if ! $VERBOSE $BASE/Tools/Utilities/wercker.sh env add --name "$STOP" --value "$NOTIFY" --token ${WERCKER} --repo ${REPO}; then
 			$VERBOSE $BASE/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}
+
+			lock
 			exit -1
 		fi
 	else
@@ -173,6 +219,7 @@ case $CMD in
 	plan) 		plan $@;;
 	probe) 		probe $@;;
 	clean) 		clean $@;;
+	check) 		check $@;;
 	(*)		exit -1;;
 esac
 

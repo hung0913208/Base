@@ -53,69 +53,77 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-# @STEP 1: init a new job
-mkdir -p /tmp/enqueue-$(whoami)
-
 while [ 1 ]; do
-	JOB=$(date +%s)
+	# @STEP 1: init a new job
+	mkdir -p /tmp/enqueue-$(whoami)
 
-	if [ -f /tmp/enqueue-$(whoami)/$JOB ]; then
-		sleep 1
-	elif touch /tmp/enqueue-$(whoami)/$JOB; then
-		break
-	fi
-done
+	while [ 1 ]; do
+		JOB=$(date +%s)
 
-# @STEP 2: register this job to be clean-up if the job is cancel
-echo $JOB >> $PIPELINE/cleanup.pid
+		if [ -f /tmp/enqueue-$(whoami)/$JOB ]; then
+			sleep 1
+		elif touch /tmp/enqueue-$(whoami)/$JOB; then
+			break
+		fi
+	done
 
-# @STEP 3: probe if we can plan a new job
-while [ 1 ]; do
-	# @NOTE: by default, subcommand probe will check and plan the first
-	# variable. I assume there is no racing here because we can't create the
-	# same variable at the same time.
+	# @STEP 2: register this job to be clean-up if the job is cancel
+	echo $JOB >> $PIPELINE/cleanup.pid
 
+	# @STEP 3: probe if we can plan a new job
+	while [ 1 ]; do
+		# @NOTE: by default, subcommand probe will check and plan the first
+		# variable. I assume there is no racing here because we can't create the
+		# same variable at the same time.
+
+		if [[ ${#VERBOSE} -gt 0 ]]; then
+			if $VERBOSE $SCRIPT probe --verbose $@; then
+				break
+			else
+				sleep 3
+			fi
+		else
+			if $VERBOSE $SCRIPT probe $@; then
+				break
+			else
+				sleep 3
+			fi
+		fi
+	done
+
+	# @STEP 4: remove the job since we nealy have this job on-board and i don't think
+	# we fail here
+	rm -fr $JOB
+
+	# @STEP 5: plan this job to be on-board. At this step, only one job jumps here
+	# and we are planing this job to be handled.
 	if [[ ${#VERBOSE} -gt 0 ]]; then
-		if $VERBOSE $SCRIPT probe --verbose $@; then
-			break
+		if $VERBOSE $SCRIPT plan --verbose; then
+			# @STEP 6: the job has already been on-board and we should run it now to collect
+			# log from the ci
+
+			$VERBOSE $SCRIPT run --verbose $@
+			CODE=$?
+		elif $VERBOSE $SCRIPT check --verbose; then
+			continue
 		else
-			sleep 3
+			break
 		fi
 	else
-		if $VERBOSE $SCRIPT probe $@; then
-			break
+		if $VERBOSE $SCRIPT plan; then
+			# @STEP 6: the job has already been on-board and we should run it now to collect
+			# log from the ci
+
+			$VERBOSE $SCRIPT run $@
+			CODE=$?
+		elif $VERBOSE $SCRIPT check; then
+			continue
 		else
-			sleep 3
+			break
 		fi
 	fi
+
+	break
 done
-
-# @STEP 4: remove the job since we nealy have this job on-board and i don't think
-# we fail here
-rm -fr $JOB
-
-# @STEP 5: plan this job to be on-board. At this step, only one job jumps here
-# and we are planing this job to be handled.
-if [[ ${#VERBOSE} -gt 0 ]]; then
-	if $VERBOSE $SCRIPT plan --verbose; then
-		# @STEP 6: the job has already been on-board and we should run it now to collect
-		# log from the ci
-
-		$VERBOSE $SCRIPT run --verbose $@
-		CODE=$?
-	else
-		CODE=-1
-	fi
-else
-	if $VERBOSE $SCRIPT plan; then
-		# @STEP 6: the job has already been on-board and we should run it now to collect
-		# log from the ci
-
-		$VERBOSE $SCRIPT run $@
-		CODE=$?
-	else
-		CODE=-1
-	fi
-fi
 
 exit $CODE

@@ -42,6 +42,45 @@ STOP="NOTIFY"
 HOOK="\\\"export JOB='reproduce';"
 NOTIFY="\\\"../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}\\\""
 
+function lock() {
+	while [ 1 ]; do
+		if flock -n -x 200; then
+			trap "flock --unlock 200" EXIT
+
+			echo $(($(date +%s))) > /var/lock/$(whoami)/travis-timelock.lck
+			break
+		fi
+	done
+}
+
+function unlock() {
+	if flock -n -x 200; then
+		trap "flock --unlock 200" EXIT
+
+		if [ -f /var/lock/$(whoami)/travis-timelock.lck ]; then
+			if [[ $(date +%s) -lt $(cat /var/lock/$(whoami)/travis-timelock.lck) ]]; then
+				exit -1
+			fi
+		fi
+	else
+		exit -1
+	fi
+}
+
+function check() {
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--verbose)	set -x;;
+			(--)		shift; break;;
+			(*)		break;;
+		esac
+		shift
+	done
+
+	if ! unlock; then
+		exit -1
+	fi
+}
 function clean() {
 	VERBOSE="bash"
 
@@ -131,6 +170,10 @@ function probe() {
 		shift
 	done
 
+	if ! unlock; then
+		exit -1
+	fi
+
 	if $VERBOSE $BASE/Tools/Utilities/travis.sh env exist --name "$START" --token ${TRAVIS} --repo ${REPO}; then
 		if [[ $(ls -1l /var/lock/$(whoami)/travis/ | wc -l) -lt 4 ]]; then
 			if $VERBOSE $BASE/Tools/Utilities/travis.sh env exist --name "$STOP" --token ${TRAVIS} --repo ${REPO}; then
@@ -166,12 +209,16 @@ function plan() {
 	HOOK="$HOOK\\\""
 
 	if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$START" --value "$HOOK" --token ${TRAVIS} --repo ${REPO}; then
+
+		lock
 		exit -1
 	fi
 
 	if [[ $(ls -1l /var/lock/$(whoami)/travis/ | wc -l) -gt 4 ]]; then
 		if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}; then
 			$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
+
+			lock
 			exit -1
 		fi
 	else
@@ -192,5 +239,6 @@ case $CMD in
 	plan) 		plan $@;;
 	probe) 		probe $@;;
 	clean) 		clean $@;;
+	check) 		unlock $@;;
 	(*)		exit -1;;
 esac

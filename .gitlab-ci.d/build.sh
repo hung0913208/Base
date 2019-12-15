@@ -105,6 +105,28 @@ function plan() {
 	fi
 }
 
+function check() {
+	CODE=-1
+
+	if flock -n -x 200; then
+		trap "flock --unlock 200" EXIT
+
+		if [ ! -f $(dirname $0)/tasks/build.sh ]; then
+			for SERVICE in $ROOT/.gitlab-ci.d/*; do
+				if [ -d $SERVICE ]; then
+					if [ ! -f $SERVICE/build.sh ]; then
+						continue
+					elif $SERVICE/build.sh check $@; then
+						CODE=0
+					fi
+				fi
+			done
+		fi
+
+		exit $CODE
+	fi
+}
+
 CMD=$1
 shift
 
@@ -114,6 +136,7 @@ case $CMD in
 	plan) 		plan $@;;
 	probe) 		probe $@;;
 	clean) 		clean $@;;
+	check) 		check $@;;
 	(*)		exit -1;;
 esac
 
