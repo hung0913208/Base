@@ -22,17 +22,23 @@ except ImportError:
 print(quote_plus('$1'))
 """)
 
-	curl -sS --request GET 				\
-		--header "Authorization: token $TOKEN" 	\
-		--header "Travis-API-Version: 3" 	\
-		"https://api.travis-ci.org/repo/$REPO" |
-	python -c """
+	if ! curl -sS --request GET 				\
+			--header "Authorization: token $TOKEN" 	\
+			--header "Travis-API-Version: 3" 	\
+			"https://api.travis-ci.org/repo/$REPO" |
+		python -c """
 from pprint import pprint
 from json import load
-from sys import stdin
+from sys import stdin, exit
 
-print(load(stdin)['id'])
-	"""
+try:
+	print(load(stdin)['id'])
+except Exception:
+	exit(-1)	
+	"""; then
+		exit -1
+	fi
+
 }
 
 function history() {
@@ -50,15 +56,28 @@ function history() {
 		if [[ ${#LIMIT} -eq 0 ]]; then
 			LIMIT=$(echo $RESP | python -c """
 import json, sys
-print(json.load(sys.stdin)['@pagination']['limit'])
+try:
+	print(json.load(sys.stdin)['@pagination']['limit'])
+except Exception:
+	sys.exit(-1)
 """)
+
+			if [ $? != 0 ]; then
+				exit -1
+			fi
 		fi
 
 		if [[ ${#LAST} -eq 0 ]]; then
 			LAST=$(echo $RESP | python -c """
 import json, sys
-print(json.load(sys.stdin)['builds'][0]['number'])
+try:
+	print(json.load(sys.stdin)['builds'][0]['number'])
+except Exception:
+	sys.exit(-1)
 """)
+			if [ $? != 0 ]; then
+				exit -1
+			fi
 		fi
 
 		if [[ ${#IDX} -eq 0 ]]; then
@@ -67,10 +86,16 @@ print(json.load(sys.stdin)['builds'][0]['number'])
 
 		echo $RESP | python -c """
 import json, sys
-
-for item in json.load(sys.stdin)['builds']:
-	print(item['id'])
+try:
+	for item in json.load(sys.stdin)['builds']:
+		print(item['id'])
+except Exception:
+	sys.exit(-1)
 		"""
+
+		if [ $? != 0 ]; then
+			exit -1
+		fi
 
 		IDX=$((IDX-LIMIT))
 		OFFSET=$((OFFSET+LIMIT))
@@ -93,9 +118,15 @@ function jobs() {
 	echo $RESP | python -c """
 import json, sys
 
-for item in json.load(sys.stdin)['jobs']:
-	print(item['id'])
+try:
+	for item in json.load(sys.stdin)['jobs']:
+		print(item['id'])
+except Exception:
+	sys.exit(-1)
 """
+	if [ $? != 0 ]; then
+		exit -1
+	fi
 }
 
 function restart() {
@@ -122,6 +153,10 @@ except Exception as error:
 	print(error)
 	sys.exit(-1)
 """
+
+	if [ $? != 0 ]; then
+		exit -1
+	fi
 }
 
 function build() {
@@ -139,15 +174,30 @@ function build() {
 		if [[ ${#LIMIT} -eq 0 ]]; then
 			LIMIT=$(echo $RESP | python -c """
 import json, sys
-print(json.load(sys.stdin)['@pagination']['limit'])
+
+try:
+	print(json.load(sys.stdin)['@pagination']['limit'])
+except Exception:
+	sys.exit(-1)
 """)
+
+			if [ $? != 0 ]; then
+				exit -1
+			fi
 		fi
 
 		if [[ ${#LAST} -eq 0 ]]; then
 			LAST=$(echo $RESP | python -c """
 import json, sys
-print(json.load(sys.stdin)['builds'][0]['number'])
+
+try:
+	print(json.load(sys.stdin)['builds'][0]['number'])
+except Exception:
+	sys.exit(-1)
 """)
+			if [ $? != 0 ]; then
+				exit -1
+			fi
 		fi
 
 		if [[ ${#IDX} -eq 0 ]]; then
@@ -161,11 +211,18 @@ print(json.load(sys.stdin)['builds'][0]['number'])
 			echo $RESP | python -c """
 import json, sys
 
-for idx, item in enumerate(json.load(sys.stdin)['builds']):
-	if item['number'] == '$1':
-		print(item['id'])
-		break
+try:
+	for idx, item in enumerate(json.load(sys.stdin)['builds']):
+		if item['number'] == '$1':
+			print(item['id'])
+			break
+except Exception:
+	sys.exit(-1)
 			"""
+
+			if [ $? != 0 ]; then
+				exit -1
+			fi
 			break
 		fi
 
@@ -202,6 +259,9 @@ except Exception:
 	else:
 		print(raw)
 """
+		if [ $? != 0 ]; then
+			exit -1
+		fi
 	fi
 }
 
@@ -228,6 +288,9 @@ try:
 except Exception:
 	sys.exit(-1)
 """
+	if [ $? != 0 ]; then
+		exit -1
+	fi
 }
 
 function log() {
@@ -247,13 +310,21 @@ try:
     from urllib import unquote_plus
 except ImportError:
     from urllib.parse import unquote_plus
-raw = json.load(sys.stdin)
 
-if raw.get('@type') == 'error':
+try:
+	raw = json.load(sys.stdin)
+
+	if raw.get('@type') == 'error':
+		sys.exit(-1)
+	else:
+		print(unquote_plus(raw.get('content') or ''))
+except Exception:
 	sys.exit(-1)
-else:
-	print(unquote_plus(raw.get('content') or ''))
 """
+
+	if [ $? != 0 ]; then
+		exit -1
+	fi
 }
 
 function delete() {
@@ -465,18 +536,31 @@ try:
 except ImportError:
     from urllib.parse import unquote_plus
 import sys
-
-for line in sys.stdin.readlines():
-    if 'environment' in line:
-        content = line.split('content=\"')[1].split('\" />')[0]
-else:
-    print(unquote_plus(content))
+try:
+	for line in sys.stdin.readlines():
+		if 'environment' in line:
+			content = line.split('content=\"')[1].split('\" />')[0]
+	else:
+		print(unquote_plus(content))
+except Exception:
+	sys.exit(-1)
 """)
+
+if [ $? != 0 ]; then
+	exit -1
+fi
 
 PUSHER=$(echo $ENV | python -c """
 import json, sys
-print(json.load(sys.stdin)['pusher']['key'])
+try:
+	print(json.load(sys.stdin)['pusher']['key'])
+except Exception:
+	sys.exit(-1)
 """)
+
+if [ $? != 0 ]; then
+	exit -1
+fi
 
 if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console' ] || [ $1 = 'delete' ]; then
 	TASK=$1
@@ -535,9 +619,15 @@ try:
     from urllib import unquote_plus
 except ImportError:
     from urllib.parse import unquote_plus
-
-print(unquote_plus(json.load(sys.stdin)['content']))
+try:
+	print(unquote_plus(json.load(sys.stdin)['content']))
+except Exception:
+	sys.exit(-1)
 			"""
+
+			if [ $? != 0 ]; then
+				exit -1
+			fi
 		fi
 
 		if [ $TASK = 'delete' ]; then
@@ -638,6 +728,9 @@ if not 'env_var' in resp:
 elif not 'id' in resp['env_var']:
 	sys.exit(-1)
 """
+		if [ $? != 0 ]; then
+			exit -1
+		fi
 	elif [ $1 = 'del' ]; then
 		shift
 
@@ -663,25 +756,32 @@ elif not 'id' in resp['env_var']:
 			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
 		python -c """
 import json, sys
-
-env = json.load(sys.stdin)
-for item in env['env_vars']:
-	if item['name'] == '$NAME':
-		print(item['id'])
-		break
+try:
+	env = json.load(sys.stdin)
+	for item in env['env_vars']:
+		if item['name'] == '$NAME':
+			print(item['id'])
+			break
+except Exception:
+	sys.exit(-1)
 		""")
 
+		if [ $? != 0 ]; then
+			exit -1
+		fi
 		curl -sS --request DELETE 				\
                          --header "Authorization: token $TOKEN"     	\
 		"https://api.travis-ci.org/settings/env_vars/$ID?repository_id=$REPO" |
 		python -c """
 import json, sys
+try:
+	resp = json.load(sys.stdin)
 
-resp = json.load(sys.stdin)
-
-if not 'env_var' in resp:
-	sys.exit(-1)
-elif not 'id' in resp['env_var']:
+	if not 'env_var' in resp:
+		sys.exit(-1)
+	elif not 'id' in resp['env_var']:
+		sys.exit(-1)
+except Exception:
 	sys.exit(-1)
 """
 
@@ -713,12 +813,15 @@ elif not 'id' in resp['env_var']:
 		python -c """
 import json, sys
 
-env = json.load(sys.stdin)
-for item in env['env_vars']:
-	if '$NAME' == item['name']:
-		sys.exit(0)
-else:
-	sys,exit(-1)
+try:
+	env = json.load(sys.stdin)
+	for item in env['env_vars']:
+		if '$NAME' == item['name']:
+			sys.exit(0)
+	else:
+		sys.exit(-1)
+except Exception:
+	sys.exit(-1)
 		"""
 		exit $?
 	elif [ $1 = 'list' ]; then
@@ -746,14 +849,17 @@ else:
 			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
 		python -c """
 import json, sys, subprocess
+try:
+	env = json.load(sys.stdin)
+	for item in env['env_vars']:
+		cmds = '$SCRIPT'.split(' ')
 
-env = json.load(sys.stdin)
-for item in env['env_vars']:
-	cmds = '$SCRIPT'.split(' ')
-
-	cmds.append(str(item['name']))
-	cmds.append(str(item['value']))
-	subprocess.call(cmds)
+		cmds.append(str(item['name']))
+		cmds.append(str(item['value']))
+		subprocess.call(cmds)
+except Exception:
+	sys.exit(-1)
 		"""
+		exit $?
 	fi
 fi
