@@ -1162,7 +1162,7 @@ EOF
 			fi
 		fi
 
-		if $SU ip addr add 192.168.101.1/24 dev $IBRD; then
+		if $SU ip addr add 192.168.101.254/24 dev $IBRD; then
 			$SU ip link set $IBRD up
 		fi
 	fi
