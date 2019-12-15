@@ -1329,7 +1329,7 @@ if [ "$MODE" = "bridge" ]; then
 		error "can't create $IBRD"
 	fi
 elif [ "$MODE" = "isolate" ]; then
-	NETWORK="-net nic,mac=$(get_new_macaddr) -net user"
+	NETWORK="-netdev user,id=network0 -device e1000,netdev=network0,mac=$(get_new_macaddr)"
 fi
 
 if [ "$METHOD" == "reproduce" ]; then
