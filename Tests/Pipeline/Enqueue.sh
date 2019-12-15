@@ -38,6 +38,10 @@ function cleanup() {
 	fi
 }
 
+if [ -f $HOME/environment.sh ]; then
+	source $HOME/environment.sh
+fi
+
 while [ $# -gt 0 ]; do
 	case $1 in
 		--verbose)	VERBOSE="bash -x"; set -x;;
