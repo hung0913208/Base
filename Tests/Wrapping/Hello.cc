@@ -1,7 +1,7 @@
 #include <Wrapping.h>
 #include <Logcat.h>
 
-void PrintText(String text) {
+void PrintText(CString text) {
   INFO << "the wrapping library recieve \'" << text << "\'"
         << Base::EOL;
 }
@@ -14,5 +14,5 @@ PY_MODULE(Hello) {
            << Base::EOL;
   });
 
-  Procedure<String>("PrintText", PrintText);
+  Procedure<CString>("PrintText", PrintText);
 }

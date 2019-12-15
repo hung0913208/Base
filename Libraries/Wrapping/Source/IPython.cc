@@ -496,10 +496,7 @@ Auto Python::Down(PyObject* input) {
     return Auto::As(String{PyString_AsString(input), PyString_Size(input)});
 #endif
   } else if (PyUnicode_Check(input)) {
-    Py_ssize_t size = 0;
-    CString data = PyUnicode_AsUTF8AndSize(input, &size);
-
-    return Auto::As(String{data, ULong(size)});
+    return Auto::As(PyUnicode_AsUTF8(input));
   } else {
     return Auto();
   }

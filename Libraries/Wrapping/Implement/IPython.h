@@ -4,6 +4,7 @@
 #include <Auto.h>
 #include <Exception.h>
 #include <Python.h>
+#include <Utils.h>
 #include <Vertex.h>
 #include <Type.h>
 
@@ -45,17 +46,16 @@ class Python : public Wrapping {
                                   [&](){ Exit(name, thiz); }};
 
       try {
-        Vector<Void*> arguments{};
-        Vector<Byte> types{};
+        Vector<Auto> arguments{};
 
         /* @NOTE: convert python's parameters to c/c++ parameters */
-        if (ParseTuple<Args...>(pyargs, arguments, types)) {
+        if (ParseTuple<Args...>(pyargs, arguments)) {
           Py_RETURN_NONE;
         }
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)_Procedures[name], arguments, types);
+        Wrapping::Instruct((void*)_Procedures[name], arguments);
 
         Py_RETURN_NONE;
       } catch (Error& error) {
@@ -87,12 +87,11 @@ class Python : public Wrapping {
                                   [&](){ Exit(name, thiz); }};
 
       try {
-        Vector<Void*> arguments{};
-        Vector<Byte> types{};
+        Vector<Auto> arguments{};
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, arguments, types);
+        Wrapping::Instruct((void*)function, arguments);
 
         Py_RETURN_NONE;
       } catch (Error& error) {
@@ -127,18 +126,17 @@ class Python : public Wrapping {
                                   [&](){ Exit(name, thiz); }};
 
       try {
-        Vector<Void*> arguments{};
-        Vector<Byte> types{};
+        Vector<Auto> arguments{};
         ResultT result{};
 
         /* @NOTE: convert python's parameters to c/c++ parameters */
-        if (ParseTuple<Args...>(pyargs, arguments, types)) {
+        if (ParseTuple<Args...>(pyargs, arguments)) {
           Py_RETURN_NONE;
         }
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, &result, arguments, types);
+        Wrapping::Instruct((void*)function, &result, arguments);
 
         /* @NOTE: convert ResultT to PyObjectT */
         return To<PyObject>(Auto::As(result));
@@ -172,13 +170,12 @@ class Python : public Wrapping {
                                   [&](){ Exit(name, thiz); }};
 
       try {
-        Vector<Void*> arguments{};
-        Vector<Byte> types{};
+        Vector<Auto> arguments{};
         ResultT result{};
 
         /* @NOTE: instruct CPU to perform the function with parameters
          * from Python */
-        Wrapping::Instruct((void*)function, &result, arguments, types);
+        Wrapping::Instruct((void*)function, &result, arguments);
 
         /* @NOTE: convert ResultT to PyObjectT */
         return To<PyObject>(Auto::As(result));
@@ -227,8 +224,8 @@ class Python : public Wrapping {
   static PyObject* Up(Auto&& input);
 
   template <typename ResultT>
-  static ResultT* To(PyObject* input) {
-    return &Python::Down(input).Get<ResultT>();
+  static ResultT* To(PyObject* UNUSED(input)) {
+    return None;
   }
 
   template <typename ResultT>
@@ -257,20 +254,18 @@ class Python : public Wrapping {
 
  private:
   template <typename... Args>
-  static ErrorCodeE ParseTuple(PyObject* pyargs, Vector<Void*>& output,
-                               Vector<Byte>& types) {
-    return TupleParser<Args...>{}.Parse(pyargs, 0u, output, types);
+  static ErrorCodeE ParseTuple(PyObject* pyargs, Vector<Auto>& output) {
+    return TupleParser<Args...>{}.Parse(pyargs, 0u, output);
   }
 
   template <typename T, typename... Args>
   struct TupleParser {
-      ErrorCodeE Parse(PyObject* pyargs, UInt begin,
-                       Vector<Void*>& output, Vector<Byte>& types) {
+      ErrorCodeE Parse(PyObject* pyargs, UInt begin, Vector<Auto>& output) {
       if (PyTuple_Check(pyargs)) {
-        auto error = ParseTupleS<T>(PyTuple_GetItem(pyargs, begin), output, types);
+        auto error = ParseTupleS<T>(PyTuple_GetItem(pyargs, begin), output);
 
         if (!error && sizeof...(Args) > 0) {
-          return TupleParser<Args...>{}.Parse(pyargs, begin + 1, output, types);
+          return TupleParser<Args...>{}.Parse(pyargs, begin + 1, output);
         } else {
           return error;
         }
@@ -282,10 +277,9 @@ class Python : public Wrapping {
 
   template <typename T>
   struct TupleParser<T> {
-      ErrorCodeE Parse(PyObject* pyargs, UInt begin,
-                       Vector<Void*>& output, Vector<Byte>& types) {
+      ErrorCodeE Parse(PyObject* pyargs, UInt begin, Vector<Auto>& output) {
       if (PyTuple_Check(pyargs)) {
-        return ParseTupleS<T>(PyTuple_GetItem(pyargs, begin), output, types);
+        return ParseTupleS<T>(PyTuple_GetItem(pyargs, begin), output);
       } else {
         return (BadAccess << "pyargs must be a tuple").code();
       }
@@ -293,16 +287,16 @@ class Python : public Wrapping {
   };
 
   template <typename T>
-  static ErrorCodeE ParseTupleS(PyObject* arg, Vector<Void*>& output,
-                               Vector<Byte>& types) {
+  static ErrorCodeE ParseTupleS(PyObject* arg, Vector<Auto>& output) {
     try {
       if (typeid(T) != typeid(void)) {
-        output.push_back(To<T>(arg));
+        auto converted = Python::Down(arg);
 
-        if (typeid(T) == typeid(Double) || typeid(T) == typeid(Float)) {
-          types.push_back(True);
+        if (typeid(T) == converted.Type()) {
+          output.push_back(converted);
         } else {
-          types.push_back(False);
+          return BadLogic(Format{"{} != {}"}
+              .Apply(Nametype<T>(), converted.Nametype())).code();
         }
       }
       return ENoError;
