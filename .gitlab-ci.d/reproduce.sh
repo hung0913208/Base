@@ -74,17 +74,33 @@ function probe() {
 		trap "flock --unlock 200" EXIT
 
 		if [ ! -f $(dirname $0)/tasks/reproduce.sh ]; then
-			for SERVICE in $ROOT/.gitlab-ci.d/*; do
-				if [ -d $SERVICE ]; then
-					if [ ! -f $SERVICE/reproduce.sh ]; then
-						continue
-					elif $SERVICE/reproduce.sh probe $@; then
-						if ln -s $SERVICE/reproduce.sh $(dirname $0)/tasks/reproduce.sh; then
-							CODE=0
+			if [ -f $HOME/reproduce-services.list ]; then
+				for SERVICE in $(cat $HOME/reproduce-services.list); do
+					SERVICE=$ROOT/.gitlab-ci.d/$SERVICE
+
+					if [ -d $SERVICE ]; then
+						if [ ! -f $SERVICE/reproduce.sh ]; then
+							continue
+						elif $SERVICE/reproduce.sh probe $@; then
+							if ln -s $SERVICE/reproduce.sh $(dirname $0)/tasks/reproduce.sh; then
+								CODE=0
+							fi
 						fi
 					fi
-				fi
-			done
+				done
+			else
+				for SERVICE in $ROOT/.gitlab-ci.d/*; do
+					if [ -d $SERVICE ]; then
+						if [ ! -f $SERVICE/reproduce.sh ]; then
+							continue
+						elif $SERVICE/reproduce.sh probe $@; then
+							if ln -s $SERVICE/reproduce.sh $(dirname $0)/tasks/reproduce.sh; then
+								CODE=0
+							fi
+						fi
+					fi
+				done
+			fi
 		fi
 	fi
 	exit $CODE
