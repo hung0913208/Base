@@ -186,46 +186,48 @@ if [ $(which git) ]; then
 			CMAKE="rebuild.sh"
 		fi
 
-		exec 2>&-
-		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Debug $ROOT 2>&1 | tee /dev/fd/2)"
+		if [[ $MODE -ne 0 ]]; then
+			exec 2>&-
+			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Debug $ROOT 2>&1 | tee /dev/fd/2)"
 
-		if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
-			exec 2>&1
-			warning "fail configure CMakeLists.txt on Debug mode, please check console log bellow"
-			echo "================================================================================="
-			echo ""
-			echo "$OUTPUT"
-			echo "---------------------------------------------------------------------------------"
-			exit -1
-		elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
-			exec 2>&1
-			warning "fail build on Debug mode, please check console log bellow"
-			echo "================================================================================="
-			echo ""
-			echo "$OUTPUT"
-			echo "---------------------------------------------------------------------------------"
-			exit -1
-		fi
+			if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
+				exec 2>&1
+				warning "fail configure CMakeLists.txt on Debug mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				echo "$OUTPUT"
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+				exec 2>&1
+				warning "fail build on Debug mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				echo "$OUTPUT"
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			fi
 
-		exec 2>&-
-		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Release $ROOT 2>&1 | tee /dev/fd/2)"
+			exec 2>&-
+			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Release $ROOT 2>&1 | tee /dev/fd/2)"
 
-		if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
-			exec 2>&1
-			warning "fail configure CMakeLists.txt on Release mode, please check console log bellow"
-			echo "================================================================================="
-			echo ""
-			echo "$OUTPUT"
-			echo "---------------------------------------------------------------------------------"
-			exit -1
-		elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
-			exec 2>&1
-			warning "fail build on Release mode, please check console log bellow"
-			echo "================================================================================="
-			echo ""
-			echo "$OUTPUT"
-			echo "---------------------------------------------------------------------------------"
-			exit -1
+			if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
+				exec 2>&1
+				warning "fail configure CMakeLists.txt on Release mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				echo "$OUTPUT"
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
+				exec 2>&1
+				warning "fail build on Release mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				echo "$OUTPUT"
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			fi
 		fi
 	
 		exec 2>&-
