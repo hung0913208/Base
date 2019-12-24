@@ -33,6 +33,12 @@ List::~List() {
     item = item->_Prev;
     delete tmp;
   }
+
+  for (auto i = _Size[1]; i > 0; --i) {
+    delete [] _Barriers[i - 1].Left;
+  }
+
+  delete [] _Barriers;
 }
 
 ULong List::Size() { return _Size[0]; }
