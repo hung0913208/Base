@@ -23,7 +23,11 @@ class Python : public Wrapping {
 
  public:
   explicit Python(String name, UInt version) :
+#if PY_MAJOR_VERSION >= 3
     Wrapping("Python", name, sizeof(PyModuleDef)), _Size{0}, _Version{version}
+#else
+    Wrapping("Python", name, sizeof(PyMethodDef)), _Size{0}, _Version{version}
+#endif
   {}
 
   virtual ~Python();
@@ -370,12 +374,12 @@ class Python : public Wrapping {
     if (!Base::Wrapping::Create(module)) {                      \
       throw Except(EBadLogic, #Module);                         \
     } else if (module->IsLoaded()) {                            \
-      auto table = module->Configure<ModuleDef>();              \
+      auto table = module->Configure<PyMethodDef>();            \
                                                                 \
       if (table) {                                              \
         Py_InitModule(#Module, table);                          \
       } else {                                                  \
-        Py_InitModule(#Module, );                               \
+        Py_InitModule(#Module, table);                          \
       }                                                         \
     } else {                                                    \
       throw Except(ENoSupport, #Module);                        \

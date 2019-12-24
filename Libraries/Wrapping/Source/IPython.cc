@@ -214,7 +214,11 @@ PyCFunction Compile(String module, String method) {
 } // namespace IPython
 
 Python::~Python() {
+#if PY_MAJOR_VERSION >= 3
   auto keep = ((PyModuleDef*)_Config)->m_methods != None;
+#else
+  auto keep = True;
+#endif
   auto i = 0;
 
   if (_Size > 0) {
@@ -234,12 +238,19 @@ Python::~Python() {
   }
 
   while (keep) {
+#if PY_MAJOR_VERSION >= 3
     keep = ((PyModuleDef*)_Config)->m_methods[i].ml_meth != None;
+#else
+    keep = ((PyMethodDef*)_Config)[i].ml_meth != None;
+#endif
 
     if (keep) {
+#if PY_MAJOR_VERSION >= 3
       Wrapping::Deallocate((Void*)((PyModuleDef*)_Config)->m_methods[i].ml_meth);
+#else
+      Wrapping::Deallocate((Void*)((PyMethodDef*)_Config)[i].ml_meth);
+#endif
     }
-
     i++;
   }
 }
@@ -252,11 +263,23 @@ Bool Python::Compile() {
   if (_Size == 0 || _Config == None) {
     _Size = _Procedures.size() + _Functions.size();
 
+#if PY_MAJOR_VERSION >= 3
     if ((_Config = ABI::Calloc(sizeof(PyModuleDef), 1))) {
       methods = (PyMethodDef*) ABI::Calloc(sizeof(PyMethodDef), _Size + 1);
+
+      if (!methods) {
+        return False;
+      }
     } else {
       return False;
     }
+#else
+    if ((_Config = ABI::Calloc(sizeof(PyMethodDef), _Size + 1))) {
+      methods = (PyMethodDef*)_Config;
+    } else {
+      return False;
+    }
+#endif
   } else if (_Size < _Procedures.size() + _Functions.size()) {
     return False;
   }
@@ -307,11 +330,13 @@ Bool Python::Compile() {
     }
   }
 
+#if PY_MAJOR_VERSION >= 3
   ((PyModuleDef*)_Config)->m_base = PyModuleDef_HEAD_INIT;
   ((PyModuleDef*)_Config)->m_name = _Module.c_str();
   ((PyModuleDef*)_Config)->m_doc = "";
   ((PyModuleDef*)_Config)->m_size = -1;
   ((PyModuleDef*)_Config)->m_methods = methods;
+#endif
 
   return True;
 }
@@ -495,8 +520,10 @@ Auto Python::Down(PyObject* input) {
   } else if (PyString_Check(input)) {
     return Auto::As(String{PyString_AsString(input), PyString_Size(input)});
 #endif
+#if PY_MAJOR_VERSION >=3
   } else if (PyUnicode_Check(input)) {
     return Auto::As(PyUnicode_AsUTF8(input));
+#endif
   } else {
     return Auto();
   }
