@@ -50,6 +50,8 @@ Error::Error(Error&& error)
   _Function = error._Function;
   _Message = error._Message;
   _Code = error._Code;
+  _Level = error._Level;
+  _Line = error._Line;
   _File = error._File;
   _IsRef = True;
   _IsPrinted = True;
@@ -66,6 +68,8 @@ Error::Error(Error& error)
   _Function = error._Function;
   _Message = error._Message;
   _Code = error._Code;
+  _Level = error._Level;
+  _Line = error._Line;
   _File = error._File;
   _IsRef = True;
   _IsPrinted = True;
@@ -104,6 +108,8 @@ Error& Error::operator()(String message) {
 Error& Error::operator=(Error& error) {
   _Function = error._Function;
   _Message = error._Message;
+  _Level = error._Level;
+  _Line = error._Line;
   _Code = error._Code;
   _File = error._File;
 
@@ -118,6 +124,8 @@ Error& Error::operator=(Error&& error) {
   _Function = error._Function;
   _Message = error._Message;
   _Code = error._Code;
+  _Level = error._Level;
+  _Line = error._Line;
   _File = error._File;
 
   /* @NOTE: set flags to */

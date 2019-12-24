@@ -205,6 +205,9 @@ class Watch {
       throw Except(EBadLogic, "Can\'t init _Lock[1]");
     }
 
+    if (MUTEX(&_Global)) {
+      throw Except(EBadLogic, "Can\'t init _Global");
+    }
 #if DEBUGING
     memset(_Owner, 0, sizeof(_Owner));
 #endif

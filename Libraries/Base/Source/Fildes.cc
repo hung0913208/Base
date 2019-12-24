@@ -76,6 +76,8 @@ class Fildes: public Monitor {
       Monitor(name, type), _Tid{-1} {
     using namespace std::placeholders;  // for _1, _2, _3...
 
+    memset(&_Pool, 0, sizeof(_Pool));
+
     _Pool.Heartbeat = Base::Internal::Fildes::Heartbeat;
     _Pool.Trigger = Base::Internal::Fildes::Trigger;
     _Pool.Remove = Base::Internal::Fildes::Remove;
