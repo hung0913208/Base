@@ -2,7 +2,8 @@
 #include <Unittest.h>
 
 using namespace Base;
-static Bool EnteredPrint = False;
+static Bool EnteredPrint0 = False;
+static Bool EnteredPrint1 = False;
 
 extern "C" Void Print(void) {
   String console, buffer;
@@ -30,7 +31,36 @@ extern "C" Void Print(void) {
   stream >> buffer;
   EXPECT_EQ(buffer, "test");
 
-  EnteredPrint = True;
+  EnteredPrint0 = True;
+}
+
+extern "C" Void PrintWithCString(CString param) {
+  String console, buffer;
+  Stream stream{[&](Bytes&& buffer, UInt buffer_size) -> ErrorCodeE {
+    console += String{(char*)buffer, buffer_size};
+    return ENoError;
+  },
+  [&](Bytes& buffer, UInt* size_of_received) -> ErrorCodeE {
+    if (console.size() == 0) {
+      return DoNothing.code();
+    } else if (*size_of_received == 0 && !buffer) {
+      *size_of_received = console.size();
+      buffer = (Bytes)malloc(console.size());
+    } else if (*size_of_received > console.size()) {
+      *size_of_received = console.size();
+    }
+
+    memcpy(buffer, console.c_str(), *size_of_received);
+    return ENoError;
+  }};
+
+  stream << param;
+  EXPECT_EQ(console, String(param));
+
+  stream >> buffer;
+  EXPECT_EQ(buffer, String(param));
+
+  EnteredPrint1 = True;
 }
 
 static Bool EnteredTest1{False};
@@ -204,35 +234,47 @@ static Bool EnteredTest3 = False;
 #ifdef USE_PYTHON
 PY_MODULE(CTest) {
   Procedure("Print", Print);
+  Procedure<CString>("PrintWithCString", PrintWithCString);
   EnteredTest3 = True;
 }
 
 TEST(PyWrapping, Simple) {
   EnteredTest3 = False;
-  EnteredPrint = False;
+  EnteredPrint0 = False;
+  EnteredPrint1 = False;
 
   EXPECT_NO_THROW({
     EXPECT_TRUE(Wrapping::Create(new PY_MODULE_CLI(CTest)));
   });
+
   EXPECT_TRUE(Wrapping::Test("Python", "CTest", "Print"));
   EXPECT_TRUE(EnteredTest3);
-  EXPECT_TRUE(EnteredPrint);
+  EXPECT_TRUE(EnteredPrint0);
+
+  EXPECT_TRUE(Wrapping::Test("Python", "CTest", "PrintWithCString", "hello"));
+  EXPECT_TRUE(EnteredPrint1);
 }
 #endif
 
 #ifdef USE_RUBY
 RUBY_MODULE(CTest) {
   Procedure("Print", Print);
+  Procedure<CString>("PrintWithCString", PrintWithCString);
   EnteredTest3 = True;
 }
 
 TEST(RubyWrapping, Simple) {
   EnteredTest3 = False;
-  EnteredPrint = False;
+  EnteredPrint0 = False;
+  EnteredPrint1 = False;
+
 
   EXPECT_TRUE(Wrapping::Test("Ruby", "CTest", "Print"));
   EXPECT_TRUE(EnteredTest3);
-  EXPECT_TRUE(EnteredPrint);
+  EXPECT_TRUE(EnteredPrint0);
+
+  EXPECT_TRUE(Wrapping::Test("Ruby", "CTest", "Print", "hello"));
+  EXPECT_TRUE(EnteredPrint1);
 }
 #endif
 #endif

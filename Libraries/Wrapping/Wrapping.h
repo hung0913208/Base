@@ -116,7 +116,7 @@ class Wrapping {
   virtual Bool Compile() = 0;
 
   template<typename ...Args>
-  Vector<Auto> Stack(Args... args) {
+  static Vector<Auto> Stack(Args... args) {
     Vector<Auto> result;
 
     Stack(result, args...);
@@ -128,7 +128,7 @@ class Wrapping {
 
  private:
   template<typename T, typename ...Args>
-  void Stack(Vector<Auto>& result, T value, Args... args) {
+  static void Stack(Vector<Auto>& result, T value, Args... args) {
     Stack<T>(result, value);
 
     if (sizeof...(args) > 0) {
@@ -137,7 +137,7 @@ class Wrapping {
   }
 
   template<typename T>
-  void Stack(Vector<Auto>& result, T value) {
+  static void Stack(Vector<Auto>& result, T value) {
     result.push_back(Auto::As(value));
   }
 };
