@@ -7,10 +7,10 @@ namespace Base {
 namespace Internal {
 Mutex* CreateMutex();
 
-static Map<ULong, Auto> Variables;
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
-                                  [](Mutex* mutex) { Locker::Unlock(*mutex); },
-                                  CreateMutex());
+Map<ULong, Auto> Variables;
+Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
+                           [](Mutex* mutex) { Locker::Unlock(*mutex); },
+                           CreateMutex());
 }  // namespace Internal
 
 Auto::Auto()

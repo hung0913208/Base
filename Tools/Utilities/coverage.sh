@@ -109,20 +109,25 @@ if [[ -d $1/Coverage ]]; then
 		fi
 
 		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which lftp)" ]; then
+			set -x
+
 			# @NOTE: Delete remote old code coverage
 			lftp $HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no;" <<EOF
 rm -f $RPATH/*
 EOF
 
 			cd $OUTPUT || exit -1
-
 			# @NOTE: update the new code coverage
-			if ! ncftpput -d /tmp/coverage.log -DD -R -V -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" ./; then
-				cat /tmp/coverage.log && rm -fr /tmp/coverage.log
-				exit $?
-			else
+	
+			if lftp -v ftp://$HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no; mirror -R $OUTPUT /$RPATH"; then
+				true
+			elif ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" $OUTPUT/*; then
 				rm -fr /tmp/coverage.log
+			else
+				cat /tmp/coverage.log && rm -fr /tmp/coverage.log
+				exit -1
 			fi
+			set +x
 		elif [[ "$PROTOCOL" = "scp" ]] && [ "$(which scp)" ] && [ "$(which expect)" ]; then
 			expect -c """
 set timeout 1

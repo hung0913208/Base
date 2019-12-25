@@ -49,4 +49,7 @@ TEST(Auto, Reuse) {
   EXPECT_EQ(target.Get<Double>(), 10.2);
 }
 
-int main() { return RUN_ALL_TESTS(); }
+int main() {
+  Base::Log::Level() = EDebug;
+  return RUN_ALL_TESTS(); 
+}

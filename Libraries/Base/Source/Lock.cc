@@ -6,8 +6,8 @@
 
 namespace Base {
 namespace Internal {
-void WatchStopper(Base::Lock& lock);
-void UnwatchStopper(Base::Lock& lock);
+Bool WatchStopper(Base::Lock& lock);
+Bool UnwatchStopper(Base::Lock& lock);
 void RemoveMutex(Mutex* mutex);
 Mutex* CreateMutex();
 }  // namespace Internal
@@ -17,7 +17,10 @@ Lock::Lock(Bool locked) : _Lock{Internal::CreateMutex()} {
   _Context = None;
 
   if (_Count) {
-    Internal::WatchStopper(*this);
+    if (!Internal::WatchStopper(*this)) {
+      Bug(EBadLogic, "can\'t lease a lock as expected");
+    }
+
     if (locked) Locker::Lock(*_Lock);
   }
 }
@@ -28,7 +31,10 @@ Lock::~Lock() {
   }
 
   if (*_Count == 0) {
-    Internal::UnwatchStopper(*this);
+    if (!Internal::UnwatchStopper(*this)) {
+      Bug(EBadLogic, "can\'t unlease a lock as expected");
+    }
+
     Internal::RemoveMutex(_Lock);
     delete _Count;
   } else {

@@ -378,7 +378,7 @@ class Watch {
 namespace Base {
 namespace Internal {
 thread_local Implement::Thread* Thiz{None};
-static UMap<ULong, Implement::Lock>* Mutexes{None};
+static Shared<UMap<ULong, Implement::Lock>> Mutexes{None};
 static Watch* Watcher{None};
 
 namespace Summary {
@@ -424,8 +424,9 @@ void UnwatchStopper(Base::Thread& thread) {
 Bool UnwatchStopper(Base::Lock& lock) {
   if (Context(lock)) {
     Watcher->OnUnregister<Implement::Lock>(lock.Identity());
-    Register(lock, None);
     delete reinterpret_cast<Implement::Lock*>(Context(lock));
+
+    Register(lock, None);
     return True;
   }
 
@@ -748,7 +749,7 @@ Mutex* CreateMutex() {
   }
 
   if (!Mutexes) {
-    Mutexes = new UMap<ULong, Implement::Lock>();
+    Mutexes = std::make_shared<UMap<ULong, Implement::Lock>>();
   }
 
   Mutexes->insert(std::make_pair(ULong(result), Implement::Lock(*result)));
@@ -764,11 +765,6 @@ void RemoveMutex(Mutex* mutex) {
   if (!DESTROY(mutex)) {
     Mutexes->erase(ULong(mutex));
     free(mutex);
-
-    if (Mutexes->size() == 0) {
-      delete Mutexes;
-      Mutexes = None;
-    }
   }
 }
 
