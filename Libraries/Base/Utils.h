@@ -114,7 +114,7 @@ struct Pair {
   LeftT Left;
   RightT Right;
 
-  explicit Pair(LeftT left, RightT right) : Left{left}, Right{right} {}
+  explicit Pair(LeftT left, RightT right): Left{left}, Right{right} {}
 
   Pair() : Left{}, Right{} {}
   Pair(const Pair& src) : Left{src.Left}, Right{src.Right} {}

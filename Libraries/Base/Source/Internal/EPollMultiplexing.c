@@ -108,8 +108,17 @@ Int EpollRelease(void* ptr, Int socket) {
   Pool* pool = (Pool*)ptr;
   Context* context = (Context*)pool->ll.Poll;
 
-  if (!(error = pool->Remove(pool, socket))) {
-    if (!(error =pool->ll.Modify(context, socket, EReleasing))) {
+  if (socket < 0) {
+    if (context->nevent > 0) {
+      return Error(EBadLogic, "detach epoll before closing");
+    } else if (context->fd < 0) {
+      return Error(EDoNothing, "it seem we can't create epoll fd as expected");
+    }
+
+    close(context->fd);
+    free(context->events);
+  } else if (!(error = pool->Remove(pool, socket))) {
+    if (!(error = pool->ll.Modify(context, socket, EReleasing))) {
       DEC(&context->nevent);
       close(socket);
     } else {

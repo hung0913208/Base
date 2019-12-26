@@ -121,6 +121,8 @@ class Fildes: public Monitor {
       if (!_Run) {
         throw Except(EDrainMem, "can\'t allocate memory to polling system");
       }
+
+      DEBUG(Format("Register lowlevel APIs pointer={}").Apply(ULong(_Pool.ll.Poll)));
     } else {
       _Pool.ll = dynamic_cast<Fildes*>(Monitor::Head(type))->_Pool.ll;
       _Run = dynamic_cast<Fildes*>(Monitor::Head(type))->_Run;
@@ -144,6 +146,25 @@ class Fildes: public Monitor {
      * event -> callbacks */
     Registry(std::bind(&Fildes::OnChecking, this, _1, _2, _3),
              std::bind(&Fildes::OnSelecting, this, _1, _2));
+  }
+
+  ~Fildes() {
+    DEBUG(Format("Release lowlevel APIs pointer={}").Apply(ULong(_Pool.ll.Poll)));
+
+    if (_Pool.ll.Poll) {
+      if (_Pool.ll.Release) {
+        if (_Pool.ll.Release(&_Pool, -1)) {
+          WARNING << "It seems the lowlevel poll can't release itself. "
+                    "It may cause memory leak it some point and we can't "
+                     "control it propertly"
+                  << Base::EOL;
+        }
+      }
+
+      if (_Pool.ll.Poll) {
+        ABI::Free(_Pool.ll.Poll);
+      }
+    }
   }
 
  protected:
@@ -561,7 +582,8 @@ class Fildes: public Monitor {
 namespace Internal {
 namespace Fildes {
 Shared<Monitor> Create(String name, UInt type, Int system){
-  return Shared<Monitor>(new class Fildes(name, type, system));
+  return std::dynamic_pointer_cast<Monitor>(
+      std::make_shared<class Fildes>(name, type, system));
 }
 
 Int Trigger(Void* ptr, Int fd, Bool waiting) {
