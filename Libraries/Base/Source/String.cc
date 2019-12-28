@@ -1,4 +1,5 @@
 #include <ABI.h>
+#include <Atomic.h>
 #include <String.h>
 #include <Logcat.h>
 #include <Utils.h>
@@ -116,7 +117,7 @@ String::String(const CString str, ULong size): _Autoclean{True} {
     if (_String) {
       Memcpy(_String, const_cast<CString>(str), _Size);
     } else {
-      free(_Ref);
+      ABI::Free(_Ref);
       Abort(EDrainMem);
     }
   }
@@ -137,7 +138,7 @@ String::String(ULong size, Char c): _Autoclean{True} {
         _String[i] = c;
       }
     } else {
-      free(_Ref);
+      ABI::Free(_Ref);
       Abort(EDrainMem);
     }
   }
@@ -213,19 +214,18 @@ Void String::clear() {
   Bool passed = False;
 
   if (_Ref != None) {
-    if (*_Ref > 0) { // <-- hanging here, possible cause by gcc protecting memory
-      (*_Ref)--;
+    if (!CMP(_Ref, 0)) { // <-- hanging here, possible cause by gcc protecting memory
       passed = True;
-    }
-  }
 
-  if ((passed && *_Ref == 0)) {
-    if (_String && _Autoclean) {
-      free(_String);
-    }
+      if (DEC(_Ref) == 0 && CMP(_Ref, 0)) {
+        if (_String && _Autoclean) {
+          ABI::Free(_String);
+        }
 
-    if (_Ref != None) {
-      free(_Ref);
+        if (_Ref != None) {
+          ABI::Free(_Ref);
+        }
+      }
     }
   }
 
