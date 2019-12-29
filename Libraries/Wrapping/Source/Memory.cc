@@ -1,6 +1,9 @@
 #include <Macro.h>
 #include <Wrapping.h>
 #include <Utils.h>
+#include <Logcat.h>
+
+#include <memory>
 
 #if LINUX
 #include <sys/mman.h>
@@ -10,14 +13,45 @@ namespace Base {
 namespace Internal {
 namespace Wrapping {
 struct Status {
+  Void* block;
   UInt current;
   UInt touchs;
   Bool readonly;
 
-  Status(): current{0}, touchs{0}, readonly{False}{}
+  Status(Void* block): block{block}, current{0}, touchs{0}, readonly{False} {}
+
+  ~Status() {
+    auto pagesize = sysconf(_SC_PAGE_SIZE);
+
+    if (readonly) {
+      if (Protect(block, pagesize, PROT_WRITE | PROT_READ)) {
+        Bug(EBadLogic, "can't switch to READ/WRITE protection");
+      }
+    }
+
+    ABI::Free(block);
+  }
 };
 
-static Vector<Pair<Void*, Status>> Pages;
+static Vector<Shared<Status>>* _Pages = None;
+
+Vector<Shared<Status>>& Pages() {
+  if (!_Pages) {
+    _Pages = new Vector<Shared<Status>>();
+  }
+
+  return *_Pages;
+}
+
+void Clear() {
+  if (_Pages->size() == 0) {
+    if (_Pages) {
+      delete _Pages;
+    }
+
+    _Pages = None;
+  }
+}
 } // namespace Wrapping
 } // namespace Internal
 
@@ -25,12 +59,12 @@ static Vector<Pair<Void*, Status>> Pages;
 Void* Wrapping::Allocate(UInt size) {
   using namespace Internal::Wrapping;
 
-  auto choose = Pages.size();
+  auto choose = Pages().size();
   auto pagesize = sysconf(_SC_PAGE_SIZE);
 
-  for (UInt i = 0; i < Pages.size(); ++i) {
-    if (pagesize - Pages[i].Right.current <= size) {
-      if (Pages[i].Right.readonly) {
+  for (UInt i = 0; i < Pages().size(); ++i) {
+    if (pagesize - Pages()[i]->current <= size) {
+      if (Pages()[i]->readonly) {
         continue;
       }
 
@@ -39,7 +73,7 @@ Void* Wrapping::Allocate(UInt size) {
     }
   }
 
-  if (choose == Pages.size()) {
+  if (choose == Pages().size()) {
     Void* allocated = None;
 
     if (!(allocated = ABI::Memallign(pagesize, 1))) {
@@ -49,14 +83,14 @@ Void* Wrapping::Allocate(UInt size) {
         Bug(EBadLogic, "can't switch to EXEC/READ/WRITE protection");
       }
 
-      Pages.push_back(Pair<Void*, Status>(allocated, Status()));
+      Pages().push_back(std::make_shared<Status>(allocated));
     }
   }
 
-  Pages[choose].Right.current += size;
-  Pages[choose].Right.touchs += 1;
+  Pages()[choose]->current += size;
+  Pages()[choose]->touchs += 1;
 
-  return (Void*)((ULong)Pages[choose].Left + Pages[choose].Right.current);
+  return (Void*)((ULong)Pages()[choose]->block + Pages()[choose]->current);
 }
 
 void Wrapping::Writeable(Void* address) {
@@ -65,8 +99,8 @@ void Wrapping::Writeable(Void* address) {
   auto pagesize = sysconf(_SC_PAGE_SIZE);
   auto index = -1;
 
-  for (UInt i = 0; i < Pages.size(); ++i) {
-    auto begin = (ULong)Pages[i].Left;
+  for (UInt i = 0; i < Pages().size(); ++i) {
+    auto begin = (ULong)Pages()[i]->block;
     auto end = begin + pagesize;
 
     if (begin <= (ULong)address && (ULong)address < end) {
@@ -75,14 +109,14 @@ void Wrapping::Writeable(Void* address) {
     }
   }
 
-  if (Pages[index].Right.current == pagesize) {
-    if (Pages[index].Right.readonly) {
-      if (Protect(Pages[index].Left, pagesize, PROT_READ | PROT_WRITE)) {
+  if (Pages()[index]->current == pagesize) {
+    if (Pages()[index]->readonly) {
+      if (Protect(Pages()[index]->block, pagesize, PROT_READ | PROT_WRITE)) {
         Bug(EBadLogic, "can't switch to READ/WRITE protection");
       }
     }
 
-    Pages[index].Right.readonly = False;
+    Pages()[index]->readonly = False;
   }
 }
 
@@ -92,8 +126,8 @@ void Wrapping::Readonly(Void* address) {
   auto pagesize = sysconf(_SC_PAGE_SIZE);
   auto index = -1;
 
-  for (UInt i = 0; i < Pages.size(); ++i) {
-    auto begin = (ULong)Pages[i].Left;
+  for (UInt i = 0; i < Pages().size(); ++i) {
+    auto begin = (ULong)Pages()[i]->block;
     auto end = begin + pagesize;
 
     if (begin <= (ULong)address && (ULong)address < end) {
@@ -102,14 +136,14 @@ void Wrapping::Readonly(Void* address) {
     }
   }
 
-  if (Pages[index].Right.current == pagesize) {
-    if (!Pages[index].Right.readonly) {
-      if (Protect(Pages[index].Left, pagesize, PROT_EXEC | PROT_READ)) {
+  if (Pages()[index]->current == pagesize) {
+    if (!Pages()[index]->readonly) {
+      if (Protect(Pages()[index]->block, pagesize, PROT_EXEC | PROT_READ)) {
         Bug(EBadLogic, "can't switch to READONLY protection");
       }
     }
 
-    Pages[index].Right.readonly = True;
+    Pages()[index]->readonly = True;
   }
 }
 
@@ -119,8 +153,8 @@ void Wrapping::Deallocate(Void* address) {
   auto pagesize = sysconf(_SC_PAGE_SIZE);
   auto index = -1;
 
-  for (UInt i = 0; i < Pages.size(); ++i) {
-    auto begin = (ULong)Pages[i].Left;
+  for (UInt i = 0; i < Pages().size(); ++i) {
+    auto begin = (ULong)Pages()[i]->block;
     auto end = begin + pagesize;
 
     if (begin <= (ULong)address && (ULong)address < end) {
@@ -129,21 +163,11 @@ void Wrapping::Deallocate(Void* address) {
     }
   }
 
-  if (index >= 0 && (--Pages[index].Right.touchs) == 0) {
-    if (Pages[index].Right.readonly) {
-      if (Protect(Pages[index].Left, pagesize, PROT_READ | PROT_WRITE)) {
-        Bug(EBadLogic, "can't switch to READ/WRITE protection");
-      }
-      
-      Pages[index].Right.readonly = False;
-    }
-
-    if (Pages[index].Left) {
-      ABI::Free(Pages[index].Left);
-    }
-
-    Pages.erase(Pages.begin() + index);
+  if (index >= 0 && (--Pages()[index]->touchs) == 0) {
+    Pages().erase(Pages().begin() + index);
   }
+
+  Clear();
 }
 } // namespace Base
 #endif
