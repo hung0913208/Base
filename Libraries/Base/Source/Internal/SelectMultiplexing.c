@@ -67,7 +67,19 @@ Int SelectModify(Void* UNUSED(ptr), Int UNUSED(socket),
 Int SelectRelease(void* ptr, Int socket){
   Pool* pool = (struct Pool*)(ptr);
 
-  if (socket >= 0) {
+  if (socket < 0) {
+    Int fd = 0, error = 0;
+
+    for (fd = 0; fd < FD_SETSIZE; ++fd) {
+      if (!FD_ISSET (fd, pool->ll.Poll)) {
+        continue;
+      } else if ((error = SelectRelease(ptr, fd))) {
+        return error;
+      }
+    }
+
+    free(pool->ll.Poll);
+  } else {
     Int error;
 
     if (!(error = pool->Remove(pool, socket))) {
