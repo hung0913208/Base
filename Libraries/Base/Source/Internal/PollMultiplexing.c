@@ -151,11 +151,20 @@ Int PollProbe(Void* ptr, Int socket, Int mode) {
 }
 
 Int PollRelease(void* ptr, Int socket) {
-  Int error;
+  Int error, fidx;
   Pool* pool = (Pool*)ptr;
   Context* context = (Context*)pool->ll.Poll;
 
-  if (!(error = pool->Remove(pool, socket))) {
+  if (socket < 0) {
+    for (fidx = 0; fidx < context->nevents; ++fidx) {
+      if ((error = PollRelease(ptr, context->events[fidx].fd))) {
+        return error;
+      }
+    }
+
+    free(pool->ll.Poll->events);
+    free(pool->ll.Poll);
+  } else if (!(error = pool->Remove(pool, socket))) {
     if (!(error = pool->ll.Modify(context, socket, EReleasing))) {
       close(socket);
     } else {
