@@ -100,10 +100,23 @@ enum ErrorCodeE KqueueModify(Void* ptr, Int socket, Int mode) {
   }
 }
 
-enum ErrorCodeE KqueueRelease(void* ptr, Int socket, ErrorCodeE reason){
+enum ErrorCodeE KqueueRelease(void* ptr, Int socket){
   Pool* pool = (struct Pool*)(ptr);
+  Int error;
 
-  if (socket >= 0) {
+  if (socket < 0) {
+    Context* context = pool->ll.Poll;
+
+    for (idx = 0; idx < context->nevent; ++idx) {
+      socket = context->events[idx].ident;
+
+      if ((error = KqueueRelease(ptr, socket))) {
+        return error;
+      }
+    }
+
+    free(context);
+  } else {
     if (pool->Remove(pool, socket)) {
       Kqueue_Modify(pool->ll.Poll, socket, EReleasing);
       DEC(&pool->ll.Poll->nevent);
