@@ -4,6 +4,14 @@ WEBSOCKET="$(dirname $0)/../Websocket/Websocket.sh"
 BUILD=$(python -c "print('$2'.split('.')[0])")
 JOB=$(python -c "print('$2'.split('.')[-1])")
 
+warning(){
+	if [ $# -eq 2 ]; then
+		echo "[ WARNING ]: $1 line ${SCRIPT}:$2"
+	else
+		echo "[ WARNING ]: $1"
+	fi
+}
+
 function error() {
 	if [ $# -eq 2 ]; then
 		echo "[  ERROR  ]: $1 line ${SCRIPT}:$2"
@@ -253,6 +261,8 @@ try:
 		if idx + 1 == $2:
 			print(item['state'])
 			break
+	else:
+		print('unknown')
 except Exception:
 	if raw.get('@type') == 'error':
 		print('unknown')
@@ -576,6 +586,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console'
 
 	while [ $# -gt 0 ]; do
 		case $1 in
+			--expected)     STEP="$2"; shift;;
 			--job)		JOB="$2"; shift;;
 			--repo)		REPO="$2"; shift;;
 			--patch)	BUILD="$2"; shift;;
@@ -653,21 +664,21 @@ except Exception:
 			fi
 		elif restart 'job' $JOB $BUILD; then
 			while [ 1 ]; do
-	        		STATUS=$(status $BUILD $JOB)
+				STATUS=$(status $BUILD $ID)
 
-				if [ $? != 0 ]; then
+				if [ "$STATUS" = 'failed' ] || [ "$STATUS" = 'passed' ] || [ "$STATUS" = 'cancelled' ]; then
+					continue
+				elif [ "$STATUS" = 'received' ]; then
 					break
-				elif [ ${#STATUS} = 0 ]; then
-					break
-				elif [ $STATUS = 'started' ]; then
-					break
+				else
+					sleep 1
 				fi
-
-				sleep 1
 			done
 
 			if [[ ${#SCRIPT} -gt 0 ]]; then
-				bash $SCRIPT
+				while ! bash $SCRIPT; do
+					warning "run script $SCRIPT failed -> retry"
+				done
 			fi
 
 			console 'restarted' $JOB $PUSHER
