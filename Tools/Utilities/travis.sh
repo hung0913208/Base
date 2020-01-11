@@ -612,6 +612,7 @@ if [ $1 = 'restart' ] || [ $1 = 'status' ] || [ $1 = 'log' ] || [ $1 = 'console'
 	fi
 
 	REPO=$(repository $REPO)
+	PATCH=$BUILD
 	BUILD=$(build $BUILD)
 
 	if [ $TASK = 'log' ] || [ $TASK = 'delete' ]; then
@@ -663,23 +664,32 @@ except Exception:
 				log $BUILD $ID
 			fi
 		elif restart 'job' $JOB $BUILD; then
-			while [ 1 ]; do
-				STATUS=$(status $BUILD $ID)
+			mkdir -p /tmp/$REPO
 
-				if [ "$STATUS" = 'failed' ] || [ "$STATUS" = 'passed' ] || [ "$STATUS" = 'cancelled' ]; then
-					continue
-				elif [ "$STATUS" = 'received' ]; then
-					break
-				else
-					sleep 1
-				fi
-			done
+			if [ ! -f /tmp/$REPO/$ID ]; then
+				cat > /tmp/$REPO/$ID << EOF
+#!/bin/bash
 
-			if [[ ${#SCRIPT} -gt 0 ]]; then
-				while ! bash $SCRIPT; do
-					warning "run script $SCRIPT failed -> retry"
-				done
+while [ 1 ]; do
+	STATUS=\$($0 status --repo $REPO --job $ID --token $TOKEN --patch $PATCH)
+
+	if [ "\$STATUS" = 'started' ]; then
+		rm -fr /tmp/$REPO/$ID
+		bash $SCRIPT
+		break
+	else
+		sleep 1
+	fi
+done
+EOF
+
+				chmod +x /tmp/$REPO/$ID
+			else
+				error "your system run faster than expected"
 			fi
+
+			atd
+			at -f /tmp/$REPO/$ID now
 
 			console 'restarted' $JOB $PUSHER
 		elif [ $(status $BUILD $ID) = 'started' ]; then
@@ -688,6 +698,8 @@ except Exception:
 
 		if [ $(status $BUILD $ID) = 'failed' ]; then
 			exit -1
+		elif [ $(status $BUILD $ID) = 'errored' ]; then
+			exit -2
 		elif [ $(status $BUILD $ID) = 'passed' ]; then
 			exit 0
 		else
