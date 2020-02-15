@@ -29,9 +29,45 @@ fi
 
 ROOT=$(realpath $(dirname $0)/../)
 
+function token() {	
+	echo "${CI_JOB_TOKEN}"
+}
+
+function console() {
+	if [ -f $HOME/console.sh ]; then
+		if [ -d $ROOT/../.git ]; then
+			if ! $HOME/console.sh --register "$(realpath $ROOT/../)" --uid $(token); then
+				echo "tee -a $ROOT/../console.log"
+			fi
+		else
+			if ! $HOME/console.sh --register "$ROOT" --uid $(token); then
+				echo "tee -a $ROOT/console.log"
+			fi
+		fi
+	elif [ -d $ROOT/../.git ]; then
+		echo "tee -a $ROOT/../console.log"
+	else
+		echo "tee -a $ROOT/console.log"
+	fi
+}
+
 function clean() {
+	if [ -f $HOME/console.sh ]; then
+		if [ -d $ROOT/../.git ]; then
+			$HOME/console.sh --unregister "$(realpath $ROOT/../)" --uid $(token)
+		else
+			$HOME/console.sh --unregister "$ROOT" --uid $(token)
+		fi
+	else
+		if [ -d $ROOT/../.git ]; then
+			rm -fr $ROOT/../console.log
+		else
+			rm -fr $ROOT/console.log
+		fi
+	fi
+
 	if [ -f $(dirname $0)/tasks/build.sh ]; then
-		$(dirname $0)/tasks/build.sh $@
+		$(dirname $0)/tasks/build.sh clean $@
 	fi
 }
 
@@ -39,10 +75,11 @@ function run() {
 	DATE=$(date +%s)
 
 	if mv $(dirname $0)/tasks/build.sh $(dirname $0)/tasks/build-$DATE.sh; then
-		$(dirname $0)/tasks/build-$DATE.sh run $@
-		CODE=$?
+		$(dirname $0)/tasks/build-$DATE.sh run $@ | eval "$(console)"
+		CODE=${PIPESTATUS[0]}
 
 		rm -fr $(dirname $0)/tasks/build-$DATE.sh
+		clean $@
 
 		if git log --format=%B -n 1 HEAD | grep " Expect failed" >& /dev/null; then
 			if [[ $CODE -ne 0 ]]; then
@@ -108,7 +145,7 @@ function probe() {
 function plan() {
 	if [ ! -f /var/lock/$(whoami)-resignd.lck ]; then
 		exit -1
-	elif [ $(cat /var/lock/$(whoami)-resignd.lck) != ${CI_JOB_TOKEN} ]; then
+	elif [ $(cat /var/lock/$(whoami)-resignd.lck) != $(token) ]; then
 		exit -1
 	else
 		CODE=0
