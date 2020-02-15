@@ -98,6 +98,8 @@ function probe() {
 
 	if [[ $CODE -eq 0 ]]; then
 		echo $CI_JOB_TOKEN > /var/lock/$(whoami)-resignd.lck
+	else
+		rm -fr $(dirname $0)/tasks/*.sh
 	fi
 
 	exit $CODE
