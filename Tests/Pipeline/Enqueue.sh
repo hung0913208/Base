@@ -98,7 +98,7 @@ while [ 1 ]; do
 	# @STEP 5: plan this job to be on-board. At this step, only one job jumps here
 	# and we are planing this job to be handled.
 	if [[ ${#VERBOSE} -gt 0 ]]; then
-		if $VERBOSE $SCRIPT plan --verbose; then
+		if $VERBOSE $SCRIPT plan --verbose $@; then
 			# @STEP 6: the job has already been on-board and we should run it now to collect
 			# log from the ci
 
@@ -110,7 +110,7 @@ while [ 1 ]; do
 			break
 		fi
 	else
-		if $VERBOSE $SCRIPT plan; then
+		if $VERBOSE $SCRIPT plan $@; then
 			# @STEP 6: the job has already been on-board and we should run it now to collect
 			# log from the ci
 

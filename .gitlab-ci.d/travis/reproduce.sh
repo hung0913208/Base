@@ -86,22 +86,39 @@ function clean() {
 
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	VERBOSE="bash -x";;
+			--verbose)	VERBOSE="bash -x"; set -x;;
+			--environment)  ENVIRONMENT=$2; shift;;
 			(--)		shift; break;;
-			(*)		break;;
+			(*)		shift;;
 		esac
 		shift
 	done
 
 	if [ -f /var/lock/$(whoami)/travis/${CI_JOB_TOKEN} ]; then
+		COUNT=0
 		while ! $VERBOSE /var/lock/$(whoami)/travis/${CI_JOB_TOKEN}; do
-			sleep 1
+			COUNT=$((COUNT+1))
+
+			if [[ $COUNT -lt 60 ]]; then
+				sleep 1
+			else
+				break
+			fi
 		done
 
 		rm -fr /var/lock/$(whoami)/travis/${CI_JOB_TOKEN}
 	else
 		$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
 		$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}
+
+		if [[ ${#ENVIRONMENT} -gt 0 ]]; then
+			SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+			KEY=${SPLITED[0]}
+
+			cat $ENVIRONMENT | while read DEFINE; do
+				$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $KEY --token ${TRAVIS} --repo ${REPO}
+			done
+		fi
 	fi
 }
 
@@ -111,11 +128,10 @@ function run() {
 
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	VERBOSE="bash -x";;
+			--verbose)	VERBOSE="bash -x"; set -x;;
 			--labs)		LABs="$2"; shift;;
 			--os)		shift;;
-			(--) 		shift; break;;
-			(*) 		break;;
+			(*) 		PARAMS="$PARAMS $1";;
 		esac
 		shift
 	done
@@ -134,9 +150,9 @@ function run() {
 
 					if [[ $CODE -ne 0 ]]; then
 						if [[ ${#VERBOSE} -gt 0 ]]; then
-							clean --verbose
+							clean --verbose $PARAMS $@
 						else
-							clean
+							clean $PARAMS $@
 						fi
 					fi
 				fi
@@ -163,9 +179,9 @@ function probe() {
 
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	VERBOSE="bash -x";;
+			--verbose)	VERBOSE="bash -x"; set -x;;
 			(--)		shift; break;;
-			(*)		break;;
+			(*)		shift;;
 		esac
 		shift
 	done
@@ -196,9 +212,10 @@ function plan() {
 
 	while [ $# -gt 0 ]; do
 		case $1 in
-			--verbose)	VERBOSE="bash -x";;
+			--verbose)	VERBOSE="bash -x"; set -x;;
+			--environment)  ENVIRONMENT=$2; shift;;
 			(--)		shift; break;;
-			(*)		break;;
+			(*)		shift;;
 		esac
 		shift
 	done
@@ -218,6 +235,15 @@ function plan() {
 		if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$STOP" --value "$NOTIFY" --token ${TRAVIS} --repo ${REPO}; then
 			$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
 
+			if [[ ${#ENVIRONMENT} -gt 0 ]]; then
+				SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+				KEY=${SPLITED[0]}
+
+				cat $ENVIRONMENT | while read DEFINE; do
+					$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $KEY --token ${TRAVIS} --repo ${REPO}
+				done
+			fi
+
 			lock
 			exit -1
 		fi
@@ -228,6 +254,24 @@ function plan() {
 $VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}
 EOF
 		chmod +x /var/lock/$(whoami)/travis/${CI_JOB_TOKEN}
+	fi
+
+	if [[ ${#ENVIRONMENT} -gt 0 ]]; then
+		cat $ENVIRONMENT | while read DEFINE; do
+			SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+			KEY=${SPLITED[0]}
+			VAL=${SPLITED[1]}
+
+			if ! $VERBOSE $BASE/Tools/Utilities/travis.sh env add --name "$KEY" --value "$VAL" --token ${TRAVIS} --repo ${REPO}; then
+				lock
+				exit -1
+			else
+				cat >> /var/lock/$(whoami)/travis/${CI_JOB_TOKEN} << EOF
+$VERBOSE $BASE/Tools/Utilities/travis.sh env del --name $KEY --token ${TRAVIS} --repo ${REPO}
+EOF
+				chmod +x /var/lock/$(whoami)/travis/${CI_JOB_TOKEN}
+			fi
+		done
 	fi
 }
 
