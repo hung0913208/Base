@@ -714,7 +714,7 @@ elif [ $1 = 'env' ]; then
 		shift
 
 		BRANCH='null'
-		PUBLIC='false'
+		PUBLIC='true'
 
 		if ! options=$(getopt -l repo,token,name,value,branch,public: -- "$@"); then
 			error "Can' parse $0 env add $@"
@@ -728,6 +728,7 @@ elif [ $1 = 'env' ]; then
 				--value) 	VALUE="$2"; shift;;
 				--branch) 	BRANCH="\"$2\""; shift;;
 				--public) 	PUBLIC="true";;
+				--private)	PUBLIC="false";;
 				(--) 		shift; break;;
 				(-*) 		error "unrecognized option $1";;
 				(*) 		break;;
@@ -739,7 +740,7 @@ elif [ $1 = 'env' ]; then
 		curl -sS --request POST 						\
                         	 --header "Authorization: token $TOKEN"     		\
 				 --header "Accept: application/json; version=2" 	\
-				 --data-binary "{\"env_var\":{\"name\":\"$NAME\",\"value\":\"$VALUE\",\"public\":true,\"branch\":$BRANCH,\"repository_id\":\"$REPO\"}}" \
+				 --data-binary "{\"env_var\":{\"name\":\"$NAME\",\"value\":\"$VALUE\",\"public\":$PUBLIC,\"branch\":$BRANCH,\"repository_id\":\"$REPO\"}}" \
 			https://api.travis-ci.org/settings/env_vars?repository_id=$REPO |
 		python -c """
 import json, sys
