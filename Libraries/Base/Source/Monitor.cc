@@ -7,6 +7,7 @@ namespace Internal {
 Mutex* CreateMutex();
 
 static Map<UInt, Pair<Monitor*, Monitor*>> Monitors;
+static Map<UInt, Shared<Monitor> (*)(String, UInt)> Builders;
 static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
                                   [](Mutex* mutex) { Locker::Unlock(*mutex); },
                                   CreateMutex());
@@ -226,7 +227,38 @@ Shared<Monitor> Monitor::Make(String name, UInt type) {
     return Internal::Fildes::Create(name, type, 1);
 
   default:
-    throw Except(ENoSupport, name);
+    if (Internal::Builders.find(type) == Internal::Builders.end()) {
+      throw Except(ENoSupport, name);
+    } else {
+      return Internal::Builders[type](name, type);
+    }
+  }
+}
+
+Bool Monitor::Sign(UInt type, Shared<Monitor> (*builder)(String, UInt)) {
+  using namespace Base::Internal;
+
+  if (type == EIOSync || type == EPipe || type == ETimer) {
+    return False;
+  } else if (Builders.find(type) != Builders.end()) {
+    return False;
+  }
+    
+  Builders[type] = builder;
+  return True;
+}
+
+Bool Monitor::IsSupport(UInt type) {
+  switch(type) {
+  case EIOSync:
+  case EPipe:
+    return True;
+
+  case ETimer:
+    return False;
+
+  default:
+    return Internal::Builders.find(type) != Internal::Builders.end();
   }
 }
 

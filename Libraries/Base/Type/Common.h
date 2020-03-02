@@ -93,7 +93,7 @@ typedef pthread_cond_t Checker;
 #if __cplusplus
 #define ISLOCKED(mutex) Base::Locker::IsLocked(mutex)
 #else
-# define ISLOCKED(mutex) IsLocked(
+# define ISLOCKED(mutex) IsLocked(mutex)
 #endif
 
 #if __cplusplus

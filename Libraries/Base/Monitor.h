@@ -44,6 +44,14 @@ class Monitor {
    * design, there is no way to create a monitor without diferent type */
   static Shared<Monitor> Make(String name, UInt type);
 
+  /* @NOTE: this function is used to register a Monitor's builder to help to
+   * build a new kind of Monitor */
+  static Bool Sign(UInt type, Shared<Monitor> (*function)(String, UInt));
+
+  /* @NOTE: this function is used to check if the type is supported or not 
+   * by the system */
+  static Bool IsSupport(UInt type);
+
  protected:
   /* @NOTE: this function is used to registry an indicator which is used 
    * to generate a Perform. By default, indicator is always activated when
