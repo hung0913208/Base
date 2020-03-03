@@ -378,8 +378,9 @@ class Watch {
 namespace Base {
 namespace Internal {
 thread_local Implement::Thread* Thiz{None};
-static Shared<UMap<ULong, Implement::Lock>> Mutexes{None};
+static UMap<ULong, Implement::Lock>* Mutexes{None};
 static Watch* Watcher{None};
+static UInt CMutexes{0};
 
 namespace Summary {
 void WatchStopper() { Watcher->Summary(); }
@@ -468,17 +469,22 @@ Bool Lock(Base::Lock& locker) {
 }
 
 Bool Lock(Mutex& locker) {
-  auto context = &(Internal::Mutexes->at(ULong(&locker)));
+  if (Internal::Mutexes) {
+    auto context = &(Internal::Mutexes->at(ULong(&locker)));
 
-  /* @NOTE: lock may fail and cause coredump because we allow to another side
-   * to do that, we can't guarantee that everything should be in safe all the
-   * time if the user tries to trick the highloaded systems */
+    /* @NOTE: lock may fail and cause coredump because we allow to another side
+     * to do that, we can't guarantee that everything should be in safe all the
+     * time if the user tries to trick the highloaded systems */
 
-  return Internal::Watcher->OnLocking<Internal::Implement::Lock>(
-    context,
-    [&]() {
-      TIMELOCK(&locker, -1, context->Halt());
-    });
+    return Internal::Watcher->OnLocking<Internal::Implement::Lock>(
+      context,
+      [&]() {
+        TIMELOCK(&locker, -1, context->Halt());
+      });
+  } else {
+    Bug(EBadAccess, "Lock a mutex while Internal::Mutexes is None");
+    return False;
+  }
 }
 
 /* @NOTE: this function is used to unlock a mutex with the watching to prevent
@@ -502,17 +508,22 @@ Bool Unlock(Base::Lock& locker) {
 Bool Unlock(Mutex& locker) {
   using namespace Internal;
 
-  /* @NOTE: unlock may fail and cause coredump because we allow to another side
-   * to do that, we can't guarantee that everything should be in safe all the
-   * time if the user tries to trick the highloaded systems */
+  if (Mutexes) {
+    /* @NOTE: unlock may fail and cause coredump because we allow to another side
+     * to do that, we can't guarantee that everything should be in safe all the
+     * time if the user tries to trick the highloaded systems */
 
-  return Watcher->OnUnlocking<Implement::Lock>(
-    &(Mutexes->at(ULong(&locker))),
-    [&]() {
-      do {
-        UNLOCK(&locker);
-      } while (IsLocked(locker));
-    });
+    return Watcher->OnUnlocking<Implement::Lock>(
+      &(Mutexes->at(ULong(&locker))),
+      [&]() {
+        do {
+          UNLOCK(&locker);
+        } while (IsLocked(locker));
+      });
+  } else {
+    Bug(EBadAccess, "Unlock a mutex while Internal::Mutexes is None");
+    return False;
+  }
 }
 }  // namespace Locker
 
@@ -748,11 +759,16 @@ Mutex* CreateMutex() {
     }
   }
 
-  if (!Mutexes) {
-    Mutexes = std::make_shared<UMap<ULong, Implement::Lock>>();
+  if (INC(&CMutexes)) {
+    if (!Mutexes) {
+      Mutexes = new UMap<ULong, Implement::Lock>();
+    }
+
+    Mutexes->insert(std::make_pair(ULong(result), Implement::Lock(*result)));
+  } else {
+    ABI::Free(&result);
   }
 
-  Mutexes->insert(std::make_pair(ULong(result), Implement::Lock(*result)));
   return result;
 #elif WINDOW
   throw Except(ENoSupport, "");
@@ -763,7 +779,16 @@ Mutex* CreateMutex() {
 
 void RemoveMutex(Mutex* mutex) {
   if (!DESTROY(mutex)) {
-    Mutexes->erase(ULong(mutex));
+    if (Mutexes) {
+      Mutexes->erase(ULong(mutex));
+
+      if (LIKELY(DEC(&CMutexes), 0)) {
+        ABI::Free(&Mutexes);
+      }
+    } else {
+      Bug(EBadAccess, "Remove a mutex while Internal::Mutexes is None");
+    }
+
     free(mutex);
   }
 }

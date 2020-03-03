@@ -23,6 +23,15 @@ void* Calloc(ULong count, ULong size) { return calloc(count, size); }
 void* Malloc(ULong size) { return malloc(size); }
 
 void Free(void* buffer) { free(buffer); }
+void Free(void** buffer) {
+  if (buffer) {
+    if (*buffer) {
+      free(*buffer); 
+    }
+
+    *buffer = None;
+  }
+}
 
 void KillMe() {
 #if !RELEASE

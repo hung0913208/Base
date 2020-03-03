@@ -75,6 +75,7 @@ void* Malloc(ULong size);
 
 /* @NOTE: memory deallocation */
 void Free(void* buffer);
+void Free(void** buffer);
 
 /* @NOTE: memory writer  */
 void Memset(void* mem, Char sample, UInt size);
