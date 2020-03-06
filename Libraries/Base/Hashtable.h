@@ -42,7 +42,8 @@ class Hashtable {
     IndexT *Roots, *Left, *Right;
   };
 
-  explicit Hashtable(Function<IndexT(KeyT*)> hashing, Bool use_bintree = False):
+  explicit Hashtable(Function<IndexT(KeyT*, UInt)> hashing, 
+                     Bool use_bintree = False):
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
 
@@ -61,7 +62,7 @@ class Hashtable {
     Clear();
   }
 
-  explicit Hashtable(IndexT(*hashing)(KeyT*), Bool use_bintree = False):
+  explicit Hashtable(IndexT(*hashing)(KeyT*, UInt), Bool use_bintree = False):
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
 
@@ -80,7 +81,8 @@ class Hashtable {
     Clear();
   }
 
-  explicit Hashtable(UInt size, IndexT(*hashing)(KeyT*), Bool use_bintree = False):
+  explicit Hashtable(UInt size, IndexT(*hashing)(KeyT*, UInt),
+                     Bool use_bintree = False):
       _Hash{hashing}, _Style{use_bintree}, _Count{0} {
     auto n = log(size)/log(2);
 
@@ -110,7 +112,7 @@ class Hashtable {
     Bool* levels = _Style? _Map.v2.Levels: _Map.v1.Levels;
     IndexT* roots = _Style? _Map.v2.Roots: _Map.v1.Roots;
     UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
-    IndexT hashing = _Hash(&key);
+    IndexT hashing = _Hash(&key, size);
     UInt index = Mod(hashing);
 
     /* @NOTE: check if we need migration or not */
@@ -208,8 +210,8 @@ insert_keyval:
     ValueT* values{None};
     Void* pointer{None};
     KeyT* keys{None};
-    IndexT hashing{_Hash(&key)};
-    UInt size{0}, select{0};
+    UInt size = _Style? _Map.v2.Size: _Map.v1.Size, select{0};
+    IndexT hashing{_Hash(&key, size)};
 
     /* @NOTE: check result type */
     if (typeid(ResultT) == typeid(ValueT)) {
@@ -707,7 +709,7 @@ insert_keyval:
   }
 
   union { MappingV1 v1; MappingV2 v2; } _Map;
-  Function<IndexT(KeyT*)> _Hash;
+  Function<IndexT(KeyT*, UInt)> _Hash;
   Bool _Style, _Bitwise;
   UInt _Count;
 };
