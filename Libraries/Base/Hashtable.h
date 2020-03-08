@@ -42,7 +42,7 @@ class Hashtable {
     IndexT *Roots, *Left, *Right;
   };
 
-  explicit Hashtable(Function<IndexT(KeyT*, UInt)> hashing, 
+  explicit Hashtable(Function<IndexT(KeyT*)> hashing, 
                      Bool use_bintree = False):
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
@@ -62,7 +62,7 @@ class Hashtable {
     Clear();
   }
 
-  explicit Hashtable(IndexT(*hashing)(KeyT*, UInt), Bool use_bintree = False):
+  explicit Hashtable(IndexT(*hashing)(KeyT*), Bool use_bintree = False):
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
 
@@ -81,7 +81,7 @@ class Hashtable {
     Clear();
   }
 
-  explicit Hashtable(UInt size, IndexT(*hashing)(KeyT*, UInt),
+  explicit Hashtable(UInt size, IndexT(*hashing)(KeyT*),
                      Bool use_bintree = False):
       _Hash{hashing}, _Style{use_bintree}, _Count{0} {
     auto n = log(size)/log(2);
@@ -107,12 +107,12 @@ class Hashtable {
   virtual ~Hashtable() { Clear(True); }
 
   /* @NOTE: put key-value to our Hashtable */
-  ErrorCodeE Put(KeyT&& key, ValueT&& value) {
+  inline ErrorCodeE Put(KeyT&& key, ValueT&& value) {
     KeyT* keys = (KeyT*)(_Style? _Map.v2.Keys: _Map.v1.Keys);
     Bool* levels = _Style? _Map.v2.Levels: _Map.v1.Levels;
-    IndexT* roots = _Style? _Map.v2.Roots: _Map.v1.Roots;
+    IndexT* roots = _Style? _Map.v2.Roots: _Map.v1.Roots, *indexes = None;
+    IndexT hashing = _Hash(&key), mask = 0, next = 0;
     UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
-    IndexT hashing = _Hash(&key, size);
     UInt index = Mod(hashing);
 
     /* @NOTE: check if we need migration or not */
@@ -134,37 +134,62 @@ class Hashtable {
     if (_Style) {
       return NoSupport("still on developing").code();
     } else {
-      IndexT* indexes = _Map.v1.Indexes;
+      IndexT latest = index;
+
+      indexes = _Map.v1.Indexes;
+      mask = IndexAt(indexes, index);
+      next = index;
 
       if (IndexAt(indexes, index) >= 0) {
-        IndexT next;
-
         if (KeyAt(keys, index) == key) {
           goto insert_keyval;
         }
 
-        /* @NOTE: maybe we will found the key if we keep checking indexes */
-        for (; index < size; index = indexes[index]) {
-          if (KeyAt(keys, index) == key) {
+        /* @NOTE: maybe we will found the key if we keep checking indexes 
+         * so we only change the key's value */
+
+        for (auto i = 0; latest < Cast(latest, size); ++i) {
+          if (i > Cast(i, size)) {
+            Bug(EBadLogic, "It seem we are in an infinitive loop");
+          } else if (KeyAt(keys, indexes[latest]) == key) {
+            index = latest;
             goto insert_keyval;
+          } else if (Cast(size, indexes[latest]) != size) {
+            latest = indexes[latest];
+            continue;
           }
+
+          index = latest;
+          break;
         }
 
-        /* @NOTE: not found the key, going to find a new slot to insert this
-         * key-value */
+       /* @NOTE: not found the key, going to find a new slot to insert this
+        * key-value */
+
+find_new_slot:
         if ((next = FindEmpty(index)) < 0) {
           return OutOfRange.code();
+        } else {
+          mask = size;
         }
 
-        /* @NOTE: make the current index to point to the end of Hashtable */
-        IndexAt(indexes, index) = next;
-        IndexAt(indexes, next) = size;
-        index = next;
+        /* @NOTE: make the current index to point to the end of Hashtable, with
+         * that we can find the key-value better */
+
+        if (UInt(next) != index) {
+          IndexAt(indexes, index) = next;
+          index = next;
+        }
+      } else if (KeyAt(keys, index) == key) {
+        goto insert_keyval;
+      } else {
+        goto find_new_slot;
       }
     }
 
     /* @NOTE: save level and root values of each item to use on migrating
      * pharse */
+
     LevelAt(levels, index) = Bool(1 & (hashing / size));
     RootAt(roots, index) = hashing%size;
 
@@ -172,28 +197,32 @@ class Hashtable {
     _Count++;
 
 insert_keyval:
-    Insert(key, value, index);
+    if (Insert(key, value, index)) {
+      IndexAt(indexes, index) = mask;
+    } else {
+      return EBadAccess;
+    }
+
     return ENoError;
   }
 
   /* @NOTE: put a pair of Key-Value to Hashtable */
-  ErrorCodeE Put(KeyT& key, ValueT& value) {
-
+  inline ErrorCodeE Put(KeyT& key, ValueT& value) {
     return Put(std::move(key), std::move(value));
   }
 
-  ErrorCodeE Put(Pair<KeyT, ValueT> instance) {
+  inline ErrorCodeE Put(Pair<KeyT, ValueT> instance) {
     return Put(std::get<0>(instance), std::get<1>(instance));
   }
 
   /* @NOTE: get value from existence key */
   template<typename ResultT=ValueT>
-  ResultT Get(KeyT& key) {
+  inline ResultT Get(KeyT& key) {
     return Get<ResultT>(std::move(key));
   }
 
   template<typename ResultT=ValueT>
-  ResultT Get(KeyT&& key) {
+  inline ResultT Get(KeyT&& key) {
     ResultT output;
     Error error{Get(RValue(key), output)};
 
@@ -205,23 +234,23 @@ insert_keyval:
   }
 
   template<typename ResultT=ValueT>
-  Error Get(KeyT&& key, ResultT& output) {
+  inline Error Get(KeyT&& key, ResultT& output) {
     Error error{};
     ValueT* values{None};
     Void* pointer{None};
     KeyT* keys{None};
     UInt size = _Style? _Map.v2.Size: _Map.v1.Size, select{0};
-    IndexT hashing{_Hash(&key, size)};
+    IndexT hashing{_Hash(&key)};
 
     /* @NOTE: check result type */
     if (typeid(ResultT) == typeid(ValueT)) {
-      select = 0;
-    } else if (typeid(ResultT) == typeid(ValueT*)) {
       select = 1;
-    } else if (typeid(ResultT) == typeid(ValueT&)) {
+    } else if (typeid(ResultT) == typeid(ValueT*)) {
       select = 2;
-    } else if (typeid(ResultT) == typeid(ValueT&&)) {
+    } else if (typeid(ResultT) == typeid(ValueT&)) {
       select = 3;
+    } else if (typeid(ResultT) == typeid(ValueT&&)) {
+      select = 4;
     } else {
       return NoSupport << Nametype<ResultT>();
     }
@@ -242,10 +271,11 @@ insert_keyval:
       } else if (!values) {
         error = BadLogic << "Hastable::Values is empty recently";
       } else {
-        for (UInt index = Mod(hashing);
-             index <= size;
-             index = IndexAt(indexes, index)) {
-          if (KeyAt(keys, index) != key) {
+        for (UInt index = Mod(hashing), i = 0; index < size;
+                  index = IndexAt(indexes, index), ++i) {
+          if (i > Cast(i, size)) {
+            Bug(EBadLogic, "It seem we are in an infinitive loop");
+          } else if (KeyAt(keys, index) != key) {
             continue;
           }
 
@@ -266,22 +296,21 @@ insert_keyval:
 
     /* @NOTE: return according result */
     switch(select) {
-    case 1:
+    case 2:
     {
       ResultT result{};
 
       if (ToPointer(result, pointer)) {
         output = result;
       } else {
-        return BadLogic << Format{"is {} pointer?"}
-                                  .Apply(Nametype<ResultT>());
+        return BadLogic << Format{"is {} pointer?"}.Apply(Nametype<ResultT>());
       }
     }
     break;
 
-    case 0:
-    case 2:
+    case 1:
     case 3:
+    case 4:
       output = *((ResultT*)(pointer));
       break;
 
@@ -352,21 +381,21 @@ insert_keyval:
   }
 
  protected:
-  virtual KeyT& KeyAt(KeyT* array, UInt index) { return array[index]; }
+  inline virtual KeyT& KeyAt(KeyT* array, UInt index) { return array[index]; }
 
-  virtual ValueT& ValueAt(ValueT* array, UInt index) { return array[index]; }
+  inline virtual ValueT& ValueAt(ValueT* array, UInt index) { return array[index]; }
 
-  virtual IndexT& IndexAt(IndexT* array, UInt index) { return array[index]; }
+  inline virtual IndexT& IndexAt(IndexT* array, UInt index) { return array[index]; }
 
-  virtual IndexT& RootAt(IndexT* array, UInt index) { return array[index]; }
+  inline virtual IndexT& RootAt(IndexT* array, UInt index) { return array[index]; }
 
-  virtual Bool& LevelAt(Bool* array, UInt index) { return array[index]; }
+  inline virtual Bool& LevelAt(Bool* array, UInt index) { return array[index]; }
 
-  virtual IndexT& LeftAt(IndexT* array, UInt index) { return array[index]; }
+  inline virtual IndexT& LeftAt(IndexT* array, UInt index) { return array[index]; }
 
-  virtual IndexT& RightAt(IndexT* array, UInt index) { return array[index]; }
+  inline virtual IndexT& RightAt(IndexT* array, UInt index) { return array[index]; }
 
-  virtual ErrorCodeE Expand() {
+  inline virtual ErrorCodeE Expand() {
     UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
     Bool* levels = _Style? _Map.v2.Levels: _Map.v1.Levels;
     IndexT* roots = _Style? _Map.v2.Roots: _Map.v1.Roots;
@@ -442,7 +471,7 @@ insert_keyval:
 
   /* @NOTE: access value according index, type must be KeyT or ValueT */
   template<typename ResultT>
-  ResultT* At(UInt index) {
+  inline ResultT* At(UInt index) {
     if (typeid(ResultT) == typeid(ValueT)) {
       if (_Style) {
         return (ResultT*)(&ValueAt((ValueT*)_Map.v2.Values, index));
@@ -475,8 +504,7 @@ insert_keyval:
   }
 
   /* @NOTE: this helper will support to insert a key-value to slot index-th */
-  Bool Insert(KeyT& key, ValueT& value, UInt index){
-
+  inline Bool Insert(KeyT& key, ValueT& value, UInt index) {
     if (_Style) {
       if (LeftAt(_Map.v2.Left, index) >= 0 ||
           RightAt(_Map.v2.Right, index) >= 0) {
@@ -499,7 +527,7 @@ insert_keyval:
 
   /* @NOTE: this helper will support how to move a key-value from place
    *  to place */
-  Bool Move(UInt from, UInt to) {
+  inline Bool Move(UInt from, UInt to) {
     if (_Style) {
       if (!Insert(KeyAt((KeyT*)_Map.v2.Keys, from),
                   ValueAt((ValueT*)_Map.v2.Values, from),
@@ -523,7 +551,7 @@ insert_keyval:
   }
 
   /* @NOTE: this helper will support how to deprecate a slot */
-  ErrorCodeE Deprecate(Int index, Int size){
+  inline ErrorCodeE Deprecate(Int index, Int size){
     if (_Style) {
       LeftAt(_Map.v2.Left, index) = -1;
       RightAt(_Map.v2.Right, index) = -1;
@@ -568,7 +596,7 @@ insert_keyval:
 
   /* @NOTE: Hashtable has reached its limitation and we must expand itself and
    * migrate data to a larger content */
-  ErrorCodeE Migrate() {
+  inline ErrorCodeE Migrate() {
     ErrorCodeE error = Expand();
     UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
     Bool* levels = _Style? _Map.v2.Levels: _Map.v1.Levels;
@@ -639,18 +667,22 @@ insert_keyval:
   }
 
   /* @NOTE: this helper will support to find the end of a flow */
-  Int GoToEnd(UInt index, Int size, UInt saveback = 0) {
+  inline Int GoToEnd(UInt index, Int size, UInt saveback = 0) {
     UInt saver[saveback + 1], pos{0};
     Bool rot{False};
 
     if (_Style) {
     } else {
-      auto indexes = _Map.v1.Indexes;
+      IndexT* indexes = _Map.v1.Indexes;
 
-      for (auto i = IndexAt(indexes, index);
-           IndexAt(indexes, i) < size;
-           i = IndexAt(indexes, i)) {
-        saver[pos] = i;
+      for (IndexT next = IndexAt(indexes, index), count = 0; 
+                         IndexAt(indexes, next) < size;
+                ++count, next = IndexAt(indexes, next)) {
+        if (count > size) {
+          Bug(EBadLogic, "fall into an infinitive loop");
+        }
+
+        saver[pos] = next;
 
         /* @NOTE: pos will increase until it reach its limitation and rotate
          *  back */
@@ -670,7 +702,7 @@ insert_keyval:
     return -1;
   }
 
-  IndexT FindEmpty(IndexT index){
+  inline IndexT FindEmpty(IndexT index){
     if (_Style) {
     } else {
       auto indexes = _Map.v1.Indexes;
@@ -678,27 +710,24 @@ insert_keyval:
       for (auto left = index, right = index; ; left--, right++) {
         if (left >= 0) {
           if (IndexAt(indexes, left) < 0) {
-            IndexAt(indexes, index) = left;
-            index = left;
             return left;
-            break;
           }
         }
 
         if (right < IndexT(_Map.v1.Size)) {
           if (IndexAt(indexes, right) < 0) {
             return right;
-            break;
           }
-        } else {
+        } else if (left < 0) {
           break;
         }
       }
     }
+
     return -1;
   }
 
-  IndexT Mod(IndexT hashing) {
+  inline IndexT Mod(IndexT hashing) {
     UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
 
     if (_Bitwise) {
@@ -709,7 +738,7 @@ insert_keyval:
   }
 
   union { MappingV1 v1; MappingV2 v2; } _Map;
-  Function<IndexT(KeyT*, UInt)> _Hash;
+  Function<IndexT(KeyT*)> _Hash;
   Bool _Style, _Bitwise;
   UInt _Count;
 };
