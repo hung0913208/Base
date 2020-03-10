@@ -212,7 +212,7 @@ insert_keyval:
   }
 
   inline ErrorCodeE Put(Pair<KeyT, ValueT> instance) {
-    return Put(std::get<0>(instance), std::get<1>(instance));
+    return Put(instance.Left, instance.Right);
   }
 
   /* @NOTE: get value from existence key */
