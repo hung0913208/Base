@@ -127,10 +127,27 @@ if [ $(which git) ]; then
 		"""
 	fi
 
-	# @NOTE: build and test everything with single command only
-	$BUILDER --root $ROOT --debug 1 --rebuild 0 --mode $MODE
-	if [ $? != 0 ]; then
-		exit -1
+	TESTED=0
+
+	# @NOTE: build with bazel
+	if which bazel &> /dev/null; then
+		if [ -f $ROOT/WORKSPACE ]; then
+			if ! bazel build ...; then
+				exit -1 
+			elif ! bazel test ...; then
+				exit -1
+			else
+				TESTED=1
+			fi
+		fi
+	fi
+
+	if [[ $TEST -eq 0 ]]; then
+		# @NOTE: build and test everything with single command only
+
+		if ! $BUILDER --root $ROOT --debug 1 --rebuild 0 --mode $MODE; then
+			exit -1
+		fi
 	fi
 else
 	error "Please install git first"
