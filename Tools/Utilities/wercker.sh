@@ -3,6 +3,14 @@
 WEBSOCKET="$(dirname $0)/../Websocket/Websocket.sh"
 TOKEN=''
 
+if [ -f $HOME/environment.sh ]; then
+	source $HOME/environment.sh
+fi
+
+if [[ ${#INTERVAL} -eq 0 ]]; then
+	INTERVAL = 3
+fi
+
 function error() {
 	if [ $# -eq 2 ]; then
 		echo "[  ERROR  ]: $1 line ${SCRIPT}:$2"
@@ -147,7 +155,7 @@ for item in json.load(sys.stdin)['items']:
 		fi
 
 		while [ 1 ]; do
-			sleep 3
+			sleep $INTERVAL
 			LOGs=($(curl -g -sS --request GET --header "Cookie: express.sid=$TOKEN" \
 					"https://app.wercker.com/api/v3/runs/$RUN/steps" |
 				python -c """
