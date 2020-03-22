@@ -4,6 +4,10 @@ WEBSOCKET="$(dirname $0)/../Websocket/Websocket.sh"
 BUILD=$(python -c "print('$2'.split('.')[0])")
 JOB=$(python -c "print('$2'.split('.')[-1])")
 
+if [ -f $HOME/environment.sh ]; then
+	source $HOME/environment.sh
+fi
+
 warning(){
 	if [ $# -eq 2 ]; then
 		echo "[ WARNING ]: $1 line ${SCRIPT}:$2"
