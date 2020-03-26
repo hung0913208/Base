@@ -39,6 +39,9 @@ HOOK="\\\"export JOB='build'; sudo apt install qemu; echo '$REPOSITORY $BRANCH' 
 NOTIFY="\\\"../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}\\\""
 
 function lock() {
+	mkdir -p /var/lock/$(whoami)
+	exec 200>/var/lock/$(whoami)/travis-timelock.lck
+
 	while [ 1 ]; do
 		if flock -n -x 200; then
 			trap "flock --unlock 200" EXIT
@@ -50,6 +53,9 @@ function lock() {
 }
 
 function unlock() {
+	mkdir -p /var/lock/$(whoami)
+	exec 200>/var/lock/$(whoami)/travis-timelock.lck
+
 	if flock -n -x 200; then
 		trap "flock --unlock 200" EXIT
 

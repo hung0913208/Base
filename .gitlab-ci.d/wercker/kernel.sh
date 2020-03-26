@@ -38,6 +38,9 @@ HOOK="export JOB=build; apt install -y qemu; echo \\\"$REPOSITORY $BRANCH\\\" >>
 NOTIFY="/pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $START --token ${WERCKER} --repo ${REPO}; /pipeline/source/Base/Tools/Utilities/wercker.sh env del --name $STOP --token ${WERCKER} --repo ${REPO}; apt install -y qemu"
 
 function lock() {
+	mkdir -p /var/lock/$(whoami)
+	exec 200>/var/lock/$(whoami)/wecker-timelock.lck
+
 	while [ 1 ]; do
 		if flock -n -x 200; then
 			trap "flock --unlock 200" EXIT
@@ -49,6 +52,9 @@ function lock() {
 }
 
 function unlock() {
+	mkdir -p /var/lock/$(whoami)
+	exec 200>/var/lock/$(whoami)/wecker-timelock.lck
+
 	if flock -n -x 200; then
 		trap "flock --unlock 200" EXIT
 
