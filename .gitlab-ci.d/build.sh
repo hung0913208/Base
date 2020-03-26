@@ -7,6 +7,10 @@ IFS=$'\n'
 IGNORANCEs=($(git log --format=%B -n 1 HEAD | grep " Ignored "))
 IFS=$SAVE
 
+if [ -f $HOME/environment.sh ]; then
+	source $HOME/environment.sh
+fi
+
 for IGNORE in ${IGNORANCEs[@]}; do
 	if echo $IGNORE | grep "build.sh\|all"; then
 		KEEP=0
@@ -99,11 +103,39 @@ function probe() {
 	CODE=-1
 	exec 200>/var/lock/$(whoami)-lockd.lck
 
+	for I in $(seq -s ' ' 1 $#); do
+		IPLUS=$((I+1))
+
+		case ${!I} in
+			--resource)  ENVIRONMENT=${!IPLUS};;
+			(--)		;;
+			(*)		;;
+		esac
+	done
+
+	if [[ ${#ENVIRONMENT} -gt 0 ]]; then
+		source $ENVIRONMENT
+	fi
+
 	if flock -n -x 200; then
 		trap "flock --unlock 200" EXIT
 
 		if [ ! -f $(dirname $0)/tasks/build.sh ]; then
-			if [ -f $HOME/build-services.list ]; then
+			if [[ ${#SERVICES} -gt 0 ]]; then
+				for SERVICE in ${SERVICES[@]}; do
+					SERVICE=$ROOT/.gitlab-ci.d/$SERVICE
+
+					if [ -d $SERVICE ]; then
+						if [ ! -f $SERVICE/build.sh ]; then
+							continue
+						elif $SERVICE/build.sh probe $@; then
+							if ln -s $SERVICE/build.sh $(dirname $0)/tasks/build.sh; then
+								CODE=0
+							fi
+						fi
+					fi
+				done
+			elif [ -f $HOME/build-services.list ]; then
 				for SERVICE in $(cat $HOME/build-services.list); do
 					SERVICE=$ROOT/.gitlab-ci.d/$SERVICE
 

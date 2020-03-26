@@ -4,6 +4,10 @@ BASE=$(realpath $(dirname $0)/../../)
 SAVE=$IFS
 KEEP=1
 
+if [ -f $HOME/environment.sh ]; then
+	source $HOME/environment.sh
+fi
+
 IFS=$'\n'
 IGNORANCEs=($(git log --format=%B -n 1 HEAD | grep " Ignored "))
 IFS=$SAVE
