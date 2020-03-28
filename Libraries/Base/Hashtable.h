@@ -26,20 +26,12 @@ class Hashtable {
   Hashtable(){}
 
  public:
-  struct MappingV1 {
+  struct Mapping {
     Int KType, VType;
     UInt Size;
     Void *Keys, *Values;
     Bool *Levels;
-    IndexT *Roots, *Indexes;
-  };
-
-  struct MappingV2 {
-    Int KType, VType;
-    UInt Size;
-    Void *Keys, *Values;
-    Bool *Levels;
-    IndexT *Roots, *Left, *Right;
+    IndexT *Roots, *Lefts, *Rights;
   };
 
   explicit Hashtable(Function<IndexT(KeyT*)> hashing, 
@@ -47,18 +39,11 @@ class Hashtable {
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
 
-    if (_Style) {
-      _Map.v2.Left = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v2.Right = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v2.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v2.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*2);
-      _Map.v2.Size = 2;
-    } else {
-      _Map.v1.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*2);
-      _Map.v1.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v1.Indexes = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v1.Size = 2;
-    }
+    _Map.Lefts = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
+    _Map.Rights = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
+    _Map.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
+    _Map.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*2);
+    _Map.Size = 2;
     Clear();
   }
 
@@ -66,18 +51,11 @@ class Hashtable {
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
 
-    if (_Style) {
-      _Map.v2.Left = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v2.Right = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v2.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v2.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*2);
-      _Map.v2.Size = 2;
-    } else {
-      _Map.v1.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*2);
-      _Map.v1.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v1.Indexes = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
-      _Map.v1.Size = 2;
-    }
+    _Map.Lefts = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
+    _Map.Rights = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
+    _Map.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*2);
+    _Map.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*2);
+    _Map.Size = 2;
     Clear();
   }
 
@@ -89,18 +67,11 @@ class Hashtable {
     _Bitwise = (n == UInt(n));
     memset(&_Map, 0, sizeof(_Map));
 
-    if (_Style) {
-      _Map.v2.Left = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
-      _Map.v2.Right = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
-      _Map.v2.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
-      _Map.v2.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*size);
-      _Map.v2.Size = size;
-    } else {
-      _Map.v1.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*size);
-      _Map.v1.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
-      _Map.v1.Indexes = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
-      _Map.v1.Size = size;
-    }
+    _Map.Lefts = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
+    _Map.Rights = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
+    _Map.Roots = (IndexT*) ABI::Malloc(sizeof(IndexT)*size);
+    _Map.Levels = (Bool*) ABI::Malloc(sizeof(Bool)*size);
+    _Map.Size = size;
     Clear();
   }
 
@@ -108,12 +79,14 @@ class Hashtable {
 
   /* @NOTE: put key-value to our Hashtable */
   inline ErrorCodeE Put(KeyT&& key, ValueT&& value) {
-    KeyT* keys = (KeyT*)(_Style? _Map.v2.Keys: _Map.v1.Keys);
-    Bool* levels = _Style? _Map.v2.Levels: _Map.v1.Levels;
-    IndexT* roots = _Style? _Map.v2.Roots: _Map.v1.Roots, *indexes = None;
-    IndexT hashing = _Hash(&key), mask = 0, next = 0;
-    UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
-    UInt index = Mod(hashing);
+    UInt size = _Map.Size;
+    KeyT* keys = (KeyT*)_Map.Keys;
+    Bool* levels = _Map.Levels;
+    IndexT* roots = _Map.Roots;
+    IndexT* lefts = _Map.Lefts;
+    IndexT* rights = _Map.Rights;
+    IndexT hashing = _Hash(&key), mask = size;
+    IndexT index = Mod(hashing), next = 0;
 
     /* @NOTE: check if we need migration or not */
     if (_Count >= size) {
@@ -135,27 +108,63 @@ class Hashtable {
       return NoSupport("still on developing").code();
     } else {
       IndexT latest = index;
+      IndexT root = index;
 
-      indexes = _Map.v1.Indexes;
-      mask = IndexAt(indexes, index);
       next = index;
 
-      if (IndexAt(indexes, index) >= 0) {
+      if ((mask = RightAt(rights, index)) >= 0) {
         if (KeyAt(keys, index) == key) {
-          goto insert_keyval;
+          goto update_root_and_level;
+        } else if (RootAt(roots, index) != index) {
+          /* @NOTE: it seems another key-val are using this slot and this key
+           * doesn'have same hash-key (it's not within the same root with the
+           * key-val we would like to add */
+        
+          auto prev = LeftAt(lefts, index);
+          auto slot = FindEmpty(index);
+          auto next = RightAt(rights, index);
+
+          if (slot < 0) {
+            return OutOfRange(Format{"size = {}"}.Apply(size)).code();
+          } else if (!Move(index, slot)) {
+            Bug(EBadLogic, Format{"can\'t move {} to {}"}.Apply(index, slot));
+          } else {
+            if (prev >= 0) {
+              RightAt(rights, prev) = slot;
+            }
+
+            if (slot >= 0) {
+              LeftAt(lefts, slot) = prev;
+
+              if (next >= 0 && next < Cast(next, size)) {
+                RightAt(rights, slot) = next;
+                LeftAt(lefts, next) = slot;
+              } else {
+                RightAt(rights, slot) = size;
+              }
+            }
+
+            LevelAt(levels, slot) = LevelAt(levels, index);
+            RootAt(roots, slot) = RootAt(roots, index);
+
+            mask = size;
+            goto update_root_and_level;
+          }
         }
 
         /* @NOTE: maybe we will found the key if we keep checking indexes 
          * so we only change the key's value */
 
-        for (auto i = 0; latest < Cast(latest, size); ++i) {
+        for (auto i = 0; 0 <= latest && latest < Cast(latest, size); ++i) {
+          auto r = RightAt(rights, latest);
+
           if (i > Cast(i, size)) {
             Bug(EBadLogic, "It seem we are in an infinitive loop");
-          } else if (KeyAt(keys, indexes[latest]) == key) {
+          } else if (size > Cast(size, r) && r >= 0 && KeyAt(keys, r) == key) {
             index = latest;
-            goto insert_keyval;
-          } else if (Cast(size, indexes[latest]) != size) {
-            latest = indexes[latest];
+            goto update_root_and_level;
+          } else if (0 <= r && Cast(size, r) < size) {
+            latest = r;
             continue;
           }
 
@@ -163,42 +172,48 @@ class Hashtable {
           break;
         }
 
-       /* @NOTE: not found the key, going to find a new slot to insert this
-        * key-value */
+        /* @NOTE: not found the key, going to find a new slot to insert this
+         * key-value */
 
 find_new_slot:
         if ((next = FindEmpty(index)) < 0) {
-          return OutOfRange.code();
+          return OutOfRange(Format{"size = {}"}.Apply(size)).code();
         } else {
           mask = size;
         }
 
-        /* @NOTE: make the current index to point to the end of Hashtable, with
-         * that we can find the key-value better */
+        /* @NOTE: make the current index to point to the end of Hashtable,
+         * with that we can find the key-value better */
 
-        if (UInt(next) != index) {
-          IndexAt(indexes, index) = next;
-          index = next;
+        if (UInt(next) != UInt(index)) {
+          RightAt(rights, latest) = next;
+          LeftAt(lefts, next) = latest;
         }
+
+        index = next;
       } else if (KeyAt(keys, index) == key) {
-        goto insert_keyval;
+        goto update_root_and_level;
       } else {
         goto find_new_slot;
       }
-    }
+    } 
 
     /* @NOTE: save level and root values of each item to use on migrating
      * pharse */
 
+update_root_and_level:
     LevelAt(levels, index) = Bool(1 & (hashing / size));
     RootAt(roots, index) = hashing%size;
 
     /* @NOTE: increase couter */
     _Count++;
 
-insert_keyval:
+    if (mask < 0) {
+      mask = size;
+    }
+
     if (Insert(key, value, index)) {
-      IndexAt(indexes, index) = mask;
+      RightAt(rights, index) = mask;
     } else {
       return EBadAccess;
     }
@@ -224,22 +239,28 @@ insert_keyval:
   template<typename ResultT=ValueT>
   inline ResultT Get(KeyT&& key) {
     ResultT output;
-    Error error{Get(RValue(key), output)};
+    Error error{};
 
-    if (error) {
+    if (Get(RValue(key), output, error)) {
+      return output;
+    } else {
       throw Exception(error);
     }
-
-    return output;
   }
 
   template<typename ResultT=ValueT>
   inline Error Get(KeyT&& key, ResultT& output) {
     Error error{};
+    
+    Get(RValue(key), output, error);
+    return error;
+  }
+  template<typename ResultT=ValueT>
+  inline Bool Get(KeyT&& key, ResultT& output, Error& error) {
     ValueT* values{None};
     Void* pointer{None};
     KeyT* keys{None};
-    UInt size = _Style? _Map.v2.Size: _Map.v1.Size, select{0};
+    UInt size = _Map.Size, select{0};
     IndexT hashing{_Hash(&key)};
 
     /* @NOTE: check result type */
@@ -252,27 +273,28 @@ insert_keyval:
     } else if (typeid(ResultT) == typeid(ValueT&&)) {
       select = 4;
     } else {
-      return NoSupport << Nametype<ResultT>();
+      error = NoSupport(Nametype<ResultT>());
+      return False;
     }
 
     /* @NOTE: select value base on key value */
     if (_Style) {
-      return (NoSupport << "Hashtable with binary tree is still on developing");
+      error = NoSupport("Hashtable with binary tree is still "
+                        "on developing");
+      return False;
     } else {
-      IndexT* indexes = _Map.v1.Indexes;
-      size = _Map.v1.Size;
-      keys = (KeyT*)_Map.v1.Keys;
-      values = (ValueT*)_Map.v1.Values;
+      keys = (KeyT*)_Map.Keys;
+      values = (ValueT*)_Map.Values;
 
       if (size == 0) {
-        error = DoNothing << "Hashtable is empty recently";
+        error = DoNothing("Hashtable is empty recently");
       } else if (!keys) {
-        error = BadLogic << "Hastable::Keys is empty recently";
+        error = BadLogic("Hastable::Keys is empty recently");
       } else if (!values) {
-        error = BadLogic << "Hastable::Values is empty recently";
+        error = BadLogic("Hastable::Values is empty recently");
       } else {
         for (UInt index = Mod(hashing), i = 0; index < size;
-                  index = IndexAt(indexes, index), ++i) {
+                  index = RightAt(_Map.Rights, index), ++i) {
           if (i > Cast(i, size)) {
             Bug(EBadLogic, "It seem we are in an infinitive loop");
           } else if (KeyAt(keys, index) != key) {
@@ -287,11 +309,10 @@ insert_keyval:
 
     /* @NOTE: verify the exception */
     if (!pointer && select) {
-      if (error){
-        return error;
-      } else {
-        return NotFound << Format{"key with hash {}"}.Apply(hashing);
+      if (!error){
+        error = NotFound(Format{"key with hash {}"}.Apply(hashing));
       }
+      return False;
     }
 
     /* @NOTE: return according result */
@@ -303,7 +324,8 @@ insert_keyval:
       if (ToPointer(result, pointer)) {
         output = result;
       } else {
-        return BadLogic << Format{"is {} pointer?"}.Apply(Nametype<ResultT>());
+        error = BadLogic(Format{"is {} pointer?"}.Apply(Nametype<ResultT>()));
+        return False;
       }
     }
     break;
@@ -315,65 +337,50 @@ insert_keyval:
       break;
 
     default: /* @NOTE: we shouldn't reach to here */
-      return BadLogic << "bug from compiler, please report it";
+      error = BadLogic << "bug from compiler, please report it";
     }
 
-    return error;
+    return True;
   }
 
   /* @NOTE: clear everything with this method */
   virtual void Clear(Bool all = False) {
-    if (_Style) {
-      if (all) {
-        if (_Map.v2.Left) free(_Map.v2.Left);
-        if (_Map.v2.Right) free(_Map.v2.Right);
-        if (_Map.v2.Levels) free(_Map.v2.Levels);
-        if (_Map.v2.Roots) free(_Map.v2.Roots);
-      } else {
-        if (_Map.v2.Levels) {
-          memset(_Map.v2.Levels, 0, _Map.v2.Size*sizeof(Bool));
-        }
-        if (_Map.v2.Roots) {
-          memset(_Map.v2.Roots, -1, _Map.v2.Size*sizeof(IndexT));
-        }
-        if (_Map.v2.Left) {
-          memset(_Map.v2.Left, -1, _Map.v2.Size*sizeof(IndexT));
-        }
-        if (_Map.v2.Right) {
-          memset(_Map.v2.Right, -1, _Map.v2.Size*sizeof(IndexT));
-        }
-      }
-
-      if (_Map.v2.Keys) free(_Map.v2.Keys);
-      if (_Map.v2.Values) free(_Map.v2.Values);
-
-      if (!all) {
-        _Map.v2.Keys = ABI::Malloc(sizeof(KeyT)*_Map.v2.Size);
-        _Map.v2.Values = ABI::Malloc(sizeof(ValueT)*_Map.v2.Size);
-      }
+    if (all) {
+      if (_Map.Lefts) free(_Map.Lefts);
+      if (_Map.Rights) free(_Map.Rights);
+      if (_Map.Levels) free(_Map.Levels);
+      if (_Map.Roots) free(_Map.Roots);
     } else {
-      if (all) {
-        if (_Map.v1.Indexes) free(_Map.v1.Indexes);
-        if (_Map.v1.Levels) free(_Map.v1.Levels);
-        if (_Map.v1.Roots) free(_Map.v1.Roots);
-      } else{
-        if (_Map.v1.Indexes) {
-          memset(_Map.v1.Indexes, -1, _Map.v1.Size*sizeof(IndexT));
-        }
-        if (_Map.v1.Levels) {
-          memset(_Map.v1.Levels, 0, _Map.v1.Size*sizeof(Bool));
-        }
-        if (_Map.v1.Roots) {
-          memset(_Map.v1.Roots, 0, _Map.v1.Size*sizeof(IndexT));
-        }
+      if (_Map.Levels) {
+        memset(_Map.Levels, 0, _Map.Size*sizeof(Bool));
       }
 
-      if (_Map.v1.Keys) free(_Map.v1.Keys);
-      if (_Map.v1.Values) free(_Map.v1.Values);
+      if (_Map.Roots) {
+        memset(_Map.Roots, -1, _Map.Size*sizeof(IndexT));
+      }
 
-      if (!all) {
-        _Map.v1.Keys = ABI::Malloc(sizeof(KeyT)*_Map.v1.Size);
-        _Map.v1.Values = ABI::Malloc(sizeof(ValueT)*_Map.v1.Size);
+      if (_Map.Lefts) {
+        memset(_Map.Lefts, -1, _Map.Size*sizeof(IndexT));
+      }
+
+      if (_Map.Rights) {
+        memset(_Map.Rights, -1, _Map.Size*sizeof(IndexT));
+      }
+    }
+
+    if (_Map.Keys) free(_Map.Keys);
+    if (_Map.Values) free(_Map.Values);
+
+    if (!all) {
+      _Map.Keys = ABI::Malloc(sizeof(KeyT)*_Map.Size);
+      _Map.Values = ABI::Malloc(sizeof(ValueT)*_Map.Size);
+
+      if (_Map.Keys) {
+        memset(_Map.Keys, 0, sizeof(KeyT)*_Map.Size);
+      }
+
+      if (_Map.Values) {
+        memset(_Map.Values, 0, sizeof(ValueT)*_Map.Size);
       }
     }
 
@@ -385,8 +392,6 @@ insert_keyval:
 
   inline virtual ValueT& ValueAt(ValueT* array, UInt index) { return array[index]; }
 
-  inline virtual IndexT& IndexAt(IndexT* array, UInt index) { return array[index]; }
-
   inline virtual IndexT& RootAt(IndexT* array, UInt index) { return array[index]; }
 
   inline virtual Bool& LevelAt(Bool* array, UInt index) { return array[index]; }
@@ -396,74 +401,73 @@ insert_keyval:
   inline virtual IndexT& RightAt(IndexT* array, UInt index) { return array[index]; }
 
   inline virtual ErrorCodeE Expand() {
-    UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
-    Bool* levels = _Style? _Map.v2.Levels: _Map.v1.Levels;
-    IndexT* roots = _Style? _Map.v2.Roots: _Map.v1.Roots;
-    KeyT* keys = (KeyT*)(_Style? _Map.v2.Keys: _Map.v1.Keys);
-    ValueT* values = (ValueT*)(_Style? _Map.v2.Values: _Map.v1.Values);
+    UInt size = _Map.Size;
+    Bool* levels = _Map.Levels;
+    IndexT* roots = _Map.Roots;
+    IndexT* lefts = _Map.Lefts;
+    IndexT* rights = _Map.Rights;
+    KeyT* keys = (KeyT*)_Map.Keys;
+    ValueT* values = (ValueT*)_Map.Values;
     ErrorCodeE error = ENoError;
 
     /* @NOTE: realocate variable keys */
     if (!(keys = (KeyT*)ABI::Realloc(keys, 2*size*sizeof(KeyT)))) {
-      error = DrainMem(Format{"ABI::Realloc() keys with {}"
+      error = DrainMem(Format{"ABI::Realloc() `keys` with {} "
                               "bytes"}.Apply(2*size*sizeof(KeyT))).code();
-    } else if (_Style) {
-      _Map.v2.Keys = keys;
     } else {
-      _Map.v1.Keys = keys;
+      _Map.Keys = keys;
     }
 
     /* @NOTE: realocate variable values */
     if (error || !(values = (ValueT*)ABI::Realloc(values, 2*size*sizeof(ValueT)))) {
       if (!error) {
-        error = DrainMem(Format{"ABI::Realloc() values with {} "
+        error = DrainMem(Format{"ABI::Realloc() `values` with {} "
                                 "bytes"}.Apply(2*size*sizeof(ValueT))).code();
       }
-    } else if (_Style) {
-      _Map.v2.Values = values;
     } else {
-      _Map.v1.Values = values;
+      _Map.Values = values;
     }
 
     /* @NOTE: realocate variable levels */
     if (error || !(levels = (Bool*)ABI::Realloc(levels, 2*size*sizeof(Bool)))) {
       if (!error) {
-        error = DrainMem(Format{"ABI::Realloc() levels with {} "
+        error = DrainMem(Format{"ABI::Realloc() `levels` with {} "
                                 "bytes"}.Apply(2*size*sizeof(Bool))).code();
       }
-    } else if (_Style) {
-      _Map.v2.Levels = levels;
     } else {
-      _Map.v1.Levels = levels;
+      _Map.Levels = levels;
     }
 
     /* @NOTE: realocate variable roots */
     if (error || !(roots = (IndexT*)ABI::Realloc(roots, 2*size*sizeof(IndexT)))) {
       if (!error) {
-        error = DrainMem(Format{"ABI::Realloc() roots with {} "
+        error = DrainMem(Format{"ABI::Realloc() `roots` with {} "
                                 "bytes"}.Apply(2*size*sizeof(IndexT))).code();
       }
-    } else if (_Style) {
-      _Map.v2.Roots = roots;
     } else {
-      _Map.v1.Roots = roots;
+      _Map.Roots = roots;
     }
 
-    if (_Style) {
-      return ENoSupport;
-    } else {
-      IndexT* indexes = _Map.v1.Indexes;
-
-      /* @NOTE: realocate variable indexes */
-      if (error || !(indexes = (IndexT*)ABI::Realloc(indexes, 2*size*sizeof(IndexT)))) {
-        if (!error) {
-          error = DrainMem(Format{"ABI::Realloc() indexes with {} "
-                                  "bytes"}.Apply(2*size*sizeof(IndexT))).code();
-        }
-      } else {
-        memset(&indexes[size], -1, size*sizeof(IndexT));
-        _Map.v1.Indexes = indexes;
+    /* @NOTE: realocate variable rights */
+    if (error || !(rights = (IndexT*)ABI::Realloc(rights, 2*size*sizeof(IndexT)))) {
+      if (!error) {
+        error = DrainMem(Format{"ABI::Realloc() `rights` with {} "
+                                "bytes"}.Apply(2*size*sizeof(IndexT))).code();
       }
+    } else {
+      memset(&rights[size], -1, size*sizeof(IndexT));
+      _Map.Rights = rights;
+    }
+
+    /* @NOTE: realocate variable lefts */
+    if (error || !(lefts = (IndexT*)ABI::Realloc(lefts, 2*size*sizeof(IndexT)))) {
+      if (!error) {
+        error = DrainMem(Format{"ABI::Realloc() `lefts` with {} "
+                                "bytes"}.Apply(2*size*sizeof(IndexT))).code();
+      }
+    } else {
+      memset(&lefts[size], -1, size*sizeof(IndexT));
+      _Map.Lefts = lefts;
     }
 
     return ENoError;
@@ -473,17 +477,9 @@ insert_keyval:
   template<typename ResultT>
   inline ResultT* At(UInt index) {
     if (typeid(ResultT) == typeid(ValueT)) {
-      if (_Style) {
-        return (ResultT*)(&ValueAt((ValueT*)_Map.v2.Values, index));
-      } else {
-        return (ResultT*)(&ValueAt((ValueT*)_Map.v1.Values, index));
-      }
+      return (ResultT*)(&ValueAt((ValueT*)_Map.Values, index));
     } else if (typeid(ResultT) != typeid(KeyT)) {
-      if (_Style) {
-        return (ResultT*)(&KeyAt((KeyT*)_Map.v2.Keys, index));
-      } else {
-        return (ResultT*)(&KeyAt((KeyT*)_Map.v1.Keys, index));
-      }
+      return (ResultT*)(&KeyAt((KeyT*)_Map.Keys, index));
     } else {
       throw Except(ENoSupport, Nametype<ResultT>());
     }
@@ -506,21 +502,18 @@ insert_keyval:
   /* @NOTE: this helper will support to insert a key-value to slot index-th */
   inline Bool Insert(KeyT& key, ValueT& value, UInt index) {
     if (_Style) {
-      if (LeftAt(_Map.v2.Left, index) >= 0 ||
-          RightAt(_Map.v2.Right, index) >= 0) {
+      if (LeftAt(_Map.Lefts, index) >= 0 ||
+          RightAt(_Map.Rights, index) >= 0) {
         return False;
       }
-
-      KeyAt((KeyT*)_Map.v2.Keys, index) = key;
-      ValueAt((ValueT*)_Map.v2.Values, index) = value;
     } else {
-      if (IndexAt(_Map.v1.Indexes, index) >= 0) {
+      if (RightAt(_Map.Rights, index) >= 0) {
         return False;
       }
-
-      KeyAt((KeyT*)_Map.v1.Keys, index) = key;
-      ValueAt((ValueT*)_Map.v1.Values, index) = value;
     }
+
+    KeyAt((KeyT*)_Map.Keys, index) = key;
+    ValueAt((ValueT*)_Map.Values, index) = value;
 
     return True;
   }
@@ -528,24 +521,21 @@ insert_keyval:
   /* @NOTE: this helper will support how to move a key-value from place
    *  to place */
   inline Bool Move(UInt from, UInt to) {
+    auto key = KeyAt((KeyT*)_Map.Keys, from);
+    auto val = ValueAt((ValueT*)_Map.Values, from);
+
     if (_Style) {
-      if (!Insert(KeyAt((KeyT*)_Map.v2.Keys, from),
-                  ValueAt((ValueT*)_Map.v2.Values, from),
-                  to)) {
-        return False;
-      }
-
-      LeftAt(_Map.v2.Left, from) = -1;
-      RightAt(_Map.v2.Right, from) = -1;
     } else {
-      if (!Insert(KeyAt((KeyT*)_Map.v1.Keys, from),
-                  ValueAt((ValueT*)_Map.v1.Values, from),
-                  to)) {
-        return False;
-      }
-
-      IndexAt(_Map.v1.Indexes, from) = -1;
     }
+
+    if (!Insert(KeyAt((KeyT*)_Map.Keys, from),
+                ValueAt((ValueT*)_Map.Values, from),
+                to)) {
+      return False;
+    }
+
+    LeftAt(_Map.Lefts, from) = -1;
+    RightAt(_Map.Rights, from) = -1;
 
     return True;
   }
@@ -553,20 +543,19 @@ insert_keyval:
   /* @NOTE: this helper will support how to deprecate a slot */
   inline ErrorCodeE Deprecate(Int index, Int size){
     if (_Style) {
-      LeftAt(_Map.v2.Left, index) = -1;
-      RightAt(_Map.v2.Right, index) = -1;
+      LeftAt(_Map.Lefts, index) = -1;
+      RightAt(_Map.Rights, index) = -1;
     } else {
-      auto root = RootAt(_Map.v1.Roots, index);
-      auto indexes = _Map.v1.Indexes;
+      auto root = RootAt(_Map.Roots, index);
 
       if (index == root) {
         /* @NOTE: root was going to be migrated so we will select the next
          *  candidate here */
 
-        for (auto next = IndexAt(indexes, index);
-             IndexAt(indexes, next) < size;
+        for (auto next = RightAt(_Map.Rights, index);
+             RightAt(_Map.Rights, next) < size;
              ++next) {
-          if (RootAt(_Map.v1.Roots, index) == root) {
+          if (RootAt(_Map.Roots, index) == root) {
             /* @NOTE: found the candidate move it now */
 
             if (!Move(next, index)) {
@@ -575,20 +564,21 @@ insert_keyval:
             break;
           }
         }
-      } else if (IndexAt(indexes, index) == size) {
+      } else if (RightAt(_Map.Rights, index) == size) {
         /* @NOTE: this node is on the end of a flow so we will update index
          *  of the previous node to the end of table */
 
-        IndexAt(indexes, GoToEnd(index, size, 1)) = _Map.v1.Size;
+        RightAt(_Map.Rights, GoToEnd(index, size, 1)) = _Map.Size;
       } else {
         /* @NOTE: this node is stacked inside 2 node of a flow so we will
          *  update index of the previous node to point to the next*/
 
-        IndexAt(indexes, GoToEnd(index, size, 1)) = IndexAt(indexes, index);
+        RightAt(_Map.Rights, GoToEnd(index, size, 1)) = 
+          RightAt(_Map.Rights, index);
       }
 
       /* @NOTE: remove the old link since we have done everything */
-      IndexAt(_Map.v1.Indexes, index) = -1;
+      RightAt(_Map.Rights, index) = -1;
     }
 
     return ENoError;
@@ -598,11 +588,11 @@ insert_keyval:
    * migrate data to a larger content */
   inline ErrorCodeE Migrate() {
     ErrorCodeE error = Expand();
-    UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
-    Bool* levels = _Style? _Map.v2.Levels: _Map.v1.Levels;
-    IndexT* roots = _Style? _Map.v2.Roots: _Map.v1.Roots;
-    KeyT* keys = (KeyT*)(_Style? _Map.v2.Keys: _Map.v1.Keys);
-    ValueT* values = (ValueT*)(_Style? _Map.v2.Values: _Map.v1.Values);
+    UInt size = _Map.Size;
+    Bool* levels = _Map.Levels;
+    IndexT* roots = _Map.Roots;
+    KeyT* keys = (KeyT*)_Map.Keys;
+    ValueT* values = (ValueT*)_Map.Values;
 
     if (error) {
       return error;
@@ -613,17 +603,10 @@ insert_keyval:
     memset(&RootAt(roots, size), 0, size*sizeof(IndexT));
 
     /* @NOTE: update the mapping table back to _Map */
-    if (_Style) {
-      _Map.v2.Levels = levels;
-      _Map.v2.Roots = roots;
-      _Map.v2.Keys = keys;
-      _Map.v2.Values = values;
-    } else {
-      _Map.v1.Levels = levels;
-      _Map.v1.Roots = roots;
-      _Map.v1.Keys = keys;
-      _Map.v1.Values = values;
-    }
+    _Map.Levels = levels;
+    _Map.Roots = roots;
+    _Map.Keys = keys;
+    _Map.Values = values;
 
     if (error) {
       return error;
@@ -631,7 +614,7 @@ insert_keyval:
       return ENoSupport;
     } else {
       /* @NOTE: update the size first */
-      _Map.v1.Size = 2*size;
+      _Map.Size = 2*size;
 
       /* @NOTE: this for-loop will be used to migrate odd levels to new
        *  places */
@@ -673,11 +656,9 @@ insert_keyval:
 
     if (_Style) {
     } else {
-      IndexT* indexes = _Map.v1.Indexes;
-
-      for (IndexT next = IndexAt(indexes, index), count = 0; 
-                         IndexAt(indexes, next) < size;
-                ++count, next = IndexAt(indexes, next)) {
+      for (IndexT next = RightAt(_Map.Rights, index), count = 0; 
+                         RightAt(_Map.Rights, next) < size;
+                ++count, next = RightAt(_Map.Rights, next)) {
         if (count > size) {
           Bug(EBadLogic, "fall into an infinitive loop");
         }
@@ -703,19 +684,23 @@ insert_keyval:
   }
 
   inline IndexT FindEmpty(IndexT index){
+    if (index < 0) {
+      Bug(EBadLogic, "index mustn\'t be negative");
+    }
+
     if (_Style) {
     } else {
-      auto indexes = _Map.v1.Indexes;
-
-      for (auto left = index, right = index; ; left--, right++) {
+      for (auto left = index, right = index, count = 0; 
+           count < Cast(count, _Map.Size);
+           ++count, --left, ++right) {
         if (left >= 0) {
-          if (IndexAt(indexes, left) < 0) {
+          if (RightAt(_Map.Rights, left) < 0) {
             return left;
           }
         }
 
-        if (right < IndexT(_Map.v1.Size)) {
-          if (IndexAt(indexes, right) < 0) {
+        if (right < IndexT(_Map.Size)) {
+          if (RightAt(_Map.Rights, right) < 0) {
             return right;
           }
         } else if (left < 0) {
@@ -728,7 +713,7 @@ insert_keyval:
   }
 
   inline IndexT Mod(IndexT hashing) {
-    UInt size = _Style? _Map.v2.Size: _Map.v1.Size;
+    UInt size = _Map.Size;
 
     if (_Bitwise) {
       return hashing & (size - 1);
@@ -737,8 +722,8 @@ insert_keyval:
     }
   }
 
-  union { MappingV1 v1; MappingV2 v2; } _Map;
   Function<IndexT(KeyT*)> _Hash;
+  Mapping _Map;
   Bool _Style, _Bitwise;
   UInt _Count;
 };
