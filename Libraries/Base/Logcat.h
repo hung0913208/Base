@@ -91,7 +91,8 @@
 
 #define VERBOSE                                                             \
   VLOGC(EDebug, MAGNETA) << "[ " << Base::ToString(Base::PID()) << " - "    \
-                         << FUNCTION << " ] "
+                         << FUNCTION << " "                                 \
+                         << __FILE__ << ":" << __LINE__ << " ] "
 #define INFO                                                                \
   VLOGC(EInfo, WHITE) <<  "[ " << Base::ToString(Base::PID()) << " ] "
 #define FATAL                                                               \
@@ -103,7 +104,8 @@
 {                                                                           \
   if (Base::Log::Level() == EDebug) {                                       \
     VLOGC(EDebug, CYAN) << "[ " << Base::ToString(Base::PID())              \
-                        << " - " << FUNCTION << "] "                        \
+                        << " - " << FUNCTION << " "                         \
+                        << __FILE__ ":" << __LINE__ << "] "                 \
                         << (message) << Base::EOL;                          \
   }                                                                         \
 }
