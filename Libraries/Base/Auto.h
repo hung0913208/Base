@@ -273,6 +273,34 @@ class Auto {
     return *((ValueT*)_Context.Context);
   }
 
+  template <typename ValueT, typename ClassT>
+  ValueT& GetSubclass() {
+    if (!_Context.Type || typeid(ClassT).hash_code() != Type().hash_code()) {
+      throw Except(EBadAccess, "ClassT must be " + Nametype());
+    }
+
+    if (IsSubclassOf<ValueT, ClassT>()) {
+      return *(dynamic_cast<ValueT*>(((ClassT*)_Context.Context)));
+    } else {
+      throw Except(EBadAccess, "can\'t cast to " + Base::Nametype<ValueT>());
+    }
+  }
+
+  template <typename ValueT>
+  ValueT& GetBaseclass() {
+    return *((ValueT*)_Context.Context);
+  }
+
+  /* @NOTE: check if the current object is hierachied by ClassT */
+  template <class ValueT, typename ClassT>
+  bool IsSubclassOf() {
+    if (!_Context.Type || typeid(ClassT).hash_code() != Type().hash_code()) {
+      throw Except(EBadAccess, "ClassT must be " + Nametype());
+    }
+
+    return dynamic_cast<const ValueT*>(((ClassT*)_Context.Context)) != None;
+  }
+
   /* @NOTE: pushing indicates that you would like to push this value
    * directly to Auto and it can do everything with this memory */
   template <typename ValueT>

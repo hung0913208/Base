@@ -49,6 +49,38 @@ TEST(Auto, Reuse) {
   EXPECT_EQ(target.Get<Double>(), 10.2);
 }
 
+class Parent {
+ public:
+  virtual ~Parent() {}
+
+  virtual String Introduce() {
+    return "Parent";
+  }
+
+  Parent() {}
+};
+
+class Children : public Parent {
+ public:
+  ~Children() {}
+
+  String Introduce() final {
+    return "Children";
+  }
+
+  Children(): Parent{} {}
+
+};
+
+TEST(Auto, Hierarchy) {
+  Base::Auto target{Children{}};
+
+  INFO << target.Nametype() << Base::EOL;
+  INFO << target.Get<Children>().Introduce() << Base::EOL;
+  INFO << target.GetSubclass<Parent, Children>().Introduce() << Base::EOL;
+  INFO << target.GetBaseclass<Parent>().Introduce() << Base::EOL;
+}
+
 int main() {
   Base::Log::Level() = EDebug;
   return RUN_ALL_TESTS(); 
