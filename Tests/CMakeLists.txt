@@ -76,3 +76,6 @@ if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT C
 	file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Wrapping/Hello.py 
 	     DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 endif()
+
+add_executable(passed ${CMAKE_CURRENT_SOURCE_DIR}/Unittest/Passed.cc)
+target_link_libraries(passed base unittest)

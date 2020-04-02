@@ -169,13 +169,81 @@ Bool CheckUnitStep(Case* UNUSED(unittest)) { return False; }
 }  // namespace Unit
 }  // namespace Internal
 
+Unit::Pharse::Prepare::Prepare(Shared<Case> unit) : _Case{unit} {
+  if (unit->Unit()->Prepare) {
+    if (unit->Prepare()) {
+      unit->Prepare()->_Steps.push_back(this);
+    }
+  } else {
+    unit->Unit()->Prepare = [](Unittest* unit) {
+      if (unit->Context) {
+        if (((Case*)unit->Context)->Prepare()) {
+          ((Case*)unit->Context)->Prepare()->Perform();
+        }
+      }
+    };
+
+    unit->Prepare = this;
+  }
+}
+
+Unit::Pharse::Prepare::~Prepare() { }
+
+void Unit::Pharse::Prepare::Perform() {
+  Define();
+
+  if (_Case->Prepare() == this) {
+    for (auto step : _Steps) {
+      step->Perform();
+    }
+  }
+}
+
+Unit::Pharse::Teardown::Teardown(Shared<Case> unit) : _Case{unit} {
+  if (unit->Unit()->Teardown) {
+    if (unit->Teardown()) {
+      unit->Teardown()->_Steps.push_back(this);
+    }
+  } else {
+    unit->Unit()->Teardown = [](Unittest* unit) {
+      if (unit->Context) {
+        if (((Case*)unit->Context)->Teardown()) {
+          ((Case*)unit->Context)->Teardown()->Perform();
+        }
+      }
+    };
+
+    unit->Teardown = this;
+  }
+}
+
+Unit::Pharse::Teardown::~Teardown() { }
+
+void Unit::Pharse::Teardown::Perform() {
+  Define();
+
+  if (_Case->Teardown() == this) {
+    for (auto step : _Steps) {
+      step->Perform();
+    }
+  }
+}
+
 Case::Case(String suite, String name)
     : Status{[&]() -> StatusE& { return _Status; },
              [](StatusE) { throw Except(ENoSupport, ""); }},
-      Teardown{[&]() -> TeardownD& { return _Unit->Teardown; },
-               [](TeardownD) { throw Except(ENoSupport, ""); }},
+      Prepare{[&]() -> Pharse::Prepare* & { return _Prepare; },
+              [&](Pharse::Prepare* prepare) {
+                if (!_Prepare) _Prepare = prepare;
+              }},
+      Teardown{[&]() -> Pharse::Teardown* & { return _Teardown; },
+               [&](Pharse::Teardown* teardown) {
+                 if (!_Teardown) _Teardown = teardown;
+               }},
       Unit{[&]() -> Shared<Unittest>& { return _Unit; },
            [](Shared<Unittest>) { throw Except(ENoSupport, ""); }},
+      _Prepare{None},
+      _Teardown{None},
       _Status{EUnknown},
       _Suite{suite},
       _Name{name} {
@@ -184,6 +252,7 @@ Case::Case(String suite, String name)
 
   _Unit->Assign = None;
   _Unit->Clear = None;
+  _Unit->Prepare = None;
   _Unit->Testplan = None;
   _Unit->Teardown = None;
 }
@@ -233,8 +302,41 @@ Bool Case::Perform() {
   _Unit->Assign = Internal::Unit::AssignValueToTestcase;
   _Unit->Clear = Internal::Unit::ClearValueOfTestcase;
 
+  /* @NOTE: perform Prepare inside try - catch */
+  try {
+    if (_Unit->Prepare) {
+      _Unit->Prepare(_Unit.get());
+    }
+  } catch (Base::Exception& except) {
+    if (dynamic_cast<Unit::Assertion*>(&except)) {
+      /* @NOTE: got an assertion, show message here */
+
+      VLOG(EWarning) << (RED << ASSERT_LABEL)
+                     << Format{" prepare testcase {}::{} complains {}"}
+                          .Apply(_Suite, _Name, except.message())
+                     << Base::EOL;
+    } else {
+      except.Ignore();
+      VLOG(EWarning) << (RED << EXCEPTION_LABEL)
+                     << (Format{" preapre got Base::Exception \'{}\'"}
+                     << except.message())
+                     << Base::EOL;
+    }
+
+  } catch (std::exception& except) {
+    VLOG(EWarning) << (RED << EXCEPTION_LABEL)
+                   << (Format{" prepare got std::exception \'{}\'"}
+                   << except.what())
+                   << Base::EOL;
+  } catch (...) {
+    VLOG(EWarning) << (RED << EXCEPTION_LABEL)
+                   << " prepare got unknown exception"
+                   << Base::EOL;
+  }
+
   /* @NOTE: perform Testplan inside try - catch */
   try {
+
     if (_Unit->Testplan) {
       _Unit->Testplan(_Unit.get());
     } else {

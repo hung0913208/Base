@@ -44,9 +44,10 @@ extern "C" {
 #endif
 /* @NOTE: this struct is define a basic interface with Unittest's C++-APIs */
 typedef struct Unittest {
-  void* Context;
+  void *Context;
 
   void (*Assign)(struct Unittest* unit, Int index, Any* value);
+  void (*Prepare)(struct Unittest* unit);
   void (*Clear)(struct Unittest* unit);
   void (*Testplan)(struct Unittest* unit);
   void (*Teardown)(struct Unittest* unit);
@@ -57,6 +58,9 @@ typedef struct Unittest {
  */
 Unittest* BSDefineTest(CString suite, CString name,
                        void (*callback)(Unittest* unit));
+Unittest* BSDefinePrepare(Unittest* unit, void (*callback)(Unittest* unit));
+Unittest* BSDefineTeardown(Unittest* unit, void (*callback)(Unittest* unit));
+
 int BSRunTests();
 #if __cplusplus
 }
@@ -355,6 +359,10 @@ Bool CheckUnitStep(Case* unittest);
 
 namespace Unit {
 void Init(Int* argc, CString* argv);
+namespace Pharse {
+class Prepare;
+class Teardown;
+} // namespace Pharse
 
 enum StatusE {
   EWaiting = -2,
@@ -367,8 +375,6 @@ enum StatusE {
 
 class Case {
  public:
-  typedef void (*TeardownD)(Unittest*);
-
   virtual ~Case();
 
   /* @NOTE: these functions support how to iteract with Unittest */
@@ -420,7 +426,8 @@ class Case {
 
   /* @NOTE: these property will be used to manage each Unittest */
   Property<StatusE> Status;
-  Property<TeardownD> Teardown;
+  Property<Pharse::Prepare*> Prepare;
+  Property<Pharse::Teardown*> Teardown;
   Property<Shared<Unittest>> Unit;
 
   /* @NOTE: always use this function to create a new case */
@@ -439,10 +446,46 @@ class Case {
   virtual void Define();
 
   Shared<Unittest> _Unit;
+  Pharse::Prepare* _Prepare;
+  Pharse::Teardown* _Teardown;
   Vector<Auto> _Inputs;
   StatusE _Status;
   String _Suite, _Name;
 };
+
+namespace Pharse {
+class Prepare {
+ public:
+  explicit Prepare(Shared<Case> unit);
+  virtual ~Prepare();
+
+  /* @NOTE: this function is used to perform the pharse Prepare */
+  void Perform();
+
+ protected:
+  virtual void Define() = 0;
+
+ private:
+  Vector<Prepare*> _Steps;
+  Shared<Case> _Case;
+};
+
+class Teardown {
+ public:
+  explicit Teardown(Shared<Case> unit);
+  virtual ~Teardown();
+
+  /* @NOTE: this function is used to perform the pharse Teardown */
+  void Perform();
+
+ protected:
+  virtual void Define() = 0;
+
+ private:
+  Vector<Teardown*> _Steps;
+  Shared<Case> _Case;
+};
+} // namespace Pharse
 
 class Trap {
  public:
@@ -504,7 +547,7 @@ class Dump : Trap {
 #if !USE_GTEST
 
 /* @NOTE: this macro will run start our testcase run on parallel */
-#define RUN_ALL_TESTS() BSRunTests();
+#define RUN_ALL_TESTS() BSRunTests()
 
 /* @NOTE: these macros are defined specifically to according languages */
 #if __cplusplus
@@ -530,11 +573,51 @@ class Dump : Trap {
                                                                      \
   void Test::Suite::TestCase::Define()
 
+/* @NOTE: if we would prepare something before the test case started, we should
+ * use this macro to define a prepare step and the test case will start with
+ * this code first before doing anything else  */
+
+#define PREPARE(Suite, TestCase)                                     \
+  namespace Test {                                                   \
+  namespace Suite {                                                  \
+  namespace Prepares {                                               \
+  class TestCase : public Base::Unit::Pharse::Prepare {              \
+   public:                                                           \
+    TestCase(Shared<Base::Unit::Case> unit) : Prepare{unit} {}       \
+                                                                     \
+    void Define() final;                                             \
+  };                                                                 \
+                                                                     \
+  static auto Unit##TestCase =                                       \
+      std::make_shared<Test::Suite::Prepares::TestCase>(             \
+                                      Test::Suite::Unit##TestCase);  \
+  } /* namespace Prepares */                                         \
+  } /* namespace Suite */                                            \
+  } /* namespace Test */                                             \
+  void Test::Suite::Prepares::TestCase::Define()
+
 /* @NOTE: when a testcase finish its task, no matter it's passed or failed, if
  * we define a teardown callback, this will perform after testcase is departed
  */
-#define TEARDOWN(Suite, TestCase) \
-  Test::Suite::Unit##TestCase->Teardown = [](Shared<Base::Case::Unit> testcase)
+#define TEARDOWN(Suite, TestCase)                                    \
+  namespace Test {                                                   \
+  namespace Suite {                                                  \
+  namespace Teardowns {                                              \
+  class TestCase : public Base::Unit::Pharse::Teardown {             \
+   public:                                                           \
+    explicit TestCase(Shared<Base::Unit::Case> unit) :               \
+        Teardown{unit} {}                                            \
+                                                                     \
+    void Define() final;                                             \
+  };                                                                 \
+  static auto Unit##TestCase =                                       \
+      std::make_shared<Test::Suite::Teardowns::TestCase>(            \
+                                      Test::Suite::Unit##TestCase);  \
+  } /* namespace Teardowns */                                        \
+  } /* namespace Suite */                                            \
+  } /* namespace Test */                                             \
+                                                                     \
+  void Test::Suite::Teardowns::TestCase::Define()
 
 /* @NOTE: this macro will be used to set a timeout, if the timeout expired,
  * Unittest will be turn to crash state */
@@ -659,16 +742,6 @@ class Dump : Trap {
       BSDefineTest(#Suite, #TestCase, Run##Suite##TestCase); \
                                                              \
   void Run##Suite##TestCase(Unittest unit)
-
-/* @NOTE: when a testcase finish its task, no matter it's passed or failed, if
- * we define a teardown callback, this will perform after testcase is departed
- */
-#define TEARDOWN(Suite, TestCase)                         \
-  /* @NOTE: define our teardown callback here */          \
-  extern void Drop##Suite##TestCase(Unittest* unit);      \
-  Case##Suite##TestCase.teardown = Drop##Suite##TestCase; \
-                                                          \
-  void Drop##Suite##TestCase(Unittest* unit)
 
 #define EXPECT_TRUE(condition) \
   BSExpectTrue(this, condition, #condition, __FILE__, __LINE__)
