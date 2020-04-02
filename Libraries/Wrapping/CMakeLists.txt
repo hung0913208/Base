@@ -29,8 +29,15 @@ if (PYTHONLIBS_FOUND)
 	set(LANGUAGE_LIBRARIES ${LANGUAGE_LIBRARIES} ${PYTHONLIBS_LIBRARIES})
 endif()
 
-add_subdirectory(Source/IBash)
-add_subdirectory(Source/IPython)
+# @NOTE: bash is still on developing so we don't suggest using it with application
+if (USE_WRAPPING_BASH)
+	add_subdirectory(Source/IBash)
+endif()
+
+if (USE_WRAPPING_PYTHON)
+	add_subdirectory(Source/IPython)
+endif()
+
 add_library(wrapping STATIC ${SOURCES})
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")

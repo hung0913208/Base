@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 2.4 FATAL_ERROR)
 project(Builder LANGUAGES CXX C)
 
+option(USE_WRAPPING_PYTHON "Build wrapping with python" ON)
+option(USE_WRAPPING_BASH "Build wrapping with bash" OFF)
+
 # @NOTE: add our custom module
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/../../CMakeModules)
 
