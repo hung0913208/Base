@@ -151,7 +151,11 @@ void ArgParse::Usage() {
 }
 
 Auto& ArgParse::operator[](String name){
-  return _Arguments.at(name).Buffer;
+  if (_Arguments.find(name) != _Arguments.end()) {
+    return _Arguments.at(name).Buffer;
+  } else {
+    throw Except(ENotFound, Format{"argument {}"}.Apply(name));
+  }
 }
 
 Vector<CString> ArgParse::operator()(Int argc, const CString argv[],
