@@ -130,24 +130,23 @@ include_directories(${CMAKE_SOURCE_DIR}
                     ${CMAKE_SOURCE_DIR}/Libraries/Unittest
                     ${CMAKE_SOURCE_DIR}/Libraries/Unittest/Implement)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-	# @NOTE: define how to build project Builder
-	file(GLOB HEADERS "${CMAKE_SOURCE_DIR}/*.h")
-	file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/Source/*.cc")
+# @NOTE: define how to build project Builder
+file(GLOB HEADERS "${CMAKE_SOURCE_DIR}/*.h")
+file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/Source/*.cc")
 
-	add_executable(build2 ${SOURCES})
+add_executable(build2 ${SOURCES})
 
-	if(THREADS_HAVE_PTHREAD_ARG)
-		target_compile_options(build2 PUBLIC base -pthread)
-	elseif(CMAKE_THREAD_LIBS_INIT)
-		target_link_libraries(build2 base data ${CMAKE_THREAD_LIBS_INIT})
-	else()
-		target_link_libraries(build2 base data -lpthread)
-	endif()
-
-	add_executable(argparse ${CMAKE_SOURCE_DIR}/Tests/)
-	target_link_libraries(argparse base unittest)
+if(THREADS_HAVE_PTHREAD_ARG)
+	target_compile_options(build2 PUBLIC base -pthread)
+elseif(CMAKE_THREAD_LIBS_INIT)
+	target_link_libraries(build2 base data ${CMAKE_THREAD_LIBS_INIT})
+else()
+	target_link_libraries(build2 base data -lpthread)
 endif()
+
+add_executable(argparse ${CMAKE_SOURCE_DIR}/Tests/Argument.cc)
+
+target_link_libraries(argparse base unittest)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries/Base)
 add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries/Data)
@@ -164,3 +163,4 @@ enable_testing()
 add_subdirectory(${CMAKE_SOURCE_DIR}/Tests)
 
 add_test(NAME argparse COMMAND argparse)
+add_test(NAME build COMMAND build2 --config ${CMAKE_SOURCE_DIR} --watcher local --root ${CMAKE_SOURCE_DIR} --debug 1 --rebuild 0 --mode 0)
