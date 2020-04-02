@@ -66,6 +66,20 @@ using Shared = std::shared_ptr<Type>;
 template <typename Type>
 using Weak = std::weak_ptr<Type>;
 
+namespace Base {
+namespace Internal {
+namespace Dump {
+#if TESTING
+extern void (*Crasher)(int, siginfo_t*, void*);
+#else
+typedef void (*CrashCatch)(int, siginfo_t*, void*);
+
+static CrashCatch Crasher = None;
+#endif
+} // namespace Dump
+} // namespace Internal
+} // namespace Base
+
 namespace ABI {
 /* @NOTE: memory allocation */
 void* Memallign(ULong alignment, Float size);

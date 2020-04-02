@@ -28,6 +28,8 @@
 
 #ifndef BASE_UNITTEST_H_
 #define BASE_UNITTEST_H_
+#define TESTING 1
+
 #include <Auto.h>
 #include <Macro.h>
 #include <Type.h>

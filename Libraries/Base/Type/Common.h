@@ -3,6 +3,7 @@
 #include <Macro.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <errno.h>
 

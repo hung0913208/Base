@@ -3,14 +3,6 @@
 #include <stdlib.h>
 #include <malloc.h>
 
-namespace Base {
-namespace Internal {
-namespace Dump {
-extern void (*Crasher)(int, siginfo_t*, void*);
-} // namespace Dump
-} // namespace Internal
-} // namespace Base
-
 namespace ABI{
 void* Memallign(ULong alignment, Float size) {
   return memalign(alignment, ULong(alignment*size));
@@ -34,11 +26,9 @@ void Free(void** buffer) {
 }
 
 void KillMe() {
-#if !RELEASE
   if (Base::Internal::Dump::Crasher) {
     Base::Internal::Dump::Crasher(SIGSEGV, None, None);
   }
-#endif
 
 #if COVERAGE
   exit(-1);
