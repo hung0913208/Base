@@ -18,11 +18,14 @@ if (NOT HAVE_CXX_FLAG_STD_CXX11)
 endif()
 
 # @NOTE: these common flags will be used globally around my repos
+add_c_compiler_flag(-fPIC)
 add_cxx_compiler_flag(-fPIC)
 add_cxx_compiler_flag(-Wall)
 add_cxx_compiler_flag(-Wextra)
 add_cxx_compiler_flag(-Wformat=2)
 add_cxx_compiler_flag(-fno-strict-aliasing)
+add_cxx_compiler_flag(-Wno-deprecated-register)
+add_cxx_compiler_flag(-fno-omit-frame-pointer)
 
 # @NOTE: maybe there was a bug inside gcc's stack protector that cause hanging
 #  issue on Release mode
@@ -34,15 +37,16 @@ if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
 	include(CodeCoverage)
 
 	add_definitions(-DCOVERAGE=1)
+
 	add_cxx_compiler_flag(-Werror)
+	add_cxx_compiler_flag(-O3)
+	add_c_compiler_flag(-O3)
+	add_cxx_compiler_flag(-g3)
+	add_c_compiler_flag(-g3)
 	add_cxx_compiler_flag(-Wfatal-errors)
 	add_cxx_compiler_flag(-fprofile-arcs)
 	add_cxx_compiler_flag(-ftest-coverage)
 
-	add_c_compiler_flag(-Werror)
-	add_c_compiler_flag(-Wfatal-errors)
-	add_c_compiler_flag(-pedantic)
-	add_c_compiler_flag(-pedantic-errors)
 	add_c_compiler_flag(-fprofile-arcs)
 	add_c_compiler_flag(-ftest-coverage)
 
@@ -53,19 +57,36 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Profiling")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
 	set(CMAKE_CXX_FLAGS_RELEASE "")
 
-	add_definitions(-DRELEASE=1)
 	add_cxx_compiler_flag(-O3)
 	add_c_compiler_flag(-O3)
 	add_cxx_compiler_flag(-g3)
 	add_c_compiler_flag(-g3)
 	add_cxx_compiler_flag(-fno-unwind-tables)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
+	add_cxx_compiler_flag(-fno-omit-frame-pointer)
+	add_c_compiler_flag(-fno-omit-frame-pointer)
+	add_cxx_compiler_flag(-fno-unwind-tables)
+	add_cxx_compiler_flag(-O1)
+	add_c_compiler_flag(-O1)
+	add_cxx_compiler_flag(-g3)
+	add_c_compiler_flag(-g3)
+
+	if(BUILD_WITH_FSANITIZE STREQUAL "Memory")
+		add_cxx_compiler_flag(-fsanitize=memory)
+		add_cxx_compiler_flag(-fsanitize-memory-track-origins=2)
+		add_c_compiler_flag(-fsanitize=memory)
+		add_c_compiler_flag(-fsanitize-memory-track-origins=2)
+	elseif(BUILD_WITH_FSANITIZE STREQUAL "Address")
+		add_cxx_compiler_flag(-fsanitize=address)
+		add_c_compiler_flag(-fsanitize=address)
+	elseif(BUILD_WITH_FSANITIZE STREQUAL "Thread")
+		add_cxx_compiler_flag(-fsanitize=thread)
+		add_c_compiler_flag(-fsanitize=thread)
+	endif()
 elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-	add_cxx_compiler_flag(-Werror)
+	#add_cxx_compiler_flag(-Werror)
 	add_cxx_compiler_flag(-Wfatal-errors)
 	add_cxx_compiler_flag(-fno-stack-protector)
-
-	add_c_compiler_flag(-Werror)
-	add_c_compiler_flag(-Wfatal-errors)
 endif()
 
 # @NOTE: suppress some feature according to the compilers
@@ -74,7 +95,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 		add_cxx_compiler_flag(-Wno-format-nonliteral)
 	endif()
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-	add_cxx_compiler_flag(-Wno-unused-but-set-parameter)
 	add_cxx_compiler_flag(-Wno-unused-but-set-variable)
 	add_cxx_compiler_flag(-Wno-unused-variable)
 	add_cxx_compiler_flag(-Wno-unused-parameter)
@@ -90,6 +110,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	# using Visual Studio C++
 endif()
 
+add_definitions(-DUSE_STD_STRING=0)
 # @NOTE: load essential libraries from here most of them are tested
 # also provided test cases so we will build these test cases too for
 # testing
