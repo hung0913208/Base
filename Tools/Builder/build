@@ -5,6 +5,8 @@
 PIPELINE="$(dirname "$0" )"
 SCRIPT="$(basename "$0")"
 
+WAIT=${TIMEOUT:-60}
+
 # @NOTE: print log info
 info(){
 	if [ $# -eq 2 ]; then
@@ -197,7 +199,7 @@ if [ $(which git) ]; then
 				echo ""
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
-				sleep 10
+				sleep $WAIT
 				exit -1
 			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 				exec 2>&1
@@ -206,7 +208,7 @@ if [ $(which git) ]; then
 				echo ""
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
-				sleep 10
+				sleep $WAIT
 				exit -1
 			fi
 
@@ -221,7 +223,7 @@ if [ $(which git) ]; then
 					echo ""
 					echo "$OUTPUT"
 					echo "---------------------------------------------------------------------------------"
-					sleep 10
+					sleep $WAIT
 					exit -1
 				elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 					exec 2>&1
@@ -230,7 +232,7 @@ if [ $(which git) ]; then
 					echo ""
 					echo "$OUTPUT"
 					echo "---------------------------------------------------------------------------------"
-					sleep 10
+					sleep $WAIT
 					exit -1
 				fi
 			fi
@@ -247,7 +249,7 @@ if [ $(which git) ]; then
 				echo ""
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
-				sleep 10
+				sleep $WAIT
 				exit -1
 			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 				#exec 2>&1
@@ -256,7 +258,7 @@ if [ $(which git) ]; then
 				echo ""
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
-				sleep 10
+				sleep $WAIT
 				exit -1
 			fi
 		fi
@@ -277,7 +279,7 @@ if [ $(which git) ]; then
 				echo ""
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
-				sleep 10
+				sleep $WAIT
 				exit -1
 			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
 				#exec 2>&1
@@ -286,7 +288,7 @@ if [ $(which git) ]; then
 				echo ""
 				echo "$OUTPUT"
 				echo "---------------------------------------------------------------------------------"
-				sleep 10
+				sleep $WAIT
 				exit -1
 			elif [[ $MODE -eq 0 ]]; then
 				#exec 2>&1
