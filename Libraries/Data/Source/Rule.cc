@@ -6,7 +6,7 @@ Rule::Rule(String name):
     [&]() -> UInt&{ return *((UInt*)(&_Level)); },
     [&](UInt value){
       if (IsReady()) {
-        throw Except(EBadAccess, "");
+        throw Except(EBadAccess, "change rule\'s level when it\'s ready");
       } else {
         _Level = value;
       }
@@ -16,7 +16,7 @@ Rule::Rule(String name):
     [&]() -> String&{ return _Name; },
     [&](String value){
       if (_Name.size() > 0) {
-        throw Except(ENoSupport, "");
+        throw Except(ENoSupport, "Don\'t support rename rule");
       } else {
         _Name = value;
       }
@@ -30,7 +30,7 @@ Rule::Rule():
     [&]() -> UInt&{ return *((UInt*)(&_Level)); },
     [&](UInt value){
       if (IsReady()) {
-        throw Except(EBadAccess, "");
+        throw Except(EBadAccess, "change rule\'s level when it\'s ready");
       } else {
         _Level = value;
       }
@@ -40,7 +40,7 @@ Rule::Rule():
     [&]() -> String&{ return _Name; },
     [&](String value){
       if (_Name.size() > 0) {
-        throw Except(ENoSupport, "");
+        throw Except(ENoSupport, "Don\'t support rename rule");
       } else {
         _Name = value;
       }
