@@ -108,7 +108,7 @@ Main::Main(ArgParse& parser, Vector<CString> arguments) {
     { "entry", Auto::As<String>("") }
   });
 
-  Json {parser["config"].Get<String>()}.ForEach(plugin,
+  Json {parser["--config"].Get<String>()}.ForEach(plugin,
     [&](Map<String, Auto>& item){
       UInt language = ToInt(item["language"]);
       String module = ToString(item["module"]);
