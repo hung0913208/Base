@@ -8,7 +8,9 @@ perform_testing_on_linux:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
-    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/build.sh -- --labs ${LINUX} --os linux
+    - echo "REVIEW sftp://3380741_libbase:XXh01664957141@f19-preview.freehostingeu.com:221/" >> ./variables.txt
+    - echo "WEBINDEX http://libbase.eu5.net/" >> ./variables.txt
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/build.sh -- --labs ${LINUX} --os linux --environment ./variables.txt
   after_script:
     - ./Tests/Pipeline/Enqueue.sh ./.gitlab-ci.d/build.sh --cleanup
   tags:
@@ -19,6 +21,8 @@ perform_reproducing_on_linux:
   script:
     - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
     - if [[ ${#WERCKER} -eq 0 ]]; then exit 0; fi
+    - echo "REVIEW sftp://3380741_libbase:XXh01664957141@f19-preview.freehostingeu.com:221/" >> ./variables.txt
+    - echo "WEBINDEX http://libbase.eu5.net/" >> ./variables.txt
     - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/reproduce.sh -- --labs ${LINUX} --os linux
   after_script:
     - ./Tests/Pipeline/Enqueue.sh ./.gitlab-ci.d/reproduce.sh --cleanup
