@@ -395,6 +395,8 @@ class Case {
   inline void Expect(String message, String file, UInt line) {
     INFO << "    Expect: " <<  message << " at "
          << file << Base::ToString(line) << Base::EOL;
+
+    _Complain = message;
   }
 
   inline void Actual(String message) {
@@ -405,6 +407,8 @@ class Case {
     INFO << " Check if " << value << format << " at " << file << ":"
          << Base::ToString(line) << Base::EOL;
     INFO << "    Expect: " << value << format << Base::EOL;
+
+    _Complain = Format{"{} {}"}.Apply(value, format);
   }
 
   inline void Actual(String format, String value) {
@@ -417,6 +421,8 @@ class Case {
          << file << ":" << Base::ToString(line) << Base::EOL;
     INFO << "    Expect: " << left << " " << comparition << " " << right
          << Base::EOL;
+
+    _Complain = Format{"{} {} {}"}.Apply(left, comparition, right);
   }
 
   inline void Actual(String comparition, String left, String right) {
@@ -451,6 +457,7 @@ class Case {
   Vector<Auto> _Inputs;
   StatusE _Status;
   String _Suite, _Name;
+  String _Complain;
 };
 
 namespace Pharse {

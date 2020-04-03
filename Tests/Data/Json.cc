@@ -1,5 +1,6 @@
 #include <Json.h>
 #include <Logcat.h>
+
 #include <fstream>
 
 #if USE_GTEST
@@ -94,10 +95,9 @@ TEST(Json, Example1){
 #if DEV
 /* @TODO: this test case  will wait until `Builder 2` finishes because
  * it will provide new feature `fetching git` */
-
 TEST(Json, Streaming){
   Base::Json content{std::make_shared<FileStream>("")};
-
+ 
   EXPECT_EQ(content(), ENoError);
 }
 #endif

@@ -48,7 +48,10 @@
 
 namespace Base {
 namespace Unit {
-class Assertion : Exception {};
+class Assertion : Exception {
+ public:
+  Assertion(String complain) : Exception{BadLogic(complain)} {}
+};
 
 // @TODO:
 class Suite {
@@ -471,6 +474,10 @@ void Case::Ignore(Bool apply){
 void Case::Fatal(Bool crash) {
   if (_Status != EIgnored) {
     _Status = EFatal;
+  }
+
+  if (_Status == EFatal) {
+    throw Assertion(_Complain);
   }
 
   if (crash) {
