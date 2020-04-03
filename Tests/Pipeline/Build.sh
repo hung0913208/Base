@@ -127,25 +127,35 @@ if [ $(which git) ]; then
 		"""
 	fi
 
-	TESTED=0
+	CODE=0
 
 	# @NOTE: build with bazel
 	if which bazel &> /dev/null; then
 		if [ -f $ROOT/WORKSPACE ]; then
 			if ! bazel build ...; then
-				exit -1 
+				CODE=-1
 			elif ! bazel test ...; then
-				exit -1
-			else
-				TESTED=1
+				CODE=-1
 			fi
 		fi
 	fi
 
-	if [[ $TEST -eq 0 ]]; then
+	if [[ ${#CODE} -ne 0 ]]; then
+		# @NOTE: do this action to prevent using Builder
+
+		rm -fr $ROOT/{.workspace, WORKSPACE}
+
 		# @NOTE: build and test everything with single command only
 
 		if ! $BUILDER --root $ROOT --debug 1 --rebuild 0 --mode $MODE; then
+			exit -1
+		fi
+
+		exit -1
+	else
+		# @NOTE: build and test everything with single command only
+
+		if ! $BUILDER --root $ROOT --debug 1 --rebuild 0 --mode 2; then
 			exit -1
 		fi
 	fi

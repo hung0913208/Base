@@ -279,6 +279,15 @@ if [ $(which git) ]; then
 	
 				bash $BASE/Tools/Utilities/coverage.sh .
 				exit $CODE
+			elif [[ $MODE -eq 2 ]]; then
+				$BASE/Tools/Utilities/ctest.sh Coverage
+				CODE=$?
+
+				if ! bash $BASE/Tools/Utilities/coverage.sh .; then
+					exit -1
+				else
+					exit $CODE
+				fi
 			fi
 		fi
 
