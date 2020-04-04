@@ -276,7 +276,7 @@ if [ $(which git) ]; then
 				$BASE/Tools/Utilities/ctest.sh Coverage
 				$BASE/Tools/Utilities/ctest.sh Sanitize
 				CODE=$?
-	
+
 				bash $BASE/Tools/Utilities/coverage.sh .
 				exit $CODE
 			elif [[ $MODE -eq 2 ]]; then

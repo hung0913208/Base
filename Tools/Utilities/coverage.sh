@@ -9,6 +9,18 @@ case "${unameOut}" in
 	*)          machine="UNKNOWN:${unameOut}"
 esac
 
+function generate_codecov_yaml() {
+	cat > "$(git rev-parse --show-toplevel)/codecov.yml" << EOF
+codecov:
+  token: "$CODECOV_TOKEN"
+  bot: "codecov-io"
+  ci:
+    - "$(hostname)"
+  fixes:
+    - "::$(basename $1)/Coverage"
+EOF
+}
+
 if [[ $machine == "Linux" ]]; then
 	SONARCLOUD_CLI="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-3.3.0.1492-linux.zip"
 	SONARCLOUD_BUILD="https://sonarcloud.io/static/cpp/build-wrapper-linux-x86.zip"
@@ -20,39 +32,49 @@ elif [[ $machine == "Mac" ]]; then
 fi
 
 if [[ -d $1/Coverage ]]; then
-	ROOT=$(pwd)
+	ROOT=$(realpath $(pwd))
 
 	cd $1/Coverage || exit -1
 
-	lcov --directory . --capture --output-file coverage.info >& /dev/null
+	lcov --directory . --capture --output-file coverage.info &> /dev/null
 	if [ $? != 0 ]; then
 		exit 1
 	fi
 
-	lcov --remove coverage.info '/usr/*' --output-file coverage.info >& /dev/null
-	if [ $? != 0 ]; then
-		exit 2
+	lcov --remove coverage.info '/usr/*' --output-file coverage.info &> /dev/null
+
+	if ! lcov --list coverage.info; then
+		exit 3
 	fi
 
-	lcov --list coverage.info
-	if [ $? != 0 ]; then
-		exit 3
+	if [[ ${#COVERALLS_REPO_TOKEN} -gt 0 ]]; then
+		if pip install --user cpp-coveralls &> /dev/null; then
+			echo "[   INFO  ] pushing coverage to coveralls:
+---------------------------------------------------------------------------------------------------
+
+$(coveralls --gcov-options '\-lp')
+"
+		fi
 	fi
 
 	if [[ ${#CODECOV_TOKEN} -gt 0 ]]; then
 		exec 2>&-
-		OUTPUT="$(bash <(curl -s https://codecov.io/bash) 2>&1 | tee /dev/fd/2)"
+		generate_codecov_yaml $ROOT
+		echo "[   INFO  ] pushing coverage to codecov using this config:
+---------------------------------------------------------------------------------------------------
 
-		exec 2>&1
-		if [ $? != 0 ]; then
-			echo "[  ERROR  ] Codecov did not collect coverage reports"
+$(cat $(git rev-parse --show-toplevel)/codecov.yml)
+"
+		if ! bash <(curl -s https://codecov.io/bash -v) &> /tmp/codecov.log; then
+			echo "[  ERROR  ] Codecov did not collect coverage reports, here is the log:
+---------------------------------------------------------------------------------------------------
+
+$(cat /tmp/codecov.log)
+"
 			exit 4
 		else
-			REPORT=$(printf $OUTPUT | grep "\-> View reports at *" | cut -c 24-)
-
-			if [[ ${#REPORT} -gt 0 ]]; then
-				echo "[   INFO  ] $REPORT"
-			fi
+			exec 2>&1
+			rm -fr /tmp/codecov.log
 		fi
 	fi
 
@@ -95,22 +117,28 @@ if [[ -d $1/Coverage ]]; then
 			OUTPUT=$(pwd)/public_html
 		fi
 
-		genhtml -o "$OUTPUT" coverage.info >& /dev/null
+		if ! genhtml -o "$OUTPUT" coverage.info &> /dev/null; then
+			exit -1
+		fi
 
 		PROTOCOL=$(python -c "print(\"$REVIEW\".split(':')[0])")
 		RPATH=$(python -c "print(\"/\".join(\"$REVIEW\".split('/')[3:]))")
-		HOST=$(python -c "print(\"$REVIEW\".split('@')[1].split('/')[0])")
+		HOST=$(python -c "print(\"$REVIEW\".split('@')[1].split(':')[0])")
 		WEB=$(python -c "print(\".\".join(\"$HOST\".split('.')[1:]))")
 		USER=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[0])")
 		PASSWORD=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[1].split('@')[0])")
 
-		if [[ ${#RPATH} -eq 0 ]] || [[ ${#USER} -eq 0 ]] || [[ ${#PASSWORD} -eq 0 ]]; then
+		if [[ ${#USER} -eq 0 ]] || [[ ${#PASSWORD} -eq 0 ]]; then
 			exit -1
 		fi
 
-		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which lftp)" ]; then
-			set -x
+		if python -c "print(\"$REVIEW\".split('/')[2].split(':')[2])" &> /dev/null; then
+			PORT=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[2])")
+		else
+			PORT=0
+		fi
 
+		if [[ "$PROTOCOL" = "ftp" ]] && [ "$(which lftp)" ]; then
 			# @NOTE: Delete remote old code coverage
 			lftp $HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no;" <<EOF
 rm -f $RPATH/*
@@ -118,23 +146,32 @@ EOF
 
 			cd $OUTPUT || exit -1
 			# @NOTE: update the new code coverage
-	
-			if lftp -v ftp://$HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no; mirror -R $OUTPUT /$RPATH"; then
-				true
-			elif ncftpput -DD -R -v -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" $OUTPUT/*; then
+		
+			if [[ ${#RPATH} -eq 0 ]]; then
+				RPATH="/"
+			fi
+
+			if ncftpput -d /tmp/coverage.log -R -V -u "$USER" -p "$PASSWORD" "$HOST" "$RPATH" ./; then
 				rm -fr /tmp/coverage.log
 			else
 				cat /tmp/coverage.log && rm -fr /tmp/coverage.log
-				exit -1
+
+				if ! lftp  -e "set ftp:ssl-allow no; mirror -R $(pwd) $RPATH" -u $USER,$PASSWORD $HOST; then
+					exit -1
+				fi
 			fi
-			set +x
 		elif [[ "$PROTOCOL" = "scp" ]] && [ "$(which scp)" ] && [ "$(which expect)" ]; then
+			if [[ ${PORT} -gt 0 ]]; then
+				PORT="-P $PORT"
+			else
+				PORT=''
+			fi
+
 			expect -c """
-set timeout 1
-spawn scp -r $OUTPUT $USER@$HOST/$RPATH
-expect yes/no { send yes\r ; exp_continue }
+set timeout 600
+spawn scp -q -o StrictHostKeyChecking=no $PORT -r $OUTPUT $USER@$HOST/$RPATH
 expect password: { send $PASSWORD\r }
-expect 100%
+expect 100% { interact; }
 sleep 1
 """
 
@@ -142,28 +179,43 @@ sleep 1
 				exit $?
 			fi
 		elif [[ "$PROTOCOL" = "sftp" ]] && [ "$(which sftp)" ] && [ "$(which expect)" ]; then
-			expect -d -c """
-set timeout 1
-spawn sftp $USER@$HOST
-expect \"Password:\"
-send \"$PASSWORD\n\"
-expect \"sftp>\"
-send \"cd $RPATH\n\"
-expect \"sftp>\"
-send \"put -r $OUTPUT\n\"
-expect \"sftp>\"
-send \"exit\n\"
-interact
-			"""
+			CURRENT=$(pwd)
 
-			if [ $? != 0 ]; then
-				exit $?
+			if [[ ${PORT} -gt 0 ]]; then
+				PORT="-P $PORT"
+			else
+				PORT=''
+			fi
+
+			cd $OUTPUT
+
+			expect -d -c """
+set timeout 600
+
+spawn sftp -q -o StrictHostKeyChecking=no $PORT $USER@$HOST
+expect \"Password:\" { send \"$PASSWORD\n\" }
+expect \"sftp>\" { send \"cd $RPATH\n\" }
+expect \"sftp>\" { send \"put -r .\n\" }
+expect \"sftp>\" { send \"exit\n\"; interact }
+"""
+			CODE=$?
+
+			cd $CURRENT
+
+			if [ $CODE != 0 ]; then	
+				exit $CODE
 			fi
 		else
 			exit 0
 		fi
 
-		echo "[   INFO  ] Review https://$USER.$WEB/$RPATH/index.html"
+		if [[ ${#WEBINDEX} -gt 0 ]]; then
+			echo "[   INFO  ] Review $WEBINDEX"
+		elif [ $RPATH = '/' ]; then
+			echo "[   INFO  ] Review https://${USER}.${WEB}/index.html"
+		else
+			echo "[   INFO  ] Review https://${USER}.${WEB}/$RPATH/index.html"
+		fi
 	else
 		genhtml -o "./gcov" coverage.info >& /dev/null
 		exit $?
