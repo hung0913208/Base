@@ -14,6 +14,7 @@
 
 #define LOGLEVEL 1
 #define READABLE 1
+#define USE_COLOR 1
 
 #define ERROR_LABEL "[  ERROR  ]"
 #define WARNING_LABEL "[ WARNING ]"
