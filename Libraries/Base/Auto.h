@@ -120,15 +120,7 @@ class Auto {
 
       memset(_Context.Reference, 0, sizeof(Int));
       _Context.Clone = [](RawD raw) -> RawD {
-        auto new_value = ABI::Malloc(sizeof(ValueT));
-
-        if (new_value) {
-          *((ValueT*)new_value) = *((ValueT*)(raw));
-        } else {
-          throw Except(EDrainMem, "clone a new value");
-        }
-
-        return new_value;
+        return new ValueT{*((ValueT*)(raw))};
       };
 
       /* @NOTE: register callback _Del which is used to delete Auto's value
@@ -261,6 +253,9 @@ class Auto {
    *  Auto or Any */
   Bool Reff(Auto src);
   Bool Reff(Any src);
+
+  /* @NOTE: this method is used to make a copy instead of a referal object */
+  Auto Copy();
 
   /* @NOTE: these template method iteract directly with variable inside Auto
    */

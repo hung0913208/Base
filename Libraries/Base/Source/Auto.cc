@@ -281,6 +281,40 @@ Bool Auto::Reff(Any src) {
 
   return True;
 }
+
+Auto Auto::Copy() {
+  if (_Context.Clone) {
+    Auto result{};
+
+    memset(&result._Context, 0, sizeof(_Context));
+
+    /* @NOTE: do this to prevent removing the memory too soon duo to
+     * the destruction of variable result before it clone a new guy to
+     * us lately */
+
+    if (!(result._Context.Reference = (Int*)ABI::Malloc(sizeof(Int)))) {
+      throw Except(EDrainMem, "can\'t allocate Reference as expected");
+    }
+
+    /* @NOTE: config another parameters manually which bases on the current
+     * Base::Auto::_Context */
+
+    memset(result._Context.Reference, 0, sizeof(Int));
+
+    result._Context.Clone = _Context.Clone;
+    result._Context.Del = _Context.Del;
+    result._Context.Type = _Context.Type;
+
+    /* @NOTE: call the Clone API to make a new memory of the current
+     * Context's data */
+
+    result._Context.Context = _Context.Clone(_Context.Context);
+
+    return result;
+  } else {
+    throw Except(EBadLogic, "can\'t copy an object without Clone callback");
+  }
+}
 }  // namespace Base
 
 extern "C" Any* BSAssign2Any(Any* any, void* context, void* type,

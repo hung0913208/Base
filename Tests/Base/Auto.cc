@@ -1,5 +1,6 @@
 #include <Auto.h>
 #include <Unittest.h>
+#include <cstring>
 
 TEST(Auto, Assign) {
   Base::Auto int1{10};
@@ -79,6 +80,20 @@ TEST(Auto, Hierarchy) {
   INFO << target.Get<Children>().Introduce() << Base::EOL;
   INFO << target.GetSubclass<Parent, Children>().Introduce() << Base::EOL;
   INFO << target.GetBaseclass<Parent>().Introduce() << Base::EOL;
+}
+
+TEST(Auto, Copy) {
+  auto perform = [&]() {
+    Base::Auto target{"10"};
+    Base::Auto cloned = target.Copy();
+    
+    EXPECT_NEQ(cloned, None);
+    EXPECT_NEQ((ULong)&cloned.Get<const CString>(),
+               (ULong)&target.Get<const CString>());
+    EXPECT_EQ(strcmp(cloned.Get<const CString>(), target.Get<const CString>()), 0);
+  };
+
+  TIMEOUT(1, { perform(); });
 }
 
 int main() {
