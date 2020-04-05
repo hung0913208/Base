@@ -186,7 +186,7 @@ Unit::Pharse::Prepare::Prepare(Shared<Case> unit) : _Case{unit} {
       }
     };
 
-    unit->Prepare = this;
+    unit->Prepare = const_cast<Prepare*>(this);
   }
 }
 
@@ -216,7 +216,7 @@ Unit::Pharse::Teardown::Teardown(Shared<Case> unit) : _Case{unit} {
       }
     };
 
-    unit->Teardown = this;
+    unit->Teardown = const_cast<Teardown*>(this);
   }
 }
 
