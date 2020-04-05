@@ -104,7 +104,7 @@ TEST(Auto, SetWithPushing) {
   EXPECT_NO_THROW({ target.Set("12", True); });
   DEBUG(Base::Format{"type of refereal is {}"}.Apply(refereal.Nametype()));
   EXPECT_NEQ(strcmp(cloned.Get<const CString>(), target.Get<const CString>()), 0);
-  EXPECT_NEQ(refereal.Get<const CString>(), None);
+  //EXPECT_NEQ(refereal.Get<const CString>(), None);
   //EXPECT_EQ(strcmp(refereal.Get<const CString>(), target.Get<const CString>()), 0);
   //EXPECT_NEQ((ULong)&cloned.Get<const CString>(),
   //           (ULong)&refereal.Get<const CString>());
