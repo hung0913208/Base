@@ -102,8 +102,8 @@ TEST(Auto, SetWithPushing) {
   Base::Auto cloned = target.Copy();
    
   EXPECT_NO_THROW({ target.Set("12", True); });
-  //EXPECT_NEQ(strcmp(cloned.Get<const CString>(), target.Get<const CString>()), 0);
-  //EXPECT_EQ(strcmp(refereal.Get<const CString>(), target.Get<const CString>()), 0);
+  EXPECT_NEQ(strcmp(cloned.Get<const CString>(), target.Get<const CString>()), 0);
+  EXPECT_EQ(strcmp(refereal.Get<const CString>(), target.Get<const CString>()), 0);
   //EXPECT_NEQ((ULong)&cloned.Get<const CString>(),
   //           (ULong)&refereal.Get<const CString>());
   //EXPECT_EQ((ULong)&target.Get<const CString>(),
