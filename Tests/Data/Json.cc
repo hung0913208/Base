@@ -44,52 +44,52 @@ class FileStream: public Base::Stream{
   std::fstream _FileD;
 };
 
-TEST(Json, Example0){
-  auto perform = [&](){
-    String json = "{\"abc\": \"xyz\"}";
-    Base::Json content{json};
-
-    EXPECT_EQ(content(), ENoError);
-
-#if WATCHING
-    EXPECT_EQ(content.Get<String, String>("abc"), "xyz");
-#else
-    /* @NOTE: i will try will GTest to make sure this is an issue from GCC */
-
-    String result = content.Get<String, String>("abc");
-    EXPECT_EQ(result, "xyz");
-#endif
-  };
-
-  TIMEOUT(10, { perform(); });
-}
-
-TEST(Json, Example1){
-  auto perform = [&](){
-    String json = "{\"abc\": [\"xyz\", 10, True, 10.01]}";
-    Base::Json content{json};
-
-    EXPECT_EQ(content(), ENoError);
-
-#if WATCHING
-    EXPECT_EQ(content.Get<String, Base::Data::List>("abc").At<String>(0), "xyz");
-    EXPECT_EQ(content.Get<String, Base::Data::List>("abc").At<Bool>(2), True);
-    EXPECT_EQ(content.Get<String, Base::Data::List>("abc").At<Long>(1), 10);
-#else
-    String sval = content.Get<String, Base::Data::List>("abc").At<String>(0);
-    Long ival = content.Get<String, Base::Data::List>("abc").At<Long>(1);
-    Bool bval = content.Get<String, Base::Data::List>("abc").At<Bool>(2);
-    Double dval = content.Get<String, Base::Data::List>("abc").At<Double>(3);
-
-    EXPECT_EQ(sval, "xyz");
-    EXPECT_EQ(ival, 10);
-    EXPECT_EQ(bval, True);
-    EXPECT_EQ(dval, 10.01);
-#endif
-  };
-
-  TIMEOUT(10, { perform(); });
-}
+//TEST(Json, Example0){
+//  auto perform = [&](){
+//    String json = "{\"abc\": \"xyz\"}";
+//    Base::Json content{json};
+//
+//    EXPECT_EQ(content(), ENoError);
+//
+//#if WATCHING
+//    EXPECT_EQ(content.Get<String, String>("abc"), "xyz");
+//#else
+//    /* @NOTE: i will try will GTest to make sure this is an issue from GCC */
+//
+//    String result = content.Get<String, String>("abc");
+//    EXPECT_EQ(result, "xyz");
+//#endif
+//  };
+//
+//  TIMEOUT(10, { perform(); });
+//}
+//
+//TEST(Json, Example1){
+//  auto perform = [&](){
+//    String json = "{\"abc\": [\"xyz\", 10, True, 10.01]}";
+//    Base::Json content{json};
+//
+//    EXPECT_EQ(content(), ENoError);
+//
+//#if WATCHING
+//    EXPECT_EQ(content.Get<String, Base::Data::List>("abc").At<String>(0), "xyz");
+//    EXPECT_EQ(content.Get<String, Base::Data::List>("abc").At<Bool>(2), True);
+//    EXPECT_EQ(content.Get<String, Base::Data::List>("abc").At<Long>(1), 10);
+//#else
+//    String sval = content.Get<String, Base::Data::List>("abc").At<String>(0);
+//    Long ival = content.Get<String, Base::Data::List>("abc").At<Long>(1);
+//    Bool bval = content.Get<String, Base::Data::List>("abc").At<Bool>(2);
+//    Double dval = content.Get<String, Base::Data::List>("abc").At<Double>(3);
+//
+//    EXPECT_EQ(sval, "xyz");
+//    EXPECT_EQ(ival, 10);
+//    EXPECT_EQ(bval, True);
+//    EXPECT_EQ(dval, 10.01);
+//#endif
+//  };
+//
+//  TIMEOUT(10, { perform(); });
+//}
 
 TEST(Json, Streaming) {
   Base::Json content{std::make_shared<FileStream>("/tmp/sample.json")};
