@@ -140,7 +140,7 @@ if [ $(which git) ]; then
 		fi
 	fi
 
-	if [[ ${#CODE} -ne 0 ]]; then
+	if [[ ${CODE} -ne 0 ]]; then
 		# @NOTE: do this action to prevent using Builder
 
 		rm -fr $ROOT/{.workspace, WORKSPACE}
