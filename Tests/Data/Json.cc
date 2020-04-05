@@ -1,13 +1,12 @@
+#include <Auto.h>
+#include <Monitor.h>
 #include <Json.h>
 #include <Logcat.h>
+#include <Utils.h>
+#include <Unittest.h>
 
 #include <fstream>
 
-#if USE_GTEST
-#include <gtest/gtest.h>
-#else
-#include <Unittest.h>
-#endif
 
 using namespace std::placeholders;
 using namespace Base::Data;
@@ -92,15 +91,46 @@ TEST(Json, Example1){
   TIMEOUT(10, { perform(); });
 }
 
-#if DEV
-/* @TODO: this test case  will wait until `Builder 2` finishes because
- * it will provide new feature `fetching git` */
-TEST(Json, Streaming){
-  Base::Json content{std::make_shared<FileStream>("")};
- 
+TEST(Json, Streaming) {
+  Base::Json content{std::make_shared<FileStream>("/tmp/sample.json")};
+
   EXPECT_EQ(content(), ENoError);
 }
-#endif
+
+PREPARE(Json, Streaming) {
+  using namespace Base;
+
+  Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
+  Fork fork{[]() -> Int {
+    const CString args[] = {
+      "/usr/bin/curl", 
+      "-ksSo",
+      "/tmp/sample.json",                            
+      "https://raw.githubusercontent.com/zemirco/sf-city-lots-json/master/citylots.json",
+      None
+    };
+
+    execv(args[0], (CString const*)args);
+    return -1;
+  }};
+
+  monitor->Trigger(Auto::As(fork),
+    [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
+      while (True) {
+        Char buf[512];
+        UInt len = read(fd.Get<Int>(), buf, 512);
+
+        if (len <= 0) {
+          break;
+        }
+      }
+
+      return ENoError;
+    }
+  );
+
+  monitor->Loop([&](Monitor&) -> Bool { return fork.Status() >= 0; });
+}
 
 int main() {
   return RUN_ALL_TESTS();
