@@ -159,7 +159,7 @@ if (BISON_FOUND AND Patch_FOUND)
 							-DPACKAGE="${CMAKE_PROJECT_NAME}")
 
 		target_link_libraries(bash base sh glob readline builtins malloc termcap ${CMAKE_DL_LIBS})
-		target_link_libraries(builtins sh readline)
+		target_link_libraries(builtins sh readline ${CMAKE_DL_LIBS})
 
 		add_dependencies(bash builtext signames version syntax yparse)
 		add_dependencies(builtins builtext version)
