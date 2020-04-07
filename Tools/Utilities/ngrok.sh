@@ -1,9 +1,8 @@
 #!/bin/bash
 
-TOKEN=$2
-PASS=$3
-WAIT=$4
-PORT=$5
+SERVICE=$1
+WAIT=0
+shift
 
 # @NOTE: print log error and exit immediatedly
 error(){
@@ -15,32 +14,120 @@ error(){
 	exit -1
 }
 
+login_pktriot() {
+	if [ ! -f /tmp/pktriot.cookies ]; then
+		LOGIN_TEMPFILE=$(mktemp /tmp/pktriot_login.XXXXXX)
+	
+		cat > $LOGIN_TEMPFILE << EOF
+curl -sS --request POST -c /tmp/pktriot.cookies 'https://packetriot.com/login' -H 'content-type: application/x-www-form-urlencoded' --data 'email=$1&password=$2&google='
+exit \$?
+EOF
+
+		bash $LOGIN_TEMPFILE
+		CODE=$?
+
+		rm -fr $LOGIN_TEMPFILE
+		return $CODE
+	fi
+
+	return 0
+}
+
+get_pktriot_tunnels() {
+	curl -sS --request GET --cookie /tmp/pktriot.cookies https://packetriot.com/tunnels | grep '<a class="black" href="/tunnel' | awk '{ split($0,a,"href=\"/tunnel/"); split(a[2],a,"\">"); print a[1]; }'
+}
+
+delete_pktriot_tunnel() {
+	curl -sS --request GET --cookie /tmp/pktriot.cookies https://packetriot.com/tunnel/delete?id=$1 &> /dev/null
+}
+
 if [[ ${#WAIT} -eq 0 ]]; then
 	WAIT=0
 fi
 
-if [ ! -f ./ngrok-stable-linux-amd64.zip ]; then
-	timeout 30 wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+screen -ls "${SERVICE}.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
 
-	if [ $? != 0 ]; then
-		if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
-			timeout 30 wget ftp://${USERNAME}:${PASSWORD}@ftp.drivehq.com/Repsitory/ngrok-stable-linux-amd64.zip
-		else
+if [ $SERVICE = 'ngrok' ]; then
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--token)	NGROK_TOKEN="$2"; shift;;
+			--wait)		WAIT=1; shift;;
+			(--) 		shift; break;;
+			(-*) 		error "unrecognized option $1";;
+			(*)		METHOD="$1";;
+		esac
+		shift
+	done
+
+	if [ ! -f ./ngrok-stable-linux-amd64.zip ]; then
+		timeout 30 wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+
+		if [ $? != 0 ]; then
+			if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
+				timeout 30 wget ftp://${USERNAME}:${PASSWORD}@ftp.drivehq.com/Repsitory/ngrok-stable-linux-amd64.zip
+			else
+				exit -1
+			fi
+		fi
+
+		if [[ $? -ne 0 ]]; then
 			exit -1
 		fi
 	fi
 
-	if [[ $? -ne 0 ]]; then
+	if [ ! -f ./ngrok ]; then
+		unzip -qq -n ngrok-stable-linux-amd64.zip
+	fi
+elif [ $SERVICE = 'pktriot' ]; then
+	PKTRIOT_REGION="1"
+
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--email)	PKTRIOT_EMAIL="$2"; shift;;
+			--password)	PKTRIOT_PASSWORD="$2"; shift;;
+			--region)	PKTRIOT_REGION="$2"; shift;;
+			(--) 		shift; break;;
+			(-*) 		error "unrecognized option $1";;
+			(*)		METHOD="$1";;
+		esac
+		shift
+	done
+
+	if [[ ${#PKTRIOT_EMAIL} -eq 0 ]] || [[ ${#PKTRIOT_PASSWORD} -eq 0 ]]; then
 		exit -1
 	fi
+
+	if [ ! -f ./pktriot-0.9.10.amd64.tar.gz ]; then
+		if ! timeout 30 wget https://pktriot-dl-bucket.sfo2.digitaloceanspaces.com/releases/linux/pktriot-0.9.10.amd64.tar.gz; then
+			exit -1
+		fi
+	fi
+
+	if [ ! -f ./pktriot ]; then
+		if ! tar xf ./pktriot-0.9.10.amd64.tar.gz -C ./; then
+			exit -1
+		else
+			cp ./pktriot-0.9.10/pktriot ./
+		fi
+	fi
+else
+	error "no support"
 fi
 
-screen -ls "ngrok.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print $1}' | while read s; do screen -XS $s quit; done
-if [ ! -f ./ngrok ]; then
-	unzip -qq -n ngrok-stable-linux-amd64.zip
-fi
+if [ "$METHOD" = "ssh" ]; then
+	PORT=""
 
-if [ "$1" = "ssh" ]; then
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--port)		PORT="$2"; shift;;
+			--password)	PASS="$2"; shift;;
+			(--) 		shift; break;;
+			(-*) 		error "unrecognized option $1";;
+			(*) 		break;;
+		esac
+		shift
+	done
+
 	# @NOTE: check root if we didn"t have root permission
 	if [ $(whoami) != "root" ]; then
 		if [ ! $(which sudo) ]; then
@@ -63,7 +150,7 @@ if [ "$1" = "ssh" ]; then
 	echo "export LD_LIBRARY_PATH" | $SU tee -a /root/.bashrc >& /dev/null
 
 
-	if netstat -tunlp | grep sshd; then
+	if netstat -tunlp | grep sshd &> /dev/null; then
 		PORT=$(netstat -tunlp | grep sshd | awk '{ print $4; }' | awk -F":" '{ print $2; }') >& /dev/null
 	else
 		SSHD=$(which sshd) >& /dev/null
@@ -84,37 +171,109 @@ if [ "$1" = "ssh" ]; then
 			$SSHD -E /tmp/sshd.log -p $PORT
 		fi
 	fi
-elif [ "$1" = "netcat" ]; then
+elif [ "$METHOD" = "netcat" ]; then
 	PID="$(pgrep -d "," nc.traditional)"
 	WAIT=$4
+
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--port)		PORT="$2"; shift;;
+			(--) 		shift; break;;
+			(-*) 		error "unrecognized option $1";;
+			(*) 		break;;
+		esac
+		shift
+	done
 
 	if [[ ${#PID} -gt 0 ]]; then
 		kill -9 $PID >& /dev/null
 	fi
 
 	if which nc.traditional; then
-		(nohup $(which nc.traditional) -vv -o ./$PORT.log -lek -q -1 -i -1 -w -1 -c /bin/bash -r)&
+		(nohup $(which nc.traditional) -vv -o ./${PORT}.log -lek -q -1 -i -1 -w -1 -c /bin/bash -r)&
 	fi
 
 	sleep 1
 	PORT=$(netstat -tunlp | grep nc.traditional | awk '{ print $4; }' | awk -F":" '{ print $2; }') >& /dev/null
 fi
 
-./ngrok authtoken $TOKEN >& /dev/null
-if [[ $WAIT -gt 0 ]]; then
-	./ngrok tcp $PORT &
-	PID=$!
-else
-	screen -S "ngrok.pid" -dm $(pwd)/ngrok tcp $PORT
+if [ $SERVICE = 'ngrok' ]; then
+	./ngrok authtoken $NGROK_TOKEN >& /dev/null
+
+	if [[ $WAIT -gt 0 ]]; then
+		./ngrok tcp $PORT &
+		PID=$!
+	else
+		screen -S "ngrok.pid" -dm $(pwd)/ngrok tcp $PORT
+	fi
+elif [ $SERVICE = 'pktriot' ]; then
+	rm -fr $HOME/.pktriot/config.json
+
+	for I in {1..2}; do
+		if expect -c """
+set timeout 600
+
+spawn $(pwd)/pktriot configure
+
+expect \"Input selection\" { send \"3\n\" }
+expect \"Email:\" { send \"$PKTRIOT_EMAIL\n\" }
+expect \"Password:\" { send \"$PKTRIOT_PASSWORD\n\" }
+expect \"Input selection\" { send \"$PKTRIOT_REGION\n\" }
+expect {
+	\"max tunnel quota hit\" { interact; exit -1 }
+	\"Tunnel configuration:\" { interact; exit 0 }
+}
+""" &> /dev/null; then
+
+			DONE=1
+			break	
+		fi
+
+		if ! login_pktriot $PKTRIOT_EMAIL $PKTRIOT_PASSWORD; then
+			break
+		fi
+
+		for TUNNEL in $(get_pktriot_tunnels); do
+			delete_pktriot_tunnel $TUNNEL
+		done
+
+		DONE=0
+	done
+
+	if [[ $DONE -ne 1 ]]; then
+		exit -1
+	fi
+
+	if ! ./pktriot tunnel tcp forward --destination 127.0.0.1 --dstport $PORT &> /dev/null; then
+		exit -1
+	fi
+
+	if [[ $WAIT -gt 0 ]]; then
+		./pktriot start &
+		PID=$!
+	else
+		screen -S "pktriot.pid" -dm $(pwd)/pktriot start
+	fi
 fi
 
 sleep 3
 
-if netstat -tunlp | grep ngrok >& /dev/null; then
-	curl -s http://localhost:4040/api/tunnels | python3 -c \
-		"import sys, json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])"
-else
-	exit -1
+if [ $SERVICE = 'ngrok' ]; then
+	if netstat -tunlp | grep ngrok >& /dev/null; then
+		curl -s http://localhost:4040/api/tunnels | python3 -c \
+			"import sys, json; print(json.load(sys.stdin)['tunnels'][0]['public_url'])"	
+	else
+		exit -1
+	fi
+elif [ $SERVICE = 'pktriot' ]; then
+	RPORT=$(./pktriot route tcp ls | grep "| 22 " | awk '{ split($0,a,"|"); print a[2]; }' | sed -e 's/^[ \t]*//')
+	DOMAIN=$(./pktriot info | grep "Hostname: " | awk '{ print $2 }')
+
+	if [ $METHOD = 'ssh' ]; then
+       		echo "ssh root@$DOMAIN -p $RPORT"
+	elif [ $METHOD = 'netcat' ]; then
+		echo "nc $DOMAIN $RPORT"
+	fi
 fi
 
 if [[ $WAIT -gt 0 ]]; then
@@ -131,7 +290,7 @@ if [[ $WAIT -gt 0 ]]; then
 
 	kill -9 $PID
 
-	if [ "$1" = "netcat" ]; then
+	if [ "$METHOD" = "netcat" ]; then
 		PID="$(pgrep -d "," nc.traditional)"
 	
 		if [[ ${#PID} -gt 0 ]]; then
