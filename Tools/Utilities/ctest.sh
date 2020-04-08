@@ -43,8 +43,9 @@ exec_with_timeout(){
 	else
 		TIMEOUT=$1
 	fi
+	NAME=$(basename $2)
 
-	("$2" || touch "/tmp/$(basename "$2").fail") & PID=$!
+	("$2" >& ./${NAME}.txt || touch "/tmp/$(basename "$2").fail") & PID=$!
 	(for _ in 0..$1; do
 		if [ ! "$(kill -0 $PID >& /dev/null)" ]; then
 			exit 0;
@@ -100,6 +101,9 @@ else:
 	if [[ -f "$COREFILE" ]]; then
 		CODE=2
 	fi
+
+	cat ./${NAME}.txt
+	rm -fr ./${NAME}.txt
 
 	return $CODE
 }
@@ -261,7 +265,11 @@ if [ -d "./$1" ]; then
 
 			for FILE in ./Tests/*; do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
-					if ! file $FILE | grep "executable" >& /dev/null; then
+					if ! file $FILE | grep "executable\|linked" &> /dev/null; then
+						continue
+					fi
+					
+				       	if ! nm -D $FILE | grep main &> /dev/null; then
 						continue
 					fi
 
