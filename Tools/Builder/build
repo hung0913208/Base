@@ -33,6 +33,25 @@ error(){
 	exit -1
 }
 
+function wait_and_check_exit_code() {
+	PIDs=("$@")
+
+	for PID in "${PIDs[@]}"; do
+		RET=0
+
+		wait $PID
+		RET=$?
+
+		if [[ $RET -ne 0 ]]; then
+			echo $PID
+			return -1
+		fi
+	done
+
+	echo -1
+	return 0
+}
+
 function detect_libbase() {
 	PROJECT=$1
 
@@ -186,108 +205,133 @@ if [ $(which git) ]; then
 			CMAKE="rebuild.sh"
 		fi
 
-		if [[ $MODE -ne 0 ]]; then
-			exec 2>&-
-			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Debug $ROOT 2>&1 | tee /dev/fd/2)"
+		set -m
+		PIDs=()
 
-			if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
-				exec 2>&1
+		if [[ $MODE -eq 0 ]]; then
+			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Release $ROOT >& ./Release.txt" &
+			RELEASE_PID=$!
+		fi
+
+		if [[ $MODE -eq 1 ]] || [[ $MODE -eq 0 ]]; then
+			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Sanitize $ROOT >& ./Sanitize.txt" &
+			SANITIZE_PID=$!
+
+			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Debug $ROOT >& ./Debug.txt" &
+			DEBUG_PID=$!
+		fi
+
+		if [[ $MODE -eq 2 ]] || [[ $MODE -eq 0 ]]; then
+			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Coverage $ROOT >& ./Coverage.txt" &
+			COVERAGE_PID=$!
+		fi
+
+		function show_output_of_building_on_debug() {
+			if cat ./Debug.txt | grep "CMakeError.log" &> /dev/null; then
 				warning "fail configure CMakeLists.txt on Debug mode, please check console log bellow"
 				echo "================================================================================="
 				echo ""
-				echo "$OUTPUT"
+				cat ./Debug.txt
 				echo "---------------------------------------------------------------------------------"
 				exit -1
-			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
-				exec 2>&1
+			elif cat ./Debug.txt | grep "make\: \*\*\* \[all\] Error" &> /dev/null; then
 				warning "fail build on Debug mode, please check console log bellow"
 				echo "================================================================================="
 				echo ""
-				echo "$OUTPUT"
+				cat ./Debug.txt
 				echo "---------------------------------------------------------------------------------"
 				exit -1
 			fi
+		}
 
-			exec 2>&-
-			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Release $ROOT 2>&1 | tee /dev/fd/2)"
-
-			if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
-				exec 2>&1
+		function show_output_of_building_on_release() {
+			if cat ./Release.txt | grep "CMakeError.log" &> /dev/null; then
 				warning "fail configure CMakeLists.txt on Release mode, please check console log bellow"
 				echo "================================================================================="
 				echo ""
-				echo "$OUTPUT"
+				cat ./Release.txt
 				echo "---------------------------------------------------------------------------------"
 				exit -1
-			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
-				exec 2>&1
+			elif cat ./Release.txt | grep "make\: \*\*\* \[all\] Error" &> /dev/null; then
 				warning "fail build on Release mode, please check console log bellow"
 				echo "================================================================================="
 				echo ""
-				echo "$OUTPUT"
+				cat ./Release.txt
 				echo "---------------------------------------------------------------------------------"
 				exit -1
 			fi
-		fi
-	
-		exec 2>&-
-		OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Sanitize $ROOT 2>&1 | tee /dev/fd/2)"
+		}
 
-		if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
-			exec 2>&1
-			warning "fail configure CMakeLists.txt on Sanitize mode, please check console log bellow"
-			echo "================================================================================="
-			echo ""
-			echo "$OUTPUT"
-			echo "---------------------------------------------------------------------------------"
-			exit -1
-		elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
-			exec 2>&1
-			warning "fail build on Release mode, please check console log bellow"
-			echo "================================================================================="
-			echo ""
-			echo "$OUTPUT"
-			echo "---------------------------------------------------------------------------------"
-			exit -1
-		fi
+		function show_output_of_building_on_sanitize() {
+			if cat ./Sanitize.txt | grep "CMakeError.log" &> /dev/null; then
+				warning "fail configure CMakeLists.txt on Sanitize mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				cat ./Sanitize.txt
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			elif cat ./Sanitize.txt | grep "make\: \*\*\* \[all\] Error" &> /dev/null; then
+				warning "fail build on Release mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				cat ./Sanitize.txt
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			fi
+		}
 
-		if [[ $MODE -ne 1 ]]; then
-			exec 2>&-
-			OUTPUT="$(CONFIGURE=$BUILD $BASE/Tools/Utilities/$CMAKE Coverage $ROOT 2>&1 | tee /dev/fd/2)"
-
-			if [[ $(grep "CMakeError.log" <<< "$OUTPUT") ]]; then
-				exec 2>&1
+		function show_output_of_building_on_coverage() {
+			if cat ./Coverage.txt | grep "CMakeError.log" &> /dev/null; then
 				warning "fail configure CMakeLists.txt on Coverage mode, please check console log bellow"
 				echo "================================================================================="
 				echo ""
-				echo "$OUTPUT"
+				cat ./Coverage.txt
 				echo "---------------------------------------------------------------------------------"
 				exit -1
-			elif [[ $(grep "make\: \*\*\* \[all\] Error" <<< "$OUTPUT" ) ]]; then
-				exec 2>&1
+			elif cat ./Coverage.txt | grep "make\: \*\*\* \[all\] Error" &> /dev/null; then
 				warning "fail build on Coverage mode, please check console log bellow"
 				echo "================================================================================="
 				echo ""
-				echo "$OUTPUT"
+				cat ./Coverage.txt
 				echo "---------------------------------------------------------------------------------"
 				exit -1
-			elif [[ $MODE -eq 0 ]]; then
-				exec 2>&1
+			fi
+		}
+
+		function trap_faulty_builds() {
+		     for JOB in `jobs -p`; do
+			     wait ${JOB} || RET=$?
+
+			     if [[ $RET -eq 0 ]]; then
+				     continue
+			     elif [[ $JOB -eq $DEBUG_PID ]]; then
+				     show_output_of_building_on_debug
+			     elif [[ $JOB -eq $RELEASE_PID ]]; then
+				     show_output_of_building_on_release
+			     elif [[ $JOB -eq $SANITIZE_PID ]]; then
+				     show_output_of_building_on_sanitize
+			     elif [[ $JOB -eq $COVERAGE_PID ]]; then
+				     show_output_of_building_on_coverage
+			     fi
+		     done												 
+	    	}
+
+		trap trap_faulty_builds CHLD  # trap command is the key part
+		wait
+
+		if [[ $MODE -ne 1 ]]; then
+			if [[ $MODE -eq 0 ]]; then
 				$BASE/Tools/Utilities/ctest.sh Coverage
 				$BASE/Tools/Utilities/ctest.sh Sanitize
 				CODE=$?
 
 				bash $BASE/Tools/Utilities/coverage.sh .
-				exit $CODE
 			elif [[ $MODE -eq 2 ]]; then
-				exec 2>&1
 				$BASE/Tools/Utilities/ctest.sh Coverage
 				CODE=$?
 
 				if ! bash $BASE/Tools/Utilities/coverage.sh .; then
-					exit -1
-				else
-					exit $CODE
+					CODE=$?
 				fi
 			fi
 		fi
@@ -295,6 +339,8 @@ if [ $(which git) ]; then
 		cd $CURRENT
 		if [ $? != 0 ]; then
 			error "cannot jump to $CURRENT"
+		elif [[ $CODE -ne 0 ]]; then
+			exit $CODE
 		fi
 	fi
 else
