@@ -1,7 +1,9 @@
+#include <Atomic.h>
 #include <Exception.h>
 #include <Macro.h>
 #include <Monitor.h>
 #include <Logcat.h>
+#include <Lock.h>
 #include <Vertex.h>
 
 #define INIT 0
@@ -13,7 +15,7 @@
 extern "C" {
 typedef struct Pool {
   Void* Pool;
-  Int Status;
+  Int Status, *Referral;
 
   struct {
     Void* Poll;
@@ -101,7 +103,7 @@ class Fildes: public Monitor {
 #if LINUX
         _Run = EPoll(&_Pool, backlog);
 #elif MACOS || BSD
-        _Run = KQueue(&_Pool);
+        _Run = Poll(&_Pool);
 #elif WINDOW
         _Run = Select(&_Pool);
 #else
@@ -128,6 +130,10 @@ class Fildes: public Monitor {
       _Run = dynamic_cast<Fildes*>(Monitor::Head(type))->_Run;
     }
 
+    /* @NOTE: call this guy to increase referral counter to protect our monitors
+     * without corrupting when HEAD is swicthed */
+     OnJoining();
+
     if (type == Monitor::EPipe) {
       _Fallbacks.push_back([&](Auto fd) -> ErrorCodeE {
         if (Internal::IsPipeAlive(fd.Get<Int>())) {
@@ -142,6 +148,7 @@ class Fildes: public Monitor {
      * the polling system only care about the HEAD */
     _Pool.Pool = this;
 
+
     /* @NOTE: build a pair check - indicate to help to translate
      * event -> callbacks */
     Registry(std::bind(&Fildes::OnChecking, this, _1, _2, _3),
@@ -151,18 +158,20 @@ class Fildes: public Monitor {
   ~Fildes() {
     DEBUG(Format("Release lowlevel APIs pointer={}").Apply(ULong(_Pool.ll.Poll)));
 
-    if (_Pool.ll.Poll) {
-      if (_Pool.ll.Release) {
-        if (_Pool.ll.Release(&_Pool, -1)) {
-          WARNING << "It seems the lowlevel poll can't release itself. "
-                    "It may cause memory leak it some point and we can't "
-                     "control it propertly"
-                  << Base::EOL;
-        }
-      }
-
+    if (OnDeparting()) {
       if (_Pool.ll.Poll) {
-        ABI::Free(_Pool.ll.Poll);
+        if (_Pool.ll.Release) {
+          if (_Pool.ll.Release(&_Pool, -1)) {
+            WARNING << "It seems the lowlevel poll can't release itself. "
+                      "It may cause memory leak it some point and we can't "
+                       "control it propertly"
+                    << Base::EOL;
+          }
+        }
+
+        if (_Pool.ll.Poll) {
+          ABI::Free(_Pool.ll.Poll);
+        }
       }
     }
   }
@@ -412,6 +421,31 @@ class Fildes: public Monitor {
   }
 
  private:
+  void OnJoining() {
+    /* @NOTE: we must protect this counter to prevent multi-threads race
+     * condition hit strongly at here */
+
+    dynamic_cast<Fildes*>(Monitor::Head(_Type))->_Lock.Safe([&]() {
+      if (!_Pool.Referral) {
+        _Pool.Referral = (Int*)ABI::Calloc(1, sizeof(Int));
+      }
+    });
+
+    INC(_Pool.Referral);
+  }
+
+  Bool OnDeparting() {
+    if (LIKELY(DEC(_Pool.Referral), 0)) {
+      if (!_Pool.Referral) {
+        ABI::Free(_Pool.Referral);
+      }
+
+      return True;
+    } else {
+      return False;
+    }
+  }
+
   Int IsWaiting(Int socket) {
     return _Read.find(socket) != _Read.end();
   }
@@ -572,6 +606,7 @@ class Fildes: public Monitor {
     return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
   }
 
+  Lock _Lock;
   Map<Int, Auto> _Entries;
   Map<Int, Perform> _Read, _Write;
   Long _Tid;

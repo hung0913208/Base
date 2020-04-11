@@ -31,7 +31,7 @@ typedef struct Context {
 
 typedef struct Pool {
   Void* Pool;
-  Int Status;
+  Int Status, *Referral;
 
   struct {
     Context* Poll;

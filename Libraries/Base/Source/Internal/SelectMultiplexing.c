@@ -28,7 +28,7 @@ typedef fd_set FdSet;
 
 typedef struct Pool {
   Void* Pool;
-  Int Status;
+  Int Status, *Referral;
 
   struct {
     FdSet* Poll;
