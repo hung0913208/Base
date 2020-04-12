@@ -49,6 +49,8 @@ Json::Json(Shared<Stream> stream): _Stream{stream} {
   } catch(Base::Exception& error) {
     error.Ignore();
     _Cached = False;
+  } catch(std::exception& error) {
+    _Cached = False;
   }
 
   _Stages.push(Initial);

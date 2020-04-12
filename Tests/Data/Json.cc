@@ -94,7 +94,7 @@ class FileStream: public Base::Stream{
 TEST(Json, Streaming) {
   Base::Json content{std::make_shared<FileStream>("/tmp/sample.json")};
 
-  //EXPECT_EQ(content(), ENoError);
+  EXPECT_EQ(content(), ENoError);
 }
 
 PREPARE(Json, Streaming) {
