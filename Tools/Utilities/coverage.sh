@@ -203,6 +203,7 @@ expect \"sftp>\" { send \"exit\n\"; interact }
 			cd $CURRENT
 
 			if [ $CODE != 0 ]; then	
+				echo "can't upload coverage successful"
 				exit $CODE
 			fi
 		else

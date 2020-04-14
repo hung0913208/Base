@@ -190,7 +190,9 @@ class Watch {
     Released = 5
   };
 
-  Watch() {
+  Watch(UInt pending = 100) {
+    Pending = pending;
+
     _Main = GetUUID();
     _Status = Unlocked;
     _Size = 0;
@@ -328,6 +330,7 @@ class Watch {
   }
 
   List Stucks;
+  UInt Pending;
 
  private:
   friend Bool Base::Internal::KillStoppers(UInt signal);
@@ -922,9 +925,12 @@ Bool Watch::OnLocking(Stopper* stopper, Function<Void()> actor) {
       /* @NOTE: run `actor` here now and secure it with try-catch */
       if (actor) actor();
 
-      /* @NOTE: good ending and we will recovery the function's status here
-       * after returning the status code */
-      return stopper->IsStatus(Watch::Locked);
+      /* @NOTE: good ending, the actor might lock the current thread for a
+       * certain time and now it's unlocked so we reach here. Thread should
+       * switch to unlocked a bit later when we decrease the number of locking
+       * threads */
+
+      return True;
     } catch(Base::Exception& except) {
       /* @NOTE: we may face an exception related to the lock is locked even if
        * this lock is free. This happens on highloaded system when so many lock
@@ -1140,6 +1146,14 @@ ULong Watch::Optimize(Bool UNUSED(predict), ULong timewait) {
 }
 
 void Watch::Reset() {
+  Vertex<void> escaping{[&](){ Lock(0); }, [&](){
+    for (UInt i = 0; i < sizeof(_Lock)/sizeof(Mutex); ++i) {
+      UNLOCK(&_Lock[i]);
+    }
+
+    UNLOCK(&_Global);
+  }};
+
 #if DEBUGING
   _Stoppers.clear();
 #endif
@@ -1153,15 +1167,19 @@ void Watch::Reset() {
   _Rested = 0;
   _Spawned = 0;
 
-  for (UInt i = 0; i < sizeof(_Lock)/sizeof(Mutex); ++i) {
-    UNLOCK(&_Lock[i]);
-  }
-  UNLOCK(&_Global);
 }
 
 /* @NOTE: this is a place to implement Stopper's methods */
 namespace Implement {
 Int Thread::Status() {
+  auto saved = _Locker;
+
+  if (_Locker) {
+    if (saved->IsStatus(Watch::Locked)) {
+      return Watch::Locked;
+    }
+  }
+    
   return GetThreadStatus(*_Thread);
 }
 
@@ -1316,33 +1334,53 @@ ErrorCodeE Thread::OnUnlocking(Implement::Thread* UNUSED(thread)) {
 
 ErrorCodeE Thread::LockedBy(Stopper* locker) {
   if (!CMPXCHG(&_Locker, locker, _Locker)) {
+    auto i = Watcher->Pending;
+
     /* @NOTE: maybe on high-loading systems, we would see this command repeate
      * a certain time before we are sure that everything is copy completedly.
      * We should consider about the timeout at this stage to prevent hanging
      * issues */
 
-    while (!CMPXCHG(&_Locker, None, locker)) {
+    for (; !CMPXCHG(&_Locker, None, locker) && i > 0; --i) {
       BARRIER();
     }
+
+    if (i) {
+      goto finish;
+    }
+
+    return BadAccess("can\'t assign locker").code();
   }
 
+finish:
   return ENoError;
 }
 
-ErrorCodeE Thread::UnlockedBy(Stopper* UNUSED(stopper)) {
-  /* @NOTE: maybe on high-loading systems, we would see this command repeate
-   * a certain time before we are sure that everything is copy completedly.
-   * We should consider about the timeout at this stage to prevent hanging
-   * issues */
+ErrorCodeE Thread::UnlockedBy(Stopper* locker) {
+  if (CMP(&_Locker, locker)) {
+    auto i = Watcher->Pending;
 
-  if (_Locker) {
-    _Locker =  None;
+    /* @NOTE: maybe on high-loading systems, we would see this command repeate
+     * a certain time before we are sure that everything is copy completedly.
+     * We should consider about the timeout at this stage to prevent hanging
+     * issues */
+
+    for (; !CMPXCHG(&_Locker, locker, None) && i > 0; --i) {
+      BARRIER();
+    }
+
+    if (i) {
+      goto finish;
+    }
+
+    return BadAccess("can\'t remove locker").code();
   } else if (_First) {
     _First = False;
-  } else {
-    return BadAccess("_Locker shouldn\'t be None").code();
+  } else if (!CMP(&_Locker, None)) { 
+    return BadAccess("_Locker isn\'t unlocked by the same lock").code();
   }
 
+finish:
   return ENoError;
 }
 
@@ -1447,13 +1485,14 @@ ErrorCodeE Lock::SwitchTo(Int next) {
 
 ErrorCodeE Lock::OnLocking(Implement::Thread* thread) {
   ErrorCodeE error{ENoError};
+  Bool updated{True};
 
   /* @NOTE: update relationship between this lock and threads which are locked
    * by this mutex */
 
   if ((error = SwitchTo(Watch::Locked))) {
     if (error == EDoNothing) {
-      goto finish;
+      goto lock;
     }
     
     return error;
@@ -1461,18 +1500,20 @@ ErrorCodeE Lock::OnLocking(Implement::Thread* thread) {
 
   if (CMP(&_Count, 1)) {
 lock:
+    updated = error != EDoNothing;
+
     if (thread && (error = thread->LockedBy(this))) {
       return error;
     }
   }
 
-  goto done;
+  if (updated) {
+    goto done;
+  }
 
-finish:
   if (CMP(&_Count, 1)) {
     goto lock;
   }
-
 
 done:
   return ENoError;
@@ -1501,8 +1542,12 @@ ErrorCodeE Lock::OnUnlocking(Implement::Thread* thread) {
    * by this mutex */
 
   if (thread && (error = thread->UnlockedBy(this))) { 
-    if (SwitchTo(Watch::Locked)) {
-      Bug(EBadAccess, "can\'t revert case `Locked -> Waiting`");
+    if ((error = SwitchTo(Watch::Locked))) {
+      if (error != EDoNothing) {
+        Bug(error, "can\'t revert case `Locked -> Waiting`");
+      } else {
+        goto finish;
+      }
     }
 
     return error;
