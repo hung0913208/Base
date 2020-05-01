@@ -6,8 +6,11 @@
 #include <Utils.h>
 
 namespace Base {
+using TimeSpec = struct timespec;
+
 namespace Internal {
 void WatchStopper(Thread& thread);
+void Idle(TimeSpec* spec);
 }  // namespace Internal
 
 Thread::Thread(Bool daemon) : _ThreadId{0}, _Status{Unknown} {
@@ -46,6 +49,8 @@ Thread::Thread(Thread& src) {
 }
 
 Thread::~Thread() {
+  UInt timeout{1}, count{0}, level{2};
+
   if (_Daemon) {
     pthread_join(_ThreadId, None);
   } else if (*_Count == 0) {
@@ -57,9 +62,14 @@ Thread::~Thread() {
       }
     }
 
-    while (True) {
+    while (!CMP(&_Status, Expiring)) {
+      TimeSpec spec{.tv_sec=0, .tv_nsec=0};
+
       while (CMP(&_Status, Unknown) || CMP(&_Status, Initing) ||
              CMP(&_Registering, True)) {
+        timeout *= level;
+        count += 1;
+
         /* @NOTE: we should wait untill the thread is registered completely to
          * avoid unexpected behavious */
 
@@ -67,12 +77,29 @@ Thread::~Thread() {
           pthread_join(_ThreadId, None);
           goto finish;
         }
+
+        /* @NOTE: timeout so we should retry later to prevent stress up so much
+         * to our system */
+
+        if (count >= 10) {
+          break;
+        }
+
+        spec.tv_sec = timeout / ULong(1e9);
+        spec.tv_nsec = timeout % ULong(1e9);
+
+        Internal::Idle(&spec);
         RELAX();
       }
 
-      if (CMPXCHG(&_Registering, False, True)) {
-        /* @NOTE: change the value of _Registering to switch to locking state */
-        break;
+      if (count < 10) {
+        if (CMPXCHG(&_Registering, False, True)) {
+          /* @NOTE: change the value of _Registering to switch to locking state */
+          break;
+        }
+      } else {
+        level *= 2;
+        count = 0;
       }
 
       RELAX();

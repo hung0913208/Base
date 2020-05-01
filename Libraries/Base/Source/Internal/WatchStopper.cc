@@ -187,11 +187,14 @@ class Watch {
     Unlocked = 2,
     Locked = 3,
     Waiting = 4,
-    Released = 5
+    Released = 5,
+    Ceased = 6
   };
 
   Watch(UInt pending = 100) {
     Pending = pending;
+    Exiting = False;
+    Killing = False;
 
     _Main = GetUUID();
     _Status = Unlocked;
@@ -222,6 +225,14 @@ class Watch {
 
     DESTROY(&_Lock[0]);
     DESTROY(&_Lock[1]);
+
+    if (Exiting) {
+    } else {
+      for (auto& item: _Stoppers) {
+        for (auto stopper: std::get<1>(item)) {
+        }
+      }
+    }
   }
 
   /* @NOTE: this function is used to add a stopper to ignoring list */
@@ -331,6 +342,7 @@ class Watch {
 
   List Stucks;
   UInt Pending;
+  Bool Exiting, Killing;
 
  private:
   friend Bool Base::Internal::KillStoppers(UInt signal);
@@ -389,6 +401,19 @@ namespace Summary {
 void WatchStopper() { Watcher->Summary(); }
 }  // namespace Summary
 
+void RemoveWatcherIfNeeded() {
+  if (Watcher->Size() == Watcher->Solved()) {
+    if (Watcher->Count<Implement::Lock>() == 0) {
+      /* @TODO: find a solution to detect how many lock and thread sould be
+       * removed during exiting to notify to user. */
+
+      if (Watcher->Exiting) {
+        delete Watcher;
+      }
+    }
+  }
+}
+
 void WatchStopper(Base::Thread& thread) {
   Watcher->Join(&thread);
 }
@@ -400,12 +425,13 @@ Bool WatchStopper(Base::Lock& lock) {
     }
 
     if (!Watcher) {
-      try {
-        Watcher = new Watch();
-        AtExit([]() { delete Watcher; });
-      } catch (std::bad_alloc&) {
-        return False;
-      }
+      Watcher = new Watch();
+
+      AtExit([](){
+        if (Watcher) {
+          Watcher->Exiting = True; 
+        }
+      });
     }
 
     Register(lock, (Void*)(new Implement::Lock(lock)));
@@ -418,6 +444,8 @@ Bool WatchStopper(Base::Lock& lock) {
 }
 
 void UnwatchStopper(Base::Thread& thread) {
+  Vertex<Void> escaping{[](){}, []() { RemoveWatcherIfNeeded(); }};
+
   Watcher->OnUnregister<Implement::Thread>(thread.Identity(False));
 
 #if DEBUGING
@@ -426,6 +454,8 @@ void UnwatchStopper(Base::Thread& thread) {
 }
 
 Bool UnwatchStopper(Base::Lock& lock) {
+  Vertex<Void> escaping{[](){}, []() { RemoveWatcherIfNeeded(); }};
+
   if (Context(lock)) {
     Watcher->OnUnregister<Implement::Lock>(lock.Identity());
     delete reinterpret_cast<Implement::Lock*>(Context(lock));
@@ -441,8 +471,10 @@ Bool KillStoppers(UInt signal) {
   Bool result{False};
 
   for (auto thread: Watcher->_Threads) {
-    if (!pthread_kill(thread->Identity(), signal)) {
-      result = False;
+    if (UInt(thread->Status()) < UInt(Watch::Released)) {
+      if (!pthread_kill(thread->Identity(), signal)) {
+        result = False;
+      }
     }
   }
 
@@ -578,7 +610,12 @@ void Capture (Void* ptr, Bool status) {
       /* @NOTE: this thread is going to switch to waiting state and will
        * perform solving deadlock if we see it's necessary */
 
-      Watcher->OnLocking<Implement::Thread>(thread, SolveDeadlock);
+      if (!Watcher->Exiting) {
+        if (Watcher->Spawn() != Watcher->Size() || 
+            Watcher->Rest() != Watcher->Size()) {
+          Watcher->OnLocking<Implement::Thread>(thread, SolveDeadlock);
+        }
+      }
     } else {
       /* @NOTO: ending state of the thread, there is not much thing to do here
        * so at least it should be used to notice that we are done the thread
@@ -598,6 +635,10 @@ void Capture (Void* ptr, Bool status) {
 
       if (Watcher->Solved() == Watcher->Size()) {
         Watcher->Reset();
+      }
+      
+      if (!Watcher->Exiting) {
+         RemoveWatcherIfNeeded();
       }
     }
   }
@@ -736,7 +777,6 @@ bugs:
   } else {
     INC(&Watcher->_Rested);
   }
-
   return None;
 }
 
@@ -1057,6 +1097,7 @@ ErrorCodeE Watch::OnWatching(Stopper* stopper) {
 
 ErrorCodeE Watch::OnExpiring(Stopper* stopper) {
   ErrorCodeE error{ENoError};
+  Int status{stopper->Status()};
 
   /* @NOTE: this function is used to switch status of a thread to Released state
    * this status should be the ending phrase of any stopper object. When it's
@@ -1066,8 +1107,6 @@ ErrorCodeE Watch::OnExpiring(Stopper* stopper) {
   if ((error = stopper->SwitchTo(Released))) {
     return error;
   } else {
-    auto status = stopper->Status();
-
     if (Decrease<Implement::Thread>(stopper)) {
       /* @NOTE: the thread is on going to be clear from Watch POV and will be
        * released soon */
@@ -1212,6 +1251,8 @@ Bool Thread::Unlock() {
 ErrorCodeE Thread::SwitchTo(Int next) {
   if (IsStatus(Watch::Released)) {
     return EBadAccess;
+  } else if (IsStatus(Watch::Ceased) && UNLIKELY(Watcher->Main(), GetUUID())) {
+    return EBadLogic;
   } else if (IsStatus(next)) {
     if (LIKELY(next, Watch::Waiting) && LIKELY(Watcher->Main(), GetUUID())) {
       return ENoError;
@@ -1251,6 +1292,7 @@ ErrorCodeE Thread::SwitchTo(Int next) {
         Bug(EBadLogic, "auto-unlock causes by itself");
       } else if (UNLIKELY(status, Watch::Locked) &&
                  UNLIKELY(status, Watch::Waiting) &&
+                 UNLIKELY(status, Watch::Ceased) &&
                  UNLIKELY(status, Watch::Initing)) {
         return EBadAccess;
       } else if (UNLIKELY(GetUUID(), Watcher->Main()) &&
@@ -1281,21 +1323,18 @@ ErrorCodeE Thread::SwitchTo(Int next) {
     break;
 
   case Watch::Waiting:
-    /* @NOTE: Unlocked -> Waiting: only happen at a certain time on main thread
-     * only, and we will trigger SolveDeadlock to watch and reslove any deadlock
-     * situaltions */
-
     if (UNLIKELY(Watcher->Main(), GetUUID())) {
       return BadLogic.code();
     } else if (_Thread) {
       Int status;
 
-      if (UNLIKELY((status = (Int)GetThreadStatus(*_Thread)), Watch::Unlocked)) {
-        if (GetUUID() != _Thread->Identity(True)) {
-          Bug(EBadAccess, Format{"thread {} doesn\'t exist"} << GetUUID());
-        } else {
-          return BadAccess(Format{"Unlocked != {}"} << status).code();
-        }
+     /* @NOTE: Ceased/Unlocked -> Waiting: only happen at a certain time on main
+      * thread only, and we will trigger SolveDeadlock to watch and reslove any
+      * deadlock situaltions */
+
+      if (UNLIKELY((status = (Int)GetThreadStatus(*_Thread)), Watch::Ceased) &&
+          UNLIKELY(status, Watch::Unlocked)) {
+        return BadAccess(Format{"Unlocked != {}"} << status).code();
       }
     } else if (LIKELY(Watcher->Status(), Watch::Locked)) {
       return BadAccess.code();
@@ -1305,10 +1344,13 @@ ErrorCodeE Thread::SwitchTo(Int next) {
     break;
 
   case Watch::Released:
-    /* @NOTE: happen automatically we the thread finish and exit completedly */
+    /* @NOTE: happen automatically we the thread finish and exit completedly,
+     * i'm considering what should i need to do here */
 
-    if (_Thread) {
-      return ENoError;
+    if (UNLIKELY(Watcher->Main(), GetUUID())) {
+      next = Watch::Ceased;
+    } else if (!IsStatus(Watch::Waiting)) {
+      Bug(EBadLogic, "Thread should be on state Waiting before being released");
     }
     break;
 
@@ -1819,7 +1861,7 @@ void DumpWatch(String parameter) {
                   .Apply(Watcher->Count<Implement::Thread>()) << EOL;
     VERBOSE << Format{" - Count<Implement::Lock>() = {}"}
                   .Apply(Watcher->Count<Implement::Lock>()) << EOL; 
-  } else if (parameter == "Stucs.Unlock") {
+  } else if (parameter == "Stucks.Unlock") {
     VERBOSE << Format{" - Spawn() = {}"}.Apply(Watcher->Spawn()) << EOL;
     VERBOSE << Format{" - Size() = {}"}.Apply(Watcher->Size()) << EOL;
     VERBOSE << Format{" - Solved() = {}"}.Apply(Watcher->Solved()) << EOL;

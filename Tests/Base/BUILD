@@ -31,7 +31,10 @@ cc_test(
   srcs = ["Deadlock.cc"],
   deps = [
     "//Libraries/Base:Base",
-    "//Libraries/Unittest:Unittest"
+    "//Libraries/Unittest:Unittest",
+    ":Exception",
+    ":Refcount",
+    ":String"
   ],
   copts=[
     "-std=c++11",
@@ -83,7 +86,9 @@ cc_test(
   srcs = ["Lock.cc"],
   deps = [
     "//Libraries/Base:Base",
-    "//Libraries/Unittest:Unittest"
+    "//Libraries/Unittest:Unittest",
+    ":Deadlock",
+    ":Thread"
   ],
   copts = [
     "-std=c++11",
@@ -187,7 +192,8 @@ cc_test(
   srcs = ["Thread.cc"],
   deps = [
     "//Libraries/Base:Base",
-    "//Libraries/Unittest:Unittest"
+    "//Libraries/Unittest:Unittest",
+    ":Deadlock"
   ],
   copts = [
     "-std=c++11",
