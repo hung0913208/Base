@@ -1,6 +1,10 @@
+#ifndef BASE_LIST_H_
+#define BASE_LIST_H_
+
 #include <Type.h>
 #include <Utils.h>
 
+#if __cplusplus
 namespace Base {
 namespace Debug {
 void DumpWatch(String parameter);
@@ -56,3 +60,5 @@ class List {
   ULong _Size[2], _Parallel, _Count;
 };
 } // namespace Base
+#endif
+#endif  // BASE_TYPE_H_ 
