@@ -134,7 +134,7 @@ if [ $(which git) ]; then
 		if [ -f $ROOT/WORKSPACE ]; then
 			if ! bazel build ...; then
 				CODE=-1
-			elif ! bazel test ...; then
+			elif ! bazel test --test_output=errors ...; then
 				CODE=-1
 			fi
 		fi
