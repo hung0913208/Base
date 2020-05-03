@@ -163,6 +163,7 @@ class Color {
  private:
   ColorCodeE _Code;
   String _Message;
+  Bool _Printed;
 };
 
 class Log : public Stream {

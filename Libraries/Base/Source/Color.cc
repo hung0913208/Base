@@ -35,12 +35,12 @@ namespace Base {
 Color::Color(Color::ColorCodeE code)
     : Message{[&]() -> String& { return _Message; },
               [](String) { throw Exception(ENoSupport); }},
-      _Code{code} {}
+      _Code{code}, _Printed{False} {}
 #else
 Color::Color(Color::ColorCodeE)
     : Message{[&]() -> String& { return _Message; },
               [](String) { throw Exception(ENoSupport); }},
-      _Code{Color::Reset} {}
+      _Code{Color::Reset}, _Printed{False} {}
 #endif
 
 Color::~Color() {
@@ -61,11 +61,14 @@ Color& Color::operator()(String&& message) {
 
 Color& Color::operator<<(String& message) {
   _Message.append(message);
+  _Printed = False;
   return *this;
 }
 
 Color& Color::operator<<(String&& message) {
   _Message.append(message);
+  _Printed = False;
+
   return *this;
 }
 
@@ -86,12 +89,15 @@ void Color::Print(){
 }
 
 void Color::Print(String&& message) {
-  if (message.size() > 0) {
+  if (message.size() > 0 && !_Printed) {
 #if USE_COLOR
-    fprintf(stderr, "\x1B[%lum%s\x1B[0m", (long unsigned int)(_Code), message.c_str());
+    fprintf(stdout, "\x1B[%lum%s\x1B[0m", (long unsigned int)(_Code), message.c_str());
 #else
-    fprintf(stderr, "%s", message.c_str());
+    fprintf(stdout, "%s", message.c_str());
 #endif
   }
+    
+  _Printed = True;
+
 }
 }  // namespace Base
