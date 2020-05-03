@@ -67,7 +67,7 @@ Thread::~Thread() {
 
       while (CMP(&_Status, Unknown) || CMP(&_Status, Initing) ||
              CMP(&_Registering, True)) {
-        timeout *= level;
+        timeout = (timeout * level) % ULong(1e8);
         count += 1;
 
         /* @NOTE: we should wait untill the thread is registered completely to
@@ -85,8 +85,7 @@ Thread::~Thread() {
           break;
         }
 
-        spec.tv_sec = timeout / ULong(1e9);
-        spec.tv_nsec = timeout % ULong(1e9);
+        spec.tv_nsec = timeout;
 
         Internal::Idle(&spec);
         RELAX();

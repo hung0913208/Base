@@ -1725,8 +1725,12 @@ void SolveDeadlock() {
 
   while (Watcher->Spawn() != Watcher->Size() || 
          Watcher->Rest() != Watcher->Size()) {
+    Bool probing = False;
+
     if (LIKELY(Watcher->Count<Implement::Thread>(), 0)) {
       goto again;
+    } else {
+      probing = True;
     }
 
     if (Watcher->Count<Implement::Lock>() >
@@ -1768,19 +1772,33 @@ void SolveDeadlock() {
 
         timeout *= 10;
       } else {
-        timeout /= 10;
+        timeout = 1;
       }
-    } else {
-      timeout *= 10;
     }
 
 again:
-    /* @NOTE: take a litter bit of time before checking again */
+    if (probing) {
+      /* @NOTE: wait a bit time before checking again before take a long time 
+       * waiting to make sure that we need to do it or not */
 
-    spec.tv_sec = timeout / ULong(1e9);
-    spec.tv_nsec = timeout % ULong(1e9);
+      spec.tv_sec = 0;
+      spec.tv_nsec = 10;
 
-    Internal::Idle(&spec);
+      Internal::Idle(&spec);
+    }
+
+    if (!probing || Watcher->Rest() != Watcher->Size()) {
+      /* @NOTE: take a litter bit of time before checking again, this is long
+       * waiting so we should make sure that we don't take too much time or we
+       * will face performance drop during testing  */
+
+      timeout = timeout % ULong(1e9 * 1);
+
+      spec.tv_sec = timeout / ULong(1e9);
+      spec.tv_nsec = timeout % ULong(1e9);
+
+      Internal::Idle(&spec);
+    }
   }
 }
 
