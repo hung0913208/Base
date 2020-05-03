@@ -72,12 +72,18 @@ static inline UShort XCHG16(Void *ptr, UShort x) {
 #define REL(P) XCHG((P), 0)
 #endif
 
-/* @NOTE: generic atomic functions */
-#define CMP(P, O) CMPXCHG((P), (O), *(P))
-#define MCOPY(D, O, S) memcpy((D), (O), (S))
-
 #ifndef BARRIER
 /* @NOTE: Compile read-write barrier */
 #define BARRIER() asm volatile("": : :"memory")
 #endif  // BARRIER
+
+/* @NOTE: generic atomic functions */
+#define CMP(P, O) CMPXCHG((P), (O), *(P))
+#define MCOPY(D, O, S)      \
+  {                         \
+    BARRIER();              \
+    memcpy((D), (O), (S));  \
+    BARRIER();              \
+  }
+
 #endif  // BASE_ATOMIC_H_
