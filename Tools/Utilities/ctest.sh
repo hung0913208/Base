@@ -172,7 +172,7 @@ else:
 		fi
 
 		if [[ -f "$COREFILE" ]]; then
-			gdb -c "$COREFILE" "$FILE" -ex "bt" -ex "set pagination 0" -batch;
+			gdb -c "$COREFILE" "$FILE" -ex "thread apply all bt" -ex "set pagination 0" -batch;
 			compress_coredump $COREFILE $FILE "$(pwd)/$(git rev-parse --verify HEAD).zip"
 
 			if [ -f "$(pwd)/$(git rev-parse --verify HEAD).zip" ]; then
