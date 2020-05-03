@@ -58,6 +58,13 @@ CString BSFormat(String format, ...);
 #else
 CString BSCut(CString sample, Char sep, Int position);
 CString BSFormat(CString format, ...);
+
+Mutex* BSCreateMutex();
+Void BSDestroyMutex(Mutex* locker);
+
+Bool BSIsMutexLocked(Mutex* locker);
+Bool BSLockMutex(Mutex* locker);
+Bool BSUnlockMutex(Mutex* locker);
 #endif
 
 #if __cplusplus

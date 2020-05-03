@@ -18,6 +18,13 @@
 #include <errno.h>
 #include <unistd.h>
 
+namespace Base {
+namespace Internal {
+Mutex* CreateMutex();
+Void RemoveMutex(Mutex* locker);
+} // namespace Internal
+} // namespace Base
+
 extern "C" Int BSReadFromFileDescription(Int fd, Bytes buffer, UInt size) {
   UInt total_size = 0;
 
@@ -225,6 +232,26 @@ extern "C" void BSLog(String message) { Base::Error{message}; }
 
 extern "C" CString BSCut(CString sample, Char sep, Int position){
   return strdup(Base::Cut(String{sample}, sep, position).data());
+}
+
+extern "C" Bool BSIsMutexLocked(Mutex* locker) {
+  return Base::Locker::IsLocked(*locker);
+}
+
+extern "C" Bool BSLockMutex(Mutex* locker) {
+  return Base::Locker::Lock(*locker);
+}
+
+extern "C" Bool BSUnlockMutex(Mutex* locker) {
+  return Base::Locker::Unlock(*locker);
+}
+
+extern "C" Mutex* BSCreateMutex() {
+  return Base::Internal::CreateMutex();
+}
+
+extern "C" Void BSDestroyMutex(Mutex* locker) {
+  Base::Internal::RemoveMutex(locker);
 }
 
 namespace Base {
