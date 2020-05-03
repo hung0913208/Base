@@ -1,5 +1,17 @@
 #!/bin/bash
 
+if which cgdb &> /dev/null; then
+	GDB=$(which cgdb)
+elif which gdb &> /dev/null; then
+	GDB=$(which gdb)
+else
+	exit -1
+fi
+
+for PID in $(ps -aux | grep "valgrind\|gdbserver" | grep -v "grep\|debug.sh" | awk '{ print $2 }'); do
+	kill -9 $PID
+done
+
 if [[ $# == 3 ]] && [[ ! -f ./ngrok ]]; then
 	export NGROK_AUTHTOKEN=$3
 
@@ -24,10 +36,10 @@ if [ -z $NGROK_AUTHTOKEN ]; then
 		# @NOTE: perform debug with gdbserver
 		gdbserver localhost:1234 ./$2 &>/dev/null
 	elif [ $1 == "valgrind" ]; then
-		# @NOTE: perform debug with valgrind and cgdb, please don't use it on CI
+		# @NOTE: perform debug with valgrind and gdb/cgdb, please don't use it on CI
 
 		(valgrind --tool=memcheck --leak-check=full  --vgdb=full --vgdb-error=0 ./$2 &>/dev/null) & \
-			(sleep 5 && cgdb -ex 'target remote | vgdb')
+			(sleep 5 && $GDB -ex 'target remote | vgdb')
 
 		pkill --signal 9 -f /usr/bin/valgrind.bin
 	else
