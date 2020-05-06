@@ -503,11 +503,17 @@ detach:
           goto finish;
         }
 
-        MLocks[_Type]->Safe([&]() {
-          if (CMP(&(Head(_Type)->_Next), this)) {
-            MCOPY(&(Head(_Type)->_Next), &_Next, sizeof(_Next));
-          }
-        });
+        if (!is_latest) {
+          /* @NOTE: we only do this code if we aren't the lastest one on the
+           * group recently to prevent defer to a NULL pointer here which is
+           * caused by the step `clean` bellow */
+
+          MLocks[_Type]->Safe([&]() {
+            if (CMP(&(Head(_Type)->_Next), this)) {
+              MCOPY(&(Head(_Type)->_Next), &_Next, sizeof(_Next));
+            }
+          });
+        }
       } else {
         Notice(EBadLogic, Format{"Still have {} pending job(s)"}.Apply(_Using));
       }
