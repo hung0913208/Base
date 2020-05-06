@@ -45,12 +45,14 @@ TEST(DeadLock, ReuseStopper0) {
     /* @NOTE: the problem is very simple, we use a locked lock without checking
      * its status and the UI-Thread is stuck when these threads join */
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start([i, locks, &counter]() {
+      auto done = threads[i].Start([i, locks, &counter]() {
         (locks[i])();
         INC(&counter);
       });
 
-      EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      if (done) {
+        EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      }
 
       if (threads[i].Status() != Base::Thread::Initing) {
         EXPECT_NEQ(threads[i].Identity(), ULong(0));

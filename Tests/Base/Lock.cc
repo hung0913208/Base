@@ -252,7 +252,7 @@ TEST(Lock, Slowdown0) {
     Base::Thread threads[NUM_OF_THREAD];
 
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start([i, lock, &counter, &storage]() {
+      auto done = threads[i].Start([i, lock, &counter, &storage]() {
         Base::Vertex<Void> escaping{[&](){ lock(); }, [&](){ lock(); }};
         usleep(rand()%100 + 1);
 
@@ -261,7 +261,9 @@ TEST(Lock, Slowdown0) {
         INC(&counter);
       });
 
-      EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      if (done) {
+        EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      }
 
       if (threads[i].Status() != Base::Thread::Initing) {
         EXPECT_NEQ(threads[i].Identity(), ULong(0));
@@ -301,7 +303,7 @@ TEST(Lock, Slowdown1) {
     Base::Thread threads[NUM_OF_THREAD];
 
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start([i, lock, &counter, &storage]() {
+      auto done = threads[i].Start([i, lock, &counter, &storage]() {
         Base::Vertex<Void> escaping{[&](){ lock(True); }, [&](){ lock(False); }};
         usleep(rand()%100 + 1);
 
@@ -310,7 +312,9 @@ TEST(Lock, Slowdown1) {
         INC(&counter);
       });
 
-      EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      if (done) {
+        EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      }
 
       if (threads[i].Status() != Base::Thread::Initing) {
         EXPECT_NEQ(threads[i].Identity(), ULong(0));
@@ -350,7 +354,7 @@ TEST(Lock, Slowdown2) {
     Base::Thread threads[NUM_OF_THREAD];
 
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start([i, &lock, &counter, &storage]() {
+      auto done = threads[i].Start([i, &lock, &counter, &storage]() {
         lock.Safe([&]() {
           usleep(rand()%100 + 1);
 
@@ -360,7 +364,9 @@ TEST(Lock, Slowdown2) {
         });
       });
 
-      EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      if (done) {
+        EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      }
 
       if (threads[i].Status() != Base::Thread::Initing) {
         EXPECT_NEQ(threads[i].Identity(), ULong(0));
@@ -399,7 +405,7 @@ TEST(Lock, Random) {
     Base::Thread threads[NUM_OF_THREAD];
 
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start([i, lock, &counter]() {
+      auto done = threads[i].Start([i, lock, &counter]() {
         Bool flag = rand()%2 == 1;
 
         Base::Vertex<Void> escaping{[&](){ lock(flag); }, [&](){ lock(!flag); }};
@@ -408,7 +414,9 @@ TEST(Lock, Random) {
         INC(&counter);
       });
 
-      EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      if (done) {
+        EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      }
 
       if (threads[i].Status() != Base::Thread::Initing) {
         EXPECT_NEQ(threads[i].Identity(), ULong(0));
