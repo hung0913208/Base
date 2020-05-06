@@ -114,7 +114,9 @@ cc_test(
   srcs = ["Popen.cc"],
   deps = [
     "//Libraries/Base:Base",
-    "//Libraries/Unittest:Unittest"
+    "//Libraries/Unittest:Unittest",
+    ":Thread",
+    ":Lock",
   ],
   copts = [
     "-std=c++11",

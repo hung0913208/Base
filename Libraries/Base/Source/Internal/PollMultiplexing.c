@@ -1,8 +1,12 @@
+#define USE_MUTEX_DEBUG 1
+#include <Atomic.h>
 #include <Macro.h>
 #include <Logcat.h>
 #include <Type.h>
+#include <Utils.h>
 
 #if LINUX
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -25,6 +29,7 @@ enum Mode {
 typedef struct pollfd Event;
 
 typedef struct Context {
+  Mutex* mutex;
   Event* events;
   Int nevents, size;
 } Context;
@@ -43,28 +48,34 @@ typedef struct Pool {
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
-  Int (*Heartbeat)(Void* ptr, Int socket);
+  Int (*Heartbeat)(Void* ptr, Int* socket);
   Int (*Remove)(Void* ptr, Int socket);
   Int (*Flush)(Void* ptr, Int socket);
+  Int (*Run)(struct Pool*, Int, Int);
+  Context* (*Build)(struct Pool* pool);
 } Pool;
 
-typedef Int (*Run)(Pool*, Int, Int);
+typedef Int (*Handler)(Pool*, Int, Int);
+
+Context* PollBuild(Pool* pool);
 
 Int PollAppend(void* ptr, Int socket, Int mode){
   Context* poll = (struct Context*)(ptr);
-  Int index = 0;
+  Int index = 0, result = 0;
 
   if (mode != EWaiting && mode != ELooping) {
     return Error(ENoSupport, "append only support EWaiting and ELooping");
   }
 
+  BSLockMutex(poll->mutex);
+
   index = poll->nevents;
 
   if (!poll->events) {
-    poll->events = (Event*)malloc(poll->nevents*sizeof(Event));
+    poll->events = (Event*)malloc(sizeof(Event));
 
     if (!poll->events) {
-      return Error(EDrainMem, "when use malloc to append socket");
+      result = Error(EDrainMem, "when use malloc to append socket");
     }
 
     poll->size = 1;
@@ -73,7 +84,7 @@ Int PollAppend(void* ptr, Int socket, Int mode){
     Event* tmp = (Event*)malloc(sizeof(Event)*(poll->nevents + 1));
 
     if (!tmp) {
-      return Error(EDrainMem, "when use realloc to append socket");
+      result = Error(EDrainMem, "when use realloc to append socket");
     }
 
     /* @NOTE: it seems realloc can't duplicate memory to tmp as i expected */
@@ -81,10 +92,16 @@ Int PollAppend(void* ptr, Int socket, Int mode){
     free(poll->events);
 
     poll->events = tmp;
-    poll->size++;
-    poll->nevents++;
+    INC(&poll->size);
+    INC(&poll->nevents);
   } else {
-    poll->nevents++;
+    INC(&poll->nevents);
+  }
+
+  BSUnlockMutex(poll->mutex);
+
+  if (result) {
+    return result;
   }
 
   poll->events[index].fd = socket;
@@ -109,6 +126,8 @@ Int PollModify(void* ptr, Int socket, Int mode){
       continue;
     }
 
+    BSLockMutex(poll->mutex);
+
     if (mode == EWaiting) {
       poll->events[index].events = POLLIN | POLLPRI | POLLHUP;
     } else if (mode == ELooping) {
@@ -120,9 +139,10 @@ Int PollModify(void* ptr, Int socket, Int mode){
         poll->events[next - 1] = poll->events[next];
       }
 
-      poll->nevents--;
+      DEC(&poll->nevents);
     }
 
+    BSUnlockMutex(poll->mutex);
     return 0;
   }
 
@@ -151,19 +171,44 @@ Int PollProbe(Void* ptr, Int socket, Int mode) {
 }
 
 Int PollRelease(void* ptr, Int socket) {
-  Int error, fidx;
+  Int error, fidx, result;
   Pool* pool = (Pool*)ptr;
   Context* context = (Context*)pool->ll.Poll;
 
-  if (socket < 0) {
-    for (fidx = 0; fidx < context->nevents; ++fidx) {
-      if ((error = PollRelease(ptr, context->events[fidx].fd))) {
-        return error;
-      }
+  result = 0;
+
+  if (socket < 0) { 
+    if (pool->Status != RELEASING) { 
+      pool->Status = RELEASING;
+    } else {
+      goto finish;
     }
 
+    BSLockMutex(context->mutex);
+
+    for (fidx = 0; fidx < context->nevents; ++fidx) {
+      BSUnlockMutex(context->mutex);
+
+      if ((error = PollRelease(ptr, context->events[fidx].fd))) {
+        if (!result) {
+          result = error;
+        }
+      }
+
+      BSLockMutex(context->mutex);
+    }
+
+    /* @NOTE: it's safe to remove this mutex here since we have remove everything
+     * completedly */
+    
+    BSUnlockMutex(context->mutex);
+    BSDestroyMutex(context->mutex);
+
+    /* @NOTE: we can remove the poll's objects here since every fd is closed and
+     * the mutex is destroy */
+
     free(pool->ll.Poll->events);
-    free(pool->ll.Poll);
+
   } else if (!(error = pool->Remove(pool, socket))) {
     if (!(error = pool->ll.Modify(context, socket, EReleasing))) {
       close(socket);
@@ -174,27 +219,11 @@ Int PollRelease(void* ptr, Int socket) {
     return error;
   }
 
-  return 0;
-}
-
-Context* PollBuild(Pool* pool) {
-  Context* result = (Context*) malloc(sizeof(Context));
-
-  if (!result) {
-    return None;
-  } else {
-    memset(result, 0, sizeof(Context));
-  }
-
-  pool->ll.Release = PollRelease;
-  pool->ll.Modify = PollModify;
-  pool->ll.Probe = PollProbe;
-  pool->ll.Append = PollAppend;
-
+finish:
   return result;
 }
 
-Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
+Int PollHandler(Pool* pool, Int timeout, Int UNUSED(backlog)) {
   Context* context;
   Int error = 0;
 
@@ -216,15 +245,19 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
     Int fidx = 0, nevent = 0;
 
     nevent = poll(context->events, context->nevents, timeout);
+    BSLockMutex(context->mutex);
+
     for (fidx = 0; fidx < context->nevents; ++fidx) {
       Int fd = context->events[fidx].fd;
       Int ev = context->events[fidx].revents;
 
-      if (!ev) continue;
+      BSUnlockMutex(context->mutex);
+
+      if (!ev) goto finish1;
       if (!(ev & (POLLOUT | POLLIN))) {
         if (pool->Flush) {
           if (pool->Flush(pool, fd)) {
-            continue;
+            goto finish1;
           }
         }
 
@@ -276,30 +309,40 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
         }
       } while (ev & (POLLIN | POLLOUT));
 
-      if ((error = pool->Heartbeat(pool, fd))) {
+      if ((error = pool->Heartbeat(pool, &fd))) {
         if (pool->Flush) {
           if (pool->Flush(pool, fd)) {
-            continue;
+            goto finish1;
           }
         }
 
         if ((error = pool->ll.Release(pool, fd))) {
-          pool->Status = PANICING;
-          break;
+          /* @TODO: well it seem we release a closed fd so we might face this
+           * issue recently so we don't need to care about it too much but we
+           * should provide something to handle this case */
         }
       }
+
+      continue;
+finish1:
+      BSLockMutex(context->mutex);
     }
+
+    BSUnlockMutex(context->mutex);
 
     if (nevent == 0) {
       Int cidx = 0;
 
+      BSLockMutex(context->mutex);
+
       for(; cidx < context->nevents; ++cidx) {
         Int fd = context->events[cidx].fd;
 
-        if ((error = pool->Heartbeat(pool, fd))) {
+        BSUnlockMutex(context->mutex);
+        if ((error = pool->Heartbeat(pool, &fd))) {
           if (pool->Flush) {
             if (pool->Flush(pool, fd)) {
-              continue;
+              goto finish2;
             }
           }
 
@@ -308,32 +351,65 @@ Int PollRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
             break;
           }
         }
+        
+finish2:
+        BSUnlockMutex(context->mutex);
       }
+
+      BSUnlockMutex(context->mutex);
     }
   } while (pool->Status < RELEASING && pool->Status != INTERRUPTED);
 
   if (pool->Status != INTERRUPTED && pool->Status != INIT) {
-    pool->Status = RELEASING;
-
     for (UInt i = 0; i < context->nevents; ++i) {
       close(context->events[i].fd);
     }
-
-    memset(&pool->ll, 0, sizeof(pool->ll));
-    free(context->events);
-    free(context);
   }
 
   return error;
 }
 
-Run Poll(Pool* pool) {
+Context* PollBuild(Pool* pool) {
+  Context* result;
+
+  if (pool->Status == INIT) {
+    result = (Context*) malloc(sizeof(Context));
+  
+    if (!result) {
+      return None;
+    } else {
+      memset(result, 0, sizeof(Context));
+
+      if (!(result->mutex = BSCreateMutex())) {
+        goto fail;
+      }
+    }
+  } else if (pool->Status == PANICING) {
+    result = pool->ll.Poll;
+  }
+
+  pool->ll.Release = PollRelease;
+  pool->ll.Modify = PollModify;
+  pool->ll.Probe = PollProbe;
+  pool->ll.Append = PollAppend;
+
+  pool->Build = PollBuild;
+  pool->Run = PollHandler;
+
+  return result;
+
+fail:  
+  free(result);
+  return None;
+}
+
+Handler Poll(Pool* pool) {
   if (pool) {
     if (!(pool->ll.Poll =  PollBuild(pool))) {
       return None;
     }
   }
 
-  return (Run)PollRun;
+  return (Handler)PollHandler;
 }
 #endif

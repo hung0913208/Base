@@ -23,8 +23,7 @@ enum Mode {
 };
 
 typedef struct kevent Kevent;
-
-typedef Int (*Run)(Pool*, Int, Int);
+typedef Int (*Handler)(Pool*, Int, Int);
 
 typedef struct Context {
   Kevent* events;
@@ -45,10 +44,14 @@ typedef struct Pool {
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
-  Int (*Heartbeat)(Void* ptr, Int socket);
+  Int (*Heartbeat)(Void* ptr, Int* socket);
   Int (*Remove)(Void* ptr, Int socket);
   Int (*Flush)(Void* ptr, Int socket);
+  Int (*Run)(struct Pool*, Int, Int);
+  Context* (*Build)(struct Pool* pool);
 } Pool;
+
+Context* KqueueBuild(Pool* pool);
 
 enum ErrorCodeE KqueueAppend(Void* ptr, Int socket, Int mode) {
   Context* poll = (struct Context*)(ptr);
@@ -128,28 +131,7 @@ enum ErrorCodeE KqueueRelease(void* ptr, Int socket){
   return reason;
 }
 
-Context* KqueueBuild(Pool* pool) {
-  Context* result = (Context*)malloc(sizeof(Context));
-
-  memset(result, 0, sizeof(Context));
-  pool->ll.Release = KqueueRelease;
-  pool->ll.Modify = KqueueModify;
-  pool->ll.Append = KqueueAppend;
-
-  result->fd = -1;
-  result->events = (Kevent*)malloc(sizeof(Kevent)*pool->MaxEvents);
-
-  if (!result->events) {
-    return result;
-  } else if ((result->fd = kqueue()) == -1) {
-    return result;
-  } else {
-    pool->ll.Poll = result;
-  }
-  return result;
-}
-
-Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
+Int KqueueHandler(Pool* pool, Int timeout, Int backlog) {
   Context* poll;
 
   if (!pool->ll.Poll) {
@@ -204,7 +186,7 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
           }
 
           goto checking;
-        } else if (pool->Heartbeat && pool->Heartbeat(pool, fd)) {
+        } else if (pool->Heartbeat && pool->Heartbeat(pool, &fd)) {
           if (pool->Flush) {
             if (pool->Flush(pool, fd)) {
               continue;
@@ -265,7 +247,7 @@ Int KqueueRun(Pool* pool, Int timeout, Int backlog) {
 
         /* @NOTE: check heartbeat again to keep in track that the socket has been
          * closed or not */
-        if (pool->Heartbeat && pool->Heartbeat(pool, fd)) {
+        if (pool->Heartbeat && pool->Heartbeat(pool, &fd)) {
           if ((error = pool->ll.Release(pool, fd))) {
             pool->Status = PANICING;
             break;
@@ -282,23 +264,52 @@ checking:
     } while (pool->Status < RELEASING && pool->Status != INTERRUPTED);
   }
 
-  /* @NOTE: release the epoll's fd */
-  if (pool->Status != INTERRUPTED && pool->Status != INIT) {
-    pool->Status = RELEASING;
-
-    memset(&pool->ll, 0, sizeof(pool->ll));
-    close(poll->fd);
-    free(poll->events);
-  }
-
   return ENoError;
 }
 
-Run KQueue(Pool* pool){
+Context* KqueueBuild(Pool* pool) {
+  Context* result;
+  
+  if (pool->Status == INIT) {
+    result = (Context*)malloc(sizeof(Context));
+
+    memset(result, 0, sizeof(Context));
+  } else if (pool->Status == PANICING) {
+    result = pool->ll.Poll;
+  } else {
+    return pool->ll.Poll;
+  }
+
+  pool->ll.Release = KqueueRelease;
+  pool->ll.Modify = KqueueModify;
+  pool->ll.Append = KqueueAppend;
+
+  pool->Build = KqueueBuild;
+  pool->Run = KqueueHandler;
+
+  if (pool->Status == INIT) {
+    result->events = (Kevent*)malloc(sizeof(Kevent)*pool->MaxEvents);
+  } else {
+    close(result->fd);
+  }
+
+  result->fd = -1;
+
+  if (!result->events) {
+    return result;
+  } else if ((result->fd = kqueue()) == -1) {
+    return result;
+  } else {
+    pool->ll.Poll = result;
+  }
+  return result;
+}
+
+Handler KQueue(Pool* pool){
   if (pool) {
     if (!(pool->ll.Poll =  KqueueBuild(pool))) {
       return None;
     }
   }
-  return (Run)KqueueRun; }
+  return (Handler)KqueueHandler; }
 #endif

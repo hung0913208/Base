@@ -21,8 +21,4 @@ void Idle(TimeSpec* spec) {
   nanosleep(spec, None);
 }
 } // namespace Internal
-
-ErrorCodeE Monitor::Reroute(Monitor* UNUSED(child), Auto UNUSED(fd), Perform& UNUSED(callback)) {
-	return ENoSupport;
-}
 } // namespace Base

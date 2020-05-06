@@ -40,12 +40,16 @@ typedef struct Pool {
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
-  Int (*Heartbeat)(Void* ptr, Int socket);
+  Int (*Heartbeat)(Void* ptr, Int* socket);
   Int (*Remove)(Void* ptr, Int socket);
   Int (*Flush)(Void* ptr, Int socket);
+  Int (*Run)(struct Pool*, Int, Int);
+  FdSet* (*Build)(struct Pool* pool);
 } Pool;
 
-typedef Int (*Run)(Pool*, Int, Int);
+typedef Int (*Handler)(Pool*, Int, Int);
+
+FdSet* SelectBuild(Pool* pool);
 
 Int SelectAppend(Void* ptr, Int socket, Int mode) {
   FdSet* fds = (FdSet*)(ptr);
@@ -96,18 +100,7 @@ Int SelectRelease(void* ptr, Int socket){
   return ENoError;
 }
 
-FdSet* SelectBuild(Pool* pool) {
-  FdSet* result = (FdSet*)malloc(sizeof(FdSet));
-
-  FD_ZERO(result);
-  pool->ll.Release = SelectRelease;
-  pool->ll.Modify = SelectModify;
-  pool->ll.Append = SelectAppend;
-
-  return result;
-}
-
-Int SelectRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
+Int SelectHandler(Pool* pool, Int timeout, Int UNUSED(backlog)) {
   FdSet* context = None;
   Int error = ENoError;
 
@@ -160,7 +153,7 @@ Int SelectRun(Pool* pool, Int timeout, Int UNUSED(backlog)) {
 
         /* @NOTE: check heartbeat again to keep in track that the socket has been
          * closed or not */
-        if (pool->Heartbeat && (error = pool->Heartbeat(pool, fd))) {
+        if (pool->Heartbeat && (error = pool->Heartbeat(pool, &fd))) {
           if (pool->Flush) {
             if (pool->Flush(pool, fd)) {
               continue;
@@ -185,28 +178,43 @@ checking:
   if (pool->Status != INTERRUPTED && pool->Status != INIT) {
     Int fd = 0;
 
-    pool->Status = RELEASING;
     for (; fd < FD_SETSIZE; ++fd) {
       if (FD_ISSET (fd, context)) {
-        if ((error = pool->ll.Release(pool, fd))) {
-          pool->Status = PANICING;
-          break;
-        }
+        pool->ll.Release(pool, fd);
       }
     }
-
-    memset(&pool->ll, 0, sizeof(pool->ll));
-    free(context);
   }
 
   return pool->Status != INTERRUPTED? ENoError: error;
 }
 
-Run Select(Pool* pool){
+FdSet* SelectBuild(Pool* pool) {
+  FdSet* result;
+ 
+  if (pool->Status == INIT) {
+    result = (FdSet*)malloc(sizeof(FdSet));
+  } else if (pool->Status == PANICING) {
+    result = pool->ll.Poll;
+  } else {
+    return pool->ll.Poll;
+  }
+
+  FD_ZERO(result);
+
+  pool->ll.Release = SelectRelease;
+  pool->ll.Modify = SelectModify;
+  pool->ll.Append = SelectAppend;
+
+  pool->Build = SelectBuild;
+  pool->Run = SelectHandler;
+  return result;
+}
+
+Handler Select(Pool* pool){
   if (pool) {
     if (!(pool->ll.Poll =  SelectBuild(pool))) {
       return None;
     }
   }
 
-  return (Run)SelectRun; }
+  return (Handler)SelectHandler; }

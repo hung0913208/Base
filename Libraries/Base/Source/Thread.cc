@@ -67,7 +67,7 @@ Thread::~Thread() {
 
       while (CMP(&_Status, Unknown) || CMP(&_Status, Initing) ||
              CMP(&_Registering, True)) {
-        timeout = (timeout * level) % ULong(1e8);
+        timeout = (timeout * level) % ULong(1e9);
         count += 1;
 
         /* @NOTE: we should wait untill the thread is registered completely to

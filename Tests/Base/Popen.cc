@@ -1,10 +1,14 @@
 #include <Auto.h>
+#include <Atomic.h>
 #include <Monitor.h>
+#include <Thread.h>
 #include <Unittest.h>
 #include <Utils.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
+
+#define NUM_OF_THREAD 10
 
 using namespace Base;
 
@@ -270,8 +274,71 @@ TEST(Popen, Exec) {
   } while (!WIFEXITED(status) && !WIFSIGNALED(status));
 }
 
+TEST(Popen, Threads) {
+  auto count_of_reading_fork = 0;
+  auto perform = [&]() {
+    Base::Vertex<void> escaping{[](){ Base::Log::Disable(EError, -1); },
+                                [](){ Base::Log::Enable(EError, -1); }};
+    Base::Thread threads[NUM_OF_THREAD];
+
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      threads[i].Start([&]() {
+        Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
+        Fork fork{[]() -> Int {
+          const CString args[] = {"/bin/cat", "/tmp", None};
+
+          execv(args[0], (CString const*)args);
+          return -1;
+        }};
+
+        monitor->Trigger(Auto::As(fork),
+          [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
+        
+          while (True) {
+            Char buf[512];
+            UInt len = read(fd.Get<Int>(), buf, 512);
+
+            DEBUG(Format{"receive {} bytes"}.Apply(len));
+          
+            if(len <= 0) {
+              break;
+            }
+
+            buf[len] = '\0';
+
+          }
+
+          return ENoError;
+        });
+
+        EXPECT_EQ(monitor->Loop(
+          [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
+          ENoError);
+              
+        INC(&count_of_reading_fork);
+      });
+    }
+  };
+
+  CRASHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+    Base::Debug::DumpWatch("Stucks.Unlock");
+  });
+
+  FINISHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+    Base::Debug::DumpWatch("Stucks.Unlock");
+  });
+
+  TIMEOUT(100, { perform(); });
+  // EXPECT_EQ(count_of_reading_fork, NUM_OF_THREAD);
+
+}
+
 int main(){
-  Base::Log::Level() = EDebug;
+  //Base::Log::Level() = EDebug;
   return RUN_ALL_TESTS();
 }
 

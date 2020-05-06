@@ -26,7 +26,7 @@ typedef struct epoll_event Event;
 
 typedef struct Context {
   Event* events;
-  Int fd, nevent;
+  Int fd, nevent, backlog;
 } Context;
 
 typedef struct Pool {
@@ -43,12 +43,16 @@ typedef struct Pool {
   } ll;
 
   Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
-  Int (*Heartbeat)(Void* ptr, Int socket);
+  Int (*Heartbeat)(Void* ptr, Int* socket);
   Int (*Remove)(Void* ptr, Int socket);
   Int (*Flush)(Void* ptr, Int socket);
+  Int (*Run)(struct Pool*, Int, Int);
+  Context* (*Build)(struct Pool* pool);
 } Pool;
 
-typedef Int (*Run)(Pool*, Int);
+typedef Int (*Handler)(Pool*, Int);
+
+Context* EpollBuildW(Pool* pool, Int backlog);
 
 Int EpollAppend(void* ptr, Int socket, Int mode){
   Context* poll = (struct Context*)(ptr);
@@ -131,36 +135,11 @@ Int EpollRelease(void* ptr, Int socket) {
   return 0;
 }
 
-Context* EpollBuild(Pool* pool, Int backlog) {
-  Context* result = (Context*) malloc(sizeof(Context));
-
-  if (!result) {
-    return None;
-  } else {
-    memset(result, 0, sizeof(Context));
-  }
-
-  pool->ll.Release = EpollRelease;
-  pool->ll.Modify = EpollModify;
-  pool->ll.Append = EpollAppend;
-  result->fd = -1;
-
-  if (!(result->events = (Event*) malloc(sizeof(Event)*backlog))) {
-    return result;
-  }
-
-  if ((result->fd = epoll_create1(0)) == -1) {
-    return result;
-  }
-
-  return result;
-}
-
-Int EpollRun(Pool* pool, Int timeout, Int backlog) {
+Int EpollHandler(Pool* pool, Int timeout, Int backlog) {
   Context* poll;
 
   if (!pool->ll.Poll) {
-    poll = EpollBuild(pool, backlog);
+    poll = EpollBuildW(pool, backlog);
 
     if (!poll) {
       return Error(EBadAccess, "");
@@ -176,12 +155,13 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
   }
 
   do {
-    Int error = 0, idx = 0, nevent = 0;
+    Int error = 0, idx = 0, nevent = 0, ev = -1, fd = -1;
 
     nevent = epoll_wait(poll->fd, poll->events, backlog, timeout);
+
     for (; idx < nevent; ++idx) {
-      Int fd = poll->events[idx].data.fd;
-      Int ev = poll->events[idx].events;
+      fd = poll->events[idx].data.fd;
+      ev = poll->events[idx].events;
 
       if (ev & (EPOLLERR | EPOLLHUP | ~(EPOLLOUT | EPOLLIN))) {
         if (pool->Flush) {
@@ -237,30 +217,97 @@ Int EpollRun(Pool* pool, Int timeout, Int backlog) {
           }
         }
       } while (ev & (EPOLLIN | EPOLLOUT));
+
+      if ((error = pool->Heartbeat(pool, &fd))) {
+        if (pool->Flush) {
+          if (pool->Flush(pool, fd)) {
+            continue;
+          }
+        }
+
+        if ((error = pool->ll.Release(pool, fd))) {
+          pool->Status = PANICING;
+          break;
+        }
+      }
     }
 
     if (nevent == 0) {
+      do {
+        if ((error = pool->Heartbeat(pool, &fd))) {
+          if (fd >= 0 && pool->Flush) {
+            if (pool->Flush(pool, fd)) {
+              continue;
+            }
+          }
+        }
+      } while (False);
     }
   } while (pool->Status < RELEASING && pool->Status != INTERRUPTED);
 
-  if (pool->Status != INTERRUPTED && pool->Status != INIT) {
-    pool->Status = RELEASING;
-
-    memset(&pool->ll, 0, sizeof(pool->ll));
-    close(poll->fd);
-    free(poll->events);
-    free(poll);
-  }
   return 0;
 }
 
-Run EPoll(Pool* pool, Int backlog){
+Context* EpollBuild(Pool* pool) {
+  if (pool->Status != INIT) {
+    return EpollBuildW(pool, pool->ll.Poll->backlog);
+  } else {
+    return None;
+  }
+}
+
+Context* EpollBuildW(Pool* pool, Int backlog) {
+  Context* result;
+
+  if (pool->Status == INIT) {
+    result = (Context*) malloc(sizeof(Context));
+
+    if (!result) {
+      return None;
+    } else {
+      memset(result, 0, sizeof(Context));
+    }
+  } else if (pool->Status == PANICING) {
+    result = pool->ll.Poll;
+  } else {
+    return pool->ll.Poll;
+  }
+
+  pool->ll.Release = EpollRelease;
+  pool->ll.Modify = EpollModify;
+  pool->ll.Append = EpollAppend;
+
+  pool->Build = EpollBuild;
+  pool->Run = EpollHandler;
+
+  if (pool->Status != INIT) {
+    close(result->fd);
+  }
+
+  result->fd = -1;
+
+  if (pool->Status == INIT) {
+    if (!(result->events = (Event*) malloc(sizeof(Event)*backlog))) {
+      return result;
+    }
+  }
+
+  if ((result->fd = epoll_create1(0)) == -1) {
+    return result;
+  } else {
+    result->backlog = backlog;
+  }
+
+  return result;
+}
+
+Handler EPoll(Pool* pool, Int backlog){
   if (pool) {
-    if (!(pool->ll.Poll =  EpollBuild(pool, backlog))) {
+    if (!(pool->ll.Poll =  EpollBuildW(pool, backlog))) {
       return None;
     }
   }
 
-  return (Run)EpollRun;
+  return (Handler)EpollHandler;
 }
 #endif
