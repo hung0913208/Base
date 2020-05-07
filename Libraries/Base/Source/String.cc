@@ -18,7 +18,7 @@ String::String(Base::String& str) {
 
     if (str._String) {
       _Ref = str._Ref;
-      (*_Ref)++;
+      INC(_Ref);
     } else {
       _Ref = None;
     }
@@ -30,7 +30,7 @@ String::String(Base::String& str) {
       Abort(EDrainMem);
     } else {
       memcpy(_String, str._String, _Size);
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   }
 }
@@ -44,7 +44,7 @@ String::String(Base::String&& str): _Autoclean{True} {
 
     if (str._String) {
       _Ref = str._Ref;
-      (*_Ref)++;
+      INC(_Ref);
     } else {
       _Ref = None;
     }
@@ -56,7 +56,7 @@ String::String(Base::String&& str): _Autoclean{True} {
       Abort(EDrainMem);
     } else {
       memcpy(_String, str._String, _Size);
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   }
 }
@@ -71,7 +71,7 @@ String::String(const Base::String& str): _Autoclean{True} {
 
     if (str._String) {
       _Ref = str._Ref;
-      (*_Ref)++;
+      INC(_Ref);
     } else {
       _Ref = None;
     }
@@ -83,7 +83,7 @@ String::String(const Base::String& str): _Autoclean{True} {
       Abort(EDrainMem);
     } else {
       memcpy(_String, str._String, _Size);
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   }
 }
@@ -97,7 +97,7 @@ String::String(const CString str): _Autoclean{False} {
   if (!_Ref) {
     Abort(EDrainMem);
   } else {
-    *_Ref = 1;
+    SET(_Ref, 1);
   }
 
   _Size = Strlen(const_cast<CString>(str));
@@ -110,7 +110,7 @@ String::String(const CString str, ULong size): _Autoclean{True} {
   if (!_Ref) {
     Abort(EDrainMem);
   } else {
-    *_Ref = 1;
+    SET(_Ref, 1);
     _Size = size;
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
 
@@ -129,7 +129,7 @@ String::String(ULong size, Char c): _Autoclean{True} {
   if (!_Ref) {
     Abort(EDrainMem);
   } else {
-    *_Ref = 1;
+    SET(_Ref, 1);
     _Size = size;
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
 
@@ -252,7 +252,7 @@ Void String::resize(ULong size) {
 
     if (!_Ref) {
       _Ref = (Int*)malloc(sizeof(Int));
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   } else if (size > _Size) {
     /* @NOTE: don't use Realloc reachlessly since it will broken the link between
@@ -274,7 +274,7 @@ Void String::resize(ULong size) {
       _Autoclean = True;
       _String = tmp;
       _Size = size;
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   } else {
     _String[size] = '\0';
@@ -322,7 +322,7 @@ Base::String& String::operator=(Char c) {
 
     if (_Ref) {
       _String[0] = c;
-      *_Ref = 1;
+      SET(_Ref, 1);
     } else {
       Abort(EDrainMem);
     }
@@ -342,7 +342,7 @@ Base::String& String::operator=(Base::String& str) {
 
     if (str._String) {
       _Ref = str._Ref;
-      (*_Ref)++;
+      INC(_Ref);
     } else {
       _Ref = None;
     }
@@ -355,7 +355,7 @@ Base::String& String::operator=(Base::String& str) {
       Abort(EDrainMem);
     } else {
       memcpy(_String, str._String, _Size);
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   }
 
@@ -373,7 +373,7 @@ Base::String& String::operator=(Base::String&& str) {
 
     if (str._String) {
       _Ref = str._Ref;
-      (*_Ref)++;
+      INC(_Ref);
     } else {
       _Ref = None;
     }
@@ -386,7 +386,7 @@ Base::String& String::operator=(Base::String&& str) {
       Abort(EDrainMem);
     } else {
       memcpy(_String, str._String, _Size);
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   }
 
@@ -410,7 +410,7 @@ Base::String& String::operator=(const CString str) {
       Abort(EDrainMem);
     }
 
-    *_Ref = 1;
+    SET(_Ref, 1);
     _Size = len;
     _String = (CString)tmp;
     _Autoclean = True;
@@ -555,7 +555,7 @@ String& String::copy() {
       Abort(EDrainMem);
     } else {
       ABI::Memcpy(_String, tmp, size);
-      *_Ref = 1;
+      SET(_Ref, 1);
     }
   }
   return *this;
