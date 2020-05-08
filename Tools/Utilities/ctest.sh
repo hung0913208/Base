@@ -44,8 +44,12 @@ exec_with_timeout(){
 		TIMEOUT=$1
 	fi
 	NAME=$(basename $2)
+	SUITE=$2
 
-	("$2" >& ./${NAME}.txt || touch "/tmp/$(basename "$2").fail") & PID=$!
+	shift
+	shift
+
+	("$SUITE" $@ >& ./${NAME}.txt || touch "/tmp/${NAME}.fail") & PID=$!
 	(for _ in 0..$1; do
 		if [ ! "$(kill -0 $PID >& /dev/null)" ]; then
 			exit 0;
@@ -62,8 +66,8 @@ exec_with_timeout(){
 	wait $KILLER_PID >& /dev/null
 
 	# @NOTE: check if the fail flag existed
-	if [ -f "/tmp/$(basename "$2").fail" ]; then
-		rm -fr "/tmp/$(basename "$2").fail"
+	if [ -f "/tmp/${NAME}.fail" ]; then
+		rm -fr "/tmp/${NAME}.fail"
 		CODE=1
 	fi
 
@@ -82,10 +86,10 @@ for c in pattern:
 		check = False
 
 		if c == 'e':
-			result += '$(basename "$FILE")'
+			result += '${NAME}'
 			same = False
 		elif c == 'E':
-			result += '!'.join(os.path.realpath('$FILE').split('/'))
+			result += '!'.join(os.path.realpath('${SUITE}').split('/'))
 			same = False
 		elif same is False:
 			result += '*'
@@ -193,6 +197,18 @@ else:
 	fi
 }
 
+secs_to_human() {
+	if [[ -z ${1} || ${1} -lt 60 ]] ;then
+		MIN=0 ; SECs="${1}"
+	else
+		MINs=$(echo "scale=2; ${1}/60" | bc)
+		SECs="0.$(echo ${MINs} | cut -d'.' -f2)"
+		SECs=$(echo ${SECs}*60|bc|awk '{print int($1+0.5)}')
+	fi
+
+	echo "$(echo ${MINs} | cut -d'.' -f1) m ${SECs} s"
+}
+
 if [ "$1" = "Coverage" ]; then
 	unameOut="$(uname -s)"
 	case "${unameOut}" in
@@ -255,22 +271,35 @@ if [ -d "./$1" ]; then
 		echo "=============================================================================="
 
 		FAIL=0
-		if [ "$1" != "Coverage" ] && [ "$1" != "Profiling" ]; then
+		if [ "$1" != "Coverage" ] && [ "$1" != "Profiling" ] && [[ $# -eq 1 ]]; then
 			if ! ctest --verbose --timeout 1; then
 				FAIL=1
 			fi
 		else
 			IDX=0
 			FAILLIST=()
+			SUITELIST=()
 
-			for FILE in ./Tests/*; do
+			if [[ $# -gt 1 ]]; then
+				LIB="$2/"
+			else
+				LIB="."
+			fi
+
+			for FILE in $(ls -1c ./Tests/$LIB); do
+				FILE="./Tests/$LIB/$FILE"
+
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
 					if ! file $FILE | grep "executable\|linked" &> /dev/null; then
 						continue
+					elif [[ $# -gt 2 ]] && [ "$3" != $(basename $FILE) ]; then
+						continue
 					fi
-					
+
 				       	if ! nm -D $FILE | grep main &> /dev/null; then
 						continue
+					else
+						SUITELIST=("${SUITELIST[@]}" "$(basename $FILE)")
 					fi
 
 					IDX=$((IDX+1))
@@ -280,14 +309,37 @@ if [ -d "./$1" ]; then
 					echo "Test command: $FILE"
 					echo ""
 
-					if ! exec_with_timeout -1 $FILE; then
+					START=$(date +%s)
+
+					if [ $1 = 'Debug' ]; then
+						TEMP=$(mktemp -q)
+
+						gdb -ex="set confirm on" -ex=run -ex="thread apply all bt" -ex=quit \
+								--args $FILE | tee $TEMP
+						echo ""
+
+						if ! cat "$TEMP" | grep "exited normally" >& /dev/null; then
+							FAILLIST=("${FAILLIST[@]}" "$(basename $FILE)")
+
+							echo "$IDX/ Test  #$IDX:  .............................   Failed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
+							echo ""
+							FAIL=1		
+						else
+							echo "$IDX/ Test  #$IDX:  .............................   Passed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
+							echo ""
+						fi
+
+						rm -fr $TEMP
+					elif ! exec_with_timeout -1 $FILE --case $4; then
 						FAILLIST=("${FAILLIST[@]}" "$(basename $FILE)")
 
-						echo "$IDX/ Test  #$IDX:  .............................   Failed"
+						echo ""
+						echo "$IDX/ Test  #$IDX:  .............................   Failed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
 						echo ""
 						FAIL=1
 					else
-						echo "$IDX/ Test  #$IDX:  .............................   Passed"
+						echo ""
+						echo "$IDX/ Test  #$IDX:  .............................   Passed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
 						echo ""
 					fi
 				fi
@@ -301,6 +353,17 @@ if [ -d "./$1" ]; then
 					echo "  - $NAME"
 				done
 				echo ""
+			elif [[ ${#SUITELIST} -eq 0 ]]; then
+				echo "it seem you don't have any test suite recently"
+				exit -1
+			fi
+
+			if [[ $# -gt 1 ]]; then
+				if [[ $FAIL -ne 0 ]]; then
+					exit -1
+				else
+					exit 0
+				fi
 			fi
 		fi
 

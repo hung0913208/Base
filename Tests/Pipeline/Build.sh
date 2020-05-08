@@ -15,11 +15,38 @@ else
 	MODE=0
 fi
 
+if [[ $# -gt 0 ]]; then
+	TYPE=$3
+fi
+
 info "You have run on machine ${machine} script ${SCRIPT}"
 info "Your current dir now is $(pwd)"
 if [ $(which git) ]; then
 	# @NOTE: jump to branch's test suite and perform build
 	ROOT="$(git rev-parse --show-toplevel)"
+
+	if [[ ${#TYPE} -gt 0 ]]; then
+		cd $ROOT/build || error "can't cd to $ROOT/build"
+
+		if [ $TYPE = 'Coverage' ]; then
+			cat > $ROOT/Tests/Pipeline/Report.sh << EOF
+cd $ROOT/build && $ROOT/Tools/Utilities/coverage.sh
+EOF
+
+			chmod +x $ROOT/Tests/Pipeline/Report.sh
+		fi
+
+		if ! $ROOT/Tools/Utilities/reinstall.sh $TYPE >& ./${TYPE}.txt; then
+			error """can't build with mod $TYPE, here is the log:
+-------------------------------------------------------------------------------
+
+$(cat ./${TYPE}.txt)
+"""
+		fi
+
+		info "Congratulation, you have passed ${SCRIPT}"
+		exit 0
+	fi
 
 	if [[ $# -gt 0 ]]; then
 		PROJECT=$1

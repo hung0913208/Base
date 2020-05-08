@@ -63,58 +63,92 @@ fi
 if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 	BEGIN=$(date +%s)
 	LOG="$ROOT/Logs"
+	CODE=0
 
 	if [ ! -d $LOG ]; then
 		mkdir -p $LOG
 	fi
 
-	cat "./repo.list" | while read -r DEFINE; do
-		SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
-		STEP="${SPLITED[1]}"
-		ISSUE="${SPLITED[0]}"
-		REPO="${SPLITED[2]}"
-		SPEC="${SPLITED[3]}"
-		INTERVIEW="${SPLITED[4]}"
-		AUTH="${SPLITED[5]}"
-		COMMIT="${SPLITED[6]}"
-		REVS="${SPLITED[7]}"
-		IDX=0
-		CODE=0
+	while [ 1 ]; do
+		cat "./repo.list" | while read -r DEFINE; do
+			SPLITED=($(echo "$DEFINE" | tr ' ' '\n'))
+			STEP="${SPLITED[1]}"
+			ISSUE="${SPLITED[0]}"
+			REPO="${SPLITED[2]}"
+			SPEC="${SPLITED[3]}"
+			INTERVIEW="${SPLITED[4]}"
+			AUTH="${SPLITED[5]}"
+			COMMIT="${SPLITED[6]}"
+			REVS="${SPLITED[7]}"
+			IDX=0
 
-		"$PIPELINE/Libraries/Reproduce.sh" clone "$ISSUE" "$REPO" "$ROOT" "$SPEC" "$AUTH" "$COMMIT" "$REVS"
-		if [ $? != 0 ]; then
-			CODE=$?
-			continue
-		elif [ -d "$ROOT/.reproduce.d/$ISSUE" ]; then
-			FOUND=0
-			
-			if ! "$PIPELINE/Libraries/Reproduce.sh" prepare "$ISSUE" "$ROOT"; then
-				warning "Fail on preparing the issue $ISSUE"
+			if [ -f $ROOT/.reproduce.d/${ISSUE}.txt ]; then
+				IDX=$(cat $ROOT/.reproduce.d/${ISSUE}.txt)
+			fi
+		
+			if [[ $IDX -ge $STEP ]] || [[  $STEP -lt 0 ]] || [[ $IDX -lt 0 ]]; then
+				rm -fr "$ROOT/.reproduce.d/$ISSUE"
 				continue
+			elif [ -f $ROOT/.reproduce.d/${ISSUE}.txt ]; then
+				echo -1 > $ROOT/.reproduce.d/${ISSUE}.txt
 			fi
 
-			while [[ $IDX -lt $STEP ]] || [[  $STEP -lt 0 ]]; do
-				progress $IDX "Preproducing ->"
+			"$PIPELINE/Libraries/Reproduce.sh" clone "$ISSUE" "$REPO" "$ROOT" "$SPEC" "$AUTH" "$COMMIT" "$REVS"
+
+			if [ $? != 0 ]; then
+				CODE=$?
+				continue
+			elif [ -d "$ROOT/.reproduce.d/$ISSUE" ]; then
+				FOUND=0
 				
-				if [ $FOUND = 0 ]; then
+				MOD=$(python -c "print(\"$ISSUE\".split(\"_\")[0])") >& /dev/null
+
+				if [ $? != 0 ]; then
+					error "not found issue $ISSUE"
+				elif [ ! -f $ROOT/.reproduce.d/${ISSUE}.txt ]; then
+					if ! "$PIPELINE/Libraries/Reproduce.sh" prepare "$ISSUE" "$ROOT" $MOD; then
+						CODE=$?
+						continue
+					else
+						echo -1 > $ROOT/.reproduce.d/${ISSUE}.txt
+					fi
+				fi
+	
+				progress $IDX "Preproducing ->"
+
+				LIB=$(python -c "print(\"$ISSUE\".split(\"_\")[1])") >& /dev/null
+				if [ $? != 0 ]; then
+					error "not found issue $ISSUE"
+				fi
+	
+				SUITE=$(python -c "print(\"$ISSUE\".split(\"_\")[2].lower())") >& /dev/null
+				if [ $? != 0 ]; then
+					error "not found issue $ISSUE"
+				fi
+	
+				CASE=$(python -c "print(\"$ISSUE\".split(\"_\")[3])") >& /dev/null
+				if [ $? != 0 ]; then
+					error "not found issue $ISSUE"
+				fi	
+	
+				if [[ $FOUND -eq 0 ]]; then
 					rm -fr "$LOG/$ISSUE"
 					touch "$LOG/$ISSUE"
 				fi
-
+	
 				"$PIPELINE/Libraries/Reproduce.sh" inject "$ISSUE" "$ROOT" "$CODE"
 				if [ $? != 0 ]; then
 					error "fait to inject reproducing scripts"
 				fi
 
-				"$PIPELINE/Libraries/Reproduce.sh" reproduce "$ISSUE" "$ROOT" "$LOG/$ISSUE" 
+				"$PIPELINE/Libraries/Reproduce.sh" reproduce "$ISSUE" "$ROOT" "$LOG/$ISSUE" "$LIB" "$SUITE" "$CASE"
 				CODE=$?
 
 				if [ $CODE != 0 ]; then
 					"$PIPELINE/Libraries/Reproduce.sh" verify "$ISSUE" "$ROOT" "$LOG/$ISSUE" "$CODE"
-
+	
 					if [ $? != 0 ]; then
 						FOUND=1
-						break
 					else
 						echo ' fail' | tr -d '\n'
 					fi
@@ -123,59 +157,81 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 				fi
 
 				END=$(date +%s)
-
+	
 				if [[ ${#TIMEOUT} -gt 0 ]] && [[ $((END-BEGIN)) -gt $TIMEOUT ]]; then
-					break
+					exit 0
 				else
 					IDX=$((IDX+1))
 				fi
-			done
 
-			if [ $FOUND != 0 ]; then
-				if [ $(wc -l "$LOG/$ISSUE" | awk '{ print $1 }') -gt 10000 ]; then
-					echo " success. The log looks too big to be showing on console Please check your storage"
-				else
-					echo " success. Here is the log:"
-					echo ""
-					cat "$LOG/$ISSUE"
-				fi
+				echo $IDX > $ROOT/.reproduce.d/${ISSUE}.txt
 
-				if [[ $INTERVIEW =~ 'ftp://' ]]; then
-					RPATH=$(python -c "print(\"/\".join(\"$INTERVIEW\".split('/')[3:]))")
-					HOST=$(python -c "print(\"$INTERVIEW\".split('@')[1].split('/')[0])")
-					USER=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[0])")
-					PASSWORD=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[1].split('@')[0])")
+				if [ $FOUND != 0 ]; then
+					if [ $(wc -l "$LOG/$ISSUE" | awk '{ print $1 }') -gt 10000 ]; then
+						echo " success. The log looks too big to be showing on console Please check your storage"
+					else
+						echo " success. Here is the log:"
+						echo ""
+						cat "$LOG/$ISSUE"
+					fi
 	
-					lftp $HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no;" <<EOF
+					if [[ $INTERVIEW =~ 'ftp://' ]]; then
+						RPATH=$(python -c "print(\"/\".join(\"$INTERVIEW\".split('/')[3:]))")
+						HOST=$(python -c "print(\"$INTERVIEW\".split('@')[1].split('/')[0])")
+						USER=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[0])")
+						PASSWORD=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[1].split('@')[0])")
+		
+						lftp $HOST -u $USER,$PASSWORD -e "set ftp:ssl-allow no;" <<EOF
 put -O $RPATH $LOG/$ISSUE
 EOF
 
-				else
-					echo "---------------------------------------------------------------------------------"
-					echo ""
-					echo ""
-					$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$INTERVIEW"
-				fi
-	
-				if [ ! -e "$ROOT/BUG" ]; then
-					touch "$ROOT/BUG"
+					else
+						echo "---------------------------------------------------------------------------------"
+						echo ""
+						echo ""
+						$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$INTERVIEW"
+					fi
+			
+					$PIPELINE/Libraries/Reproduce.sh report "$ISSUE" "$ROOT" "$LOG/$ISSUE" $MOD
+
+					if [ ! -e "$ROOT/BUG" ]; then
+						touch "$ROOT/BUG"
+						break
+					fi
 				fi
 			else
-				echo ''
+				warning "Fail on preparing the issue $ISSUE"
 			fi
+		done
 
-			$PIPELINE/Libraries/Reproduce.sh report "$ISSUE" "$ROOT" "$LOG/$ISSUE"
-		else
-			warning "Fail on preparing the issue $ISSUE"
+		COUNT=0
+
+		if [ ! -d $ROOT/.reproduce.d ]; then
+			break
 		fi
-		
-		END=$(date +%s)
 
-		rm -fr "$ROOT/.reproduce.d/$ISSUE"
-		if [[ ${#TIMEOUT} -gt 0 ]] && [[ $((END-BEGIN)) -gt $TIMEOUT ]]; then
+		for NAME in $(ls -1c $ROOT/.reproduce.d/); do
+			if [ -d $ROOT/.reproduce.d/$NAME ]; then
+				COUNT=$((COUNT+1))
+			fi
+		done
+
+		if [[ $COUNT -eq 0 ]] || [ -e $ROOT/BUG ]; then
 			break
 		fi
 	done
+fi
+
+COUNT=0
+
+for NAME in $(ls -1c $ROOT/.reproduce.d/); do
+	if [ -f $ROOT/.reproduce.d/$NAME ]; then
+		COUNT=$((COUNT+1))
+	fi
+done
+
+if [[ $COUNT -eq 0 ]] || [ -e $ROOT/BUG ]; then
+	echo ''
 fi
 
 if [ "$CODE" != 0 ]; then

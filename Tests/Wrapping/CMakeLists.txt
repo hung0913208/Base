@@ -1,6 +1,5 @@
 include_directories(${CMAKE_SOURCE_DIR}/Libraries/Base
 		    ${CMAKE_SOURCE_DIR}/Libraries/Base/Type
-		    ${CMAKE_SOURCE_DIR}/Libraries/Data
 		    ${CMAKE_SOURCE_DIR}/Libraries/Unittest
 		    ${CMAKE_SOURCE_DIR}/Libraries/Unittest/Implement
 		    ${CMAKE_SOURCE_DIR}/Libraries/Wrapping
@@ -23,11 +22,17 @@ if (PYTHONLIBS_FOUND)
 	set(LANGUAGE_LIBRARIES ${LANGUAGE_LIBRARIES} ${PYTHON_LIBRARIES})
 endif()
 
-add_subdirectory(Base)
-add_subdirectory(Data)
-add_subdirectory(Unittest)
+# @NOTE: define test cases from Wrapping
+add_executable(function ${CMAKE_CURRENT_SOURCE_DIR}/Function.cc)
+add_library(hello SHARED ${CMAKE_CURRENT_SOURCE_DIR}/Hello.cc)
 
-if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT CMAKE_BUILD_TYPE STREQUAL "Profiling")
-	add_subdirectory(Wrapping)
-endif()
+target_link_libraries(function base data unittest wrapping ${LANGUAGE_LIBRARIES})
+target_link_libraries(hello base wrapping unittest ${LANGUAGE_LIBRARIES})
 
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Hello.py 
+	DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+add_test(NAME hello COMMAND bash -c "cd ${CMAKE_CURRENT_BINARY_DIR} && /usr/bin/python3 ./Hello.py")
+add_test(NAME function COMMAND ${CMAKE_CURRENT_BINARY_DIR}/function)
+
+set_tests_properties(hello PROPERTIES TIMEOUT 200)

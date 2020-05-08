@@ -34,7 +34,7 @@ else
 fi
 
 IFS=$'\n'
-ISSUEs=($(git log --format=%B -n 1 HEAD | grep " Ignored "))
+ISSUEs=($(git log --format=%B -n 1 HEAD | grep " Issue " | sed -n 's/^ Issue //p'))
 IFS=$SAVE
 
 if [[ ${#ISSUEs} -eq 0 ]]; then
@@ -230,8 +230,15 @@ function plan() {
 		shift
 	done
 
-	for ISSUE in ${ISSUEs[@]}; do
-		HOOK="$HOOK echo '$ISSUE 100000 $REPOSITORY $BRANCH ${FTP}' >> ./repo.list;"
+	for ITEM in ${ISSUEs[@]}; do
+		ISSUE=$(echo $ITEM | awk '{ print $1 }')
+		STEPs=$(echo $ITEM | awk '{ print $2 }')
+
+		if [[ ${#STEPs} -eq 0 ]]; then
+			STEPs=10000
+		fi
+
+		HOOK="$HOOK echo '$ISSUE $STEPs $REPOSITORY $BRANCH ${FTP}' >> ./repo.list;"
 	done
 	HOOK="$HOOK\\\""
 

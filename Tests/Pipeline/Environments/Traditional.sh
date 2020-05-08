@@ -20,8 +20,13 @@ else
 	PIPELINE="$(dirname $0)"
 fi
 
-source $PIPELINE/Libraries/Logcat.sh
-source $PIPELINE/Libraries/Package.sh
+if [ $(basename $PIPELINE) = "Environments" ]; then
+	source $PIPELINE/../Libraries/Logcat.sh
+	source $PIPELINE/../Libraries/Package.sh
+else
+	source $PIPELINE/Libraries/Logcat.sh
+	source $PIPELINE/Libraries/Package.sh
+fi
 
 SCRIPT="$(basename "$0")"
 
@@ -93,6 +98,11 @@ elif [ "$METHOD" = "prepare" ]; then
 
 	WORKSPACE=$2
 	BASE="$(detect_libbase $WORKSPACE)"
+
+	if [ -d $WORKSPACE/build ]; then
+		exit 0
+	fi
+
 	mkdir -p "$WORKSPACE/build"
 
 	# @NOTE: if we found ./Tests/Pipeline/prepare.sh, it can prove
@@ -104,9 +114,9 @@ elif [ "$METHOD" = "prepare" ]; then
 			error "Fail repo $REPO/$BRANCH"
 		else
 			if [ $BASE = $WORKSPACE ]; then
-				$WORKSPACE/Tests/Pipeline/Build.sh Base 2
+				$WORKSPACE/Tests/Pipeline/Build.sh Base 2 $3
 			else
-				$WORKSPACE/Tests/Pipeline/Build.sh $(basename $WORKSPACE 2)
+				$WORKSPACE/Tests/Pipeline/Build.sh $(basename $WORKSPACE 2) $3
 			fi
 
 			if [ $? != 0 ]; then
@@ -123,7 +133,12 @@ elif [ "$METHOD" = "test" ]; then
 		cd ./build
 
 		for SPEC in ./*; do
-			$PIPELINE/../../Tools/Utilities/ctest.sh $(basename $SPEC) &> $3
+			if [ -f $SPEC ]; then
+				continue
+			fi
+
+			$PIPELINE/../../Tools/Utilities/ctest.sh $(basename $SPEC) $4 $5 $6 &> $3
+
 			CODE=$?
 
 			if [[ $CODE -ne 0 ]]; then
@@ -136,7 +151,7 @@ elif [ "$METHOD" = "test" ]; then
 	else
 		exit -1
 	fi
-
+	
 	exit $CODE
 elif [ "$METHOD" = "inject" ]; then
 	SCREEN=$2

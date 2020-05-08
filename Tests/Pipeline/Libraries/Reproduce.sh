@@ -36,6 +36,8 @@ if [ "$1" = "clone" ]; then
 
 	if [ ! -d "$ROOT/.reproduce.d" ]; then
 		mkdir -p "$ROOT/.reproduce.d"
+	elif [ -d "$ROOT/.reproduce.d/$ISSUE" ]; then
+		exit 0
 	fi
 
 	git clone "$REPO" "$ROOT/.reproduce.d/$ISSUE"
@@ -218,7 +220,7 @@ elif [ "$1" = "prepare" ]; then
 		CURRENT=$(pwd)
 
 		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
-		"$LIBRARIES/../Environment.sh" "prepare" "$ROOT/.reproduce.d/$ISSUE"
+		"$LIBRARIES/../Environment.sh" "prepare" "$ROOT/.reproduce.d/$ISSUE" $4
 		CODE=$?
 
 		cd $CURRENT || error "can't cd to $CURRENT"
@@ -307,7 +309,8 @@ elif [ "$1" = "reproduce" ]; then
 		CURRENT=$(pwd)
 
 		cd $ROOT/.reproduce.d/$ISSUE || error "can't cd to $ROOT/.reproduce.d/$ISSUE"
-		"$LIBRARIES/../Environment.sh" "test" "$ROOT/.reproduce.d/$ISSUE" "$4"
+
+		"$LIBRARIES/../Environment.sh" "test" "$ROOT/.reproduce.d/$ISSUE" "$4" "$5" "$6" "$7"
 		CODE=$?
 
 		cd $CURRENT || error "can't cd to $CURRENT"
