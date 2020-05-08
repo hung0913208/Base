@@ -14,10 +14,7 @@ static Map<UInt, Monitor*> Currents;
 static Map<UInt, Pair<UInt, UInt>> Counters;
 static Map<UInt, Pair<Monitor*, Monitor*>> Monitors;
 static Map<UInt, Bool (*)(String, UInt, Monitor**)> Builders;
-static Vertex<Mutex, True> GSecure([](Mutex* mutex) { Locker::Lock(*mutex); },
-                                   [](Mutex* mutex) { Locker::Unlock(*mutex); },
-                                   CreateMutex());
-static Vertex<Mutex, True> ISecure([](Mutex* mutex) { Locker::Lock(*mutex); },
+static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
                                    [](Mutex* mutex) { Locker::Unlock(*mutex); },
                                    CreateMutex());
 
@@ -31,7 +28,7 @@ Monitor::Monitor(String name, UInt type): _Name{name}, _Type{type},
     _Attached{False}, _Detached{False} { 
   using namespace Internal;
 
-  GSecure.Circle([&]() {
+  Secure.Circle([&]() {
     if (Counters.find(_Type) == Counters.end()) {
       Counters[_Type] = Pair<UInt, UInt>(0, 0);
     }
@@ -68,7 +65,7 @@ Monitor::~Monitor() {
 ErrorCodeE Monitor::Append(Auto fd, Int mode) {
   using namespace Internal;
 
-  Vertex<Mutex, False> UNUSED(guranteer) = GSecure.generate();
+  Vertex<Mutex, False> UNUSED(guranteer) = Secure.generate();
   Vertex<void> escaping{[&]() { Monitors[_Type].Left = this; },
                         [&]() { Monitors[_Type].Left = None; }};
 
@@ -84,7 +81,7 @@ ErrorCodeE Monitor::Append(Auto fd, Int mode) {
 ErrorCodeE Monitor::Modify(Auto fd, Int mode) {
   using namespace Internal;
 
-  Vertex<Mutex, False> UNUSED(guranteer) = GSecure.generate();
+  Vertex<Mutex, False> UNUSED(guranteer) = Secure.generate();
   Vertex<void> escaping{[&]() { Monitors[_Type].Left = this; },
                         [&]() { Monitors[_Type].Left = None; }};
 
@@ -152,7 +149,7 @@ ErrorCodeE Monitor::Status(String name) {
   using namespace Internal;
 
   if (name == "active") {
-    auto UNUSED(guranteer) = GSecure.generate();
+    auto UNUSED(guranteer) = Secure.generate();
 
     return Monitors[_Type].Left == this? ENoError: EInterrupted;
   } else {
@@ -354,7 +351,7 @@ Void Monitor::Devote() {
 
   MLocks[_Type]->Safe([&]() {
     if (head == None) {
-      GSecure.Circle([&]() { 
+      Secure.Circle([&]() { 
         Monitors[_Type].Right = this; 
         Currents[_Type] = this;
 
@@ -368,7 +365,7 @@ Void Monitor::Devote() {
       _Children = head->_Children;
       _Index = _Children->Add(this);
 
-      GSecure.Circle([&]() { 
+      Secure.Circle([&]() { 
         _PPrev = &Currents[_Type];
         Currents[_Type] = this;
 
@@ -381,10 +378,9 @@ Void Monitor::Devote() {
 Void Monitor::Attach() {
   using namespace Internal;
 
-  auto UNUSED(guranteer) = GSecure.generate();
+  auto UNUSED(guranteer) = Secure.generate();
   auto is_new_one = Monitors.find(_Type) == Monitors.end();
   auto thiz = this;
-
 
   if (_Attached) {
     goto finish;
@@ -435,7 +431,7 @@ finish:
 Void Monitor::Detach() {
   using namespace Internal;
 
-  auto UNUSED(guranteer) = GSecure.generate();
+  auto UNUSED(guranteer) = Secure.generate();
   auto is_child = False;
   auto is_latest = DEC(&Counters[_Type].Right) == 0;
 
@@ -646,8 +642,6 @@ Bool Monitor::IsHead(UInt type, Monitor* sample) {
   if (Internal::Monitors.find(type) == Internal::Monitors.end()) {
     return False;
   } else {
-    auto UNUSED(guranteer) = Internal::ISecure.generate();
-
     return CMP(&Internal::Monitors[type].Right, sample);
   }
 }
@@ -656,7 +650,7 @@ Monitor* Monitor::Head(UInt type) {
   Monitor* result{None};
 
   if (Internal::Monitors.find(type) != Internal::Monitors.end()) {
-    Internal::ISecure.Circle([&]() {
+    Internal::MLocks[type]->Safe([&]() {
       result = Internal::Monitors[type].Right;
     });
   }
@@ -680,7 +674,7 @@ ErrorCodeE Monitor::_Append(Auto UNUSED(fd), Int UNUSED(mode)) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::ISecure.Circle([&]() {
+    Internal::MLocks[_Type]->Safe([&]() {
       _Pipeline.push_back(Monitor::Action{EAppend, fd, mode});
     });
     return ENoError;
@@ -691,7 +685,7 @@ ErrorCodeE Monitor::_Modify(Auto fd, Int mode) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::ISecure.Circle([&]() {
+    Internal::MLocks[_Type]->Safe([&]() {
       _Pipeline.push_back(Monitor::Action{EModify, fd});
     });
     return ENoError;
@@ -702,7 +696,7 @@ ErrorCodeE Monitor::_Find(Auto UNUSED(fd)) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::ISecure.Circle([&]() {
+    Internal::MLocks[_Type]->Safe([&]() {
       _Pipeline.push_back(Monitor::Action{EFind, fd});
     });
     return ENoError;
@@ -713,7 +707,7 @@ ErrorCodeE Monitor::_Remove(Auto UNUSED(fd)) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::ISecure.Circle([&]() {
+    Internal::MLocks[_Type]->Safe([&]() {
       _Pipeline.push_back(Monitor::Action{ERemove, fd});
     });
     return ENoError;
