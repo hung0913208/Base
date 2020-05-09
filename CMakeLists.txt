@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 2.4 FATAL_ERROR)
 project(LibBase)
 
-option(BUILD_WITH_FSANITIZE "Build with Sanitizing mode" "Memory")
 option(BUILD_STATIC_EXEC "Build the execution" OFF)
 option(BUILD_TESTS "Build the test suite" ON)
+option(BUILD_WITH_MEMORY_SANITIZE "Build with memory sanitize" OFF)
+option(BUILD_WITH_THREAD_SANITIZE "Build with thread sanitize" OFF)
+option(BUILD_WITH_ADDRESS_SANITIZE "Build with address sanitize" ON)
 
 # @NOTE: add our custom module
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
@@ -82,15 +84,15 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
 	add_cxx_compiler_flag(-g3)
 	add_c_compiler_flag(-g3)
 
-	if(BUILD_WITH_FSANITIZE STREQUAL "Memory")
+	if(BUILD_WITH_MEMORY_SANITIZE)
 		add_cxx_compiler_flag(-fsanitize=memory)
 		add_cxx_compiler_flag(-fsanitize-memory-track-origins=2)
 		add_c_compiler_flag(-fsanitize=memory)
 		add_c_compiler_flag(-fsanitize-memory-track-origins=2)
-	elseif(BUILD_WITH_FSANITIZE STREQUAL "Address")
+	elseif(BUILD_WITH_ADDRESS_SANITIZE)
 		add_cxx_compiler_flag(-fsanitize=address)
 		add_c_compiler_flag(-fsanitize=address)
-	elseif(BUILD_WITH_FSANITIZE STREQUAL "Thread")
+	elseif(BUILD_WITH_THREAD_SANITIZE)
 		add_cxx_compiler_flag(-fsanitize=thread)
 		add_c_compiler_flag(-fsanitize=thread)
 	endif()
@@ -121,7 +123,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	# using Visual Studio C++
 endif()
 
-add_definitions(-DUSE_STD_STRING=0)
+add_definitions(-DUSE_STD_STRING=1)
 
 add_subdirectory(Libraries/Base)
 add_subdirectory(Libraries/Data)

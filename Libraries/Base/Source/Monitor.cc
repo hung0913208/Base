@@ -9,14 +9,21 @@ namespace Base {
 namespace Internal {
 Mutex* CreateMutex();
 
-static Map<UInt, Shared<Lock>> MLocks;
-static Map<UInt, Monitor*> Currents;
-static Map<UInt, Pair<UInt, UInt>> Counters;
+static Map<UInt, Lock> MLocks;
 static Map<UInt, Pair<Monitor*, Monitor*>> Monitors;
 static Map<UInt, Bool (*)(String, UInt, Monitor**)> Builders;
 static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
                                    [](Mutex* mutex) { Locker::Unlock(*mutex); },
                                    CreateMutex());
+
+void CreateIfNeeded(UInt type) {
+  Secure.Circle([&]() {
+    if (Monitors.find(type) == Monitors.end()) {
+      Monitors[type] = Pair<Monitor*, Monitor*>(None, None);
+      MLocks[type] = Lock();
+    }
+  });
+}
 
 namespace Fildes {
 Bool Create(String name, UInt type, Int system, Monitor** result);
@@ -24,17 +31,9 @@ Bool Create(String name, UInt type, Int system, Monitor** result);
 } // namespace Internal
 
 Monitor::Monitor(String name, UInt type): _Name{name}, _Type{type}, 
-    _Shared{None}, _PPrev{None}, _Next{None}, _State{0}, _Using{0},
-    _Attached{False}, _Detached{False} { 
-  using namespace Internal;
-
-  Secure.Circle([&]() {
-    if (Counters.find(_Type) == Counters.end()) {
-      Counters[_Type] = Pair<UInt, UInt>(0, 0);
-    }
-
-    INC(&Counters[_Type].Left);
-  });
+    _Shared{None}, _PNext{None}, _PLast{None}, _Head{None}, _Last{None}, 
+    _Next{None}, _Prev{None},  _State{0}, _Using{0}, _Attached{False}, 
+    _Detached{False} { 
 }
 
 Monitor::~Monitor() {
@@ -55,19 +54,10 @@ Monitor::~Monitor() {
       Bug(EBadLogic, "can\'t detach our Monitor as expected");
     }
   }    
-
-  /* @NOTE: we decrease this counter because this is used to statistic how many
-   * Monitor are existed inside the system */
-
-  DEC(&Counters[_Type].Left);
 }
 
 ErrorCodeE Monitor::Append(Auto fd, Int mode) {
   using namespace Internal;
-
-  Vertex<Mutex, False> UNUSED(guranteer) = Secure.generate();
-  Vertex<void> escaping{[&]() { Monitors[_Type].Left = this; },
-                        [&]() { Monitors[_Type].Left = None; }};
 
   if (_Find(fd)) {
     return _Append(fd, mode);
@@ -80,10 +70,6 @@ ErrorCodeE Monitor::Append(Auto fd, Int mode) {
 
 ErrorCodeE Monitor::Modify(Auto fd, Int mode) {
   using namespace Internal;
-
-  Vertex<Mutex, False> UNUSED(guranteer) = Secure.generate();
-  Vertex<void> escaping{[&]() { Monitors[_Type].Left = this; },
-                        [&]() { Monitors[_Type].Left = None; }};
 
   if (!_Find(fd)) {
     return _Modify(fd, mode);
@@ -99,20 +85,11 @@ ErrorCodeE Monitor::Find(Auto fd) {
 ErrorCodeE Monitor::Remove(Auto fd) {
   using namespace Internal;
 
-  auto result = ENoError;
-
-  MLocks[_Type]->Safe([&]() {
-    Vertex<void> escaping{[&]() { Monitors[_Type].Left = this; },
-                          [&]() { Monitors[_Type].Left = None; }};
-
-    if (!_Find(fd)) {
-      result = _Remove(fd);
-    } else {
-      result = NotFound(Format{"fd {}"} << fd).code();
-    }
-  });
-
-  return result;
+  if (!_Find(fd)) {
+    return _Remove(fd);
+  } else {
+    return NotFound(Format{"fd {}"} << fd).code();
+  }
 }
 
 ErrorCodeE Monitor::Trigger(Auto event, Perform perform) {
@@ -121,16 +98,7 @@ ErrorCodeE Monitor::Trigger(Auto event, Perform perform) {
    * event-callback, the event will be determined by monitor itself and can
    * be perform automatically with the load-balancing system */
 
-  auto result = ENoError;
-
-  MLocks[_Type]->Safe([&]() {
-    Vertex<void> escaping{[&]() { Monitors[_Type].Left = this; },
-                          [&]() { Monitors[_Type].Left = None; }};
-
-    result = _Trigger(event, perform);
-  });
-
-  return result;
+  return _Trigger(event, perform);
 }
 
 void Monitor::Registry(Check check, Indicate indicate) {
@@ -153,7 +121,7 @@ ErrorCodeE Monitor::Status(String name) {
 
     return Monitors[_Type].Left == this? ENoError: EInterrupted;
   } else {
-    return Head(_Type)->_Status(name, Auto::As<Int>(-1));
+    return Head()->_Status(name, Auto::As<Int>(-1));
   }
 }
 
@@ -174,7 +142,7 @@ ErrorCodeE Monitor::ScanImpl(Auto fd, Int mode, Bool heading,
    * functions should run very fast but callbacks may run quiet slow so we
    * don't invoke it here. Instead, i will do them later on differnet */
 
-  if (heading && this != Head(_Type)) {
+  if (heading && this != Head()) {
     return BadAccess("child shouldn\'t call method scan").code();
   } else if (_Find(fd)) {
     return ENotFound;
@@ -184,7 +152,7 @@ ErrorCodeE Monitor::ScanImpl(Auto fd, Int mode, Bool heading,
     passed = True;
   }
 
-  MLocks[_Type]->Safe([&]() {
+  MLocks[_Type].Safe([&]() {
     MCOPY(&next, &_Next, sizeof(_Next));
 
     try {
@@ -309,7 +277,7 @@ ErrorCodeE Monitor::Claim(Bool safed) {
       result = BadAccess(Format{"_State != {}"}.Apply(_State)).code();
     }
   } else {
-    Internal::MLocks[_Type]->Safe([&]() {
+    Internal::MLocks[_Type].Safe([&]() {
       if (!_Detached && _State < EStopping) {
         _Using++;
       } else {
@@ -324,7 +292,7 @@ ErrorCodeE Monitor::Claim(Bool safed) {
 Bool Monitor::Done() {
   Bool result = True;
 
-  Internal::MLocks[_Type]->Safe([&]() {
+  Internal::MLocks[_Type].Safe([&]() {
     if (_Using > 0) {
       _Using--;
     } else {
@@ -343,212 +311,190 @@ Void* Monitor::Context() {
   return _Shared;
 }
 
-Void Monitor::Devote() {
-  using namespace Internal;
-
-  auto head = Monitor::Head(_Type);
-  auto thiz = this;
-
-  MLocks[_Type]->Safe([&]() {
-    if (head == None) {
-      Secure.Circle([&]() { 
-        Monitors[_Type].Right = this; 
-        Currents[_Type] = this;
-
-        _Next = None;
-        _PPrev = None;
-        _Children = new List();
-      });
-
-      _Index = _Children->Add(this);
-    } else if (head->_Children != _Children) {
-      _Children = head->_Children;
-      _Index = _Children->Add(this);
-
-      Secure.Circle([&]() { 
-        _PPrev = &Currents[_Type];
-        Currents[_Type] = this;
-
-        MCOPY(_PPrev, &thiz, sizeof(this));
-      });
-    }
-  });
+Monitor* &Monitor::Head() {
+  return Internal::Monitors[_Type].Right;
 }
 
-Void Monitor::Attach() {
+Bool Monitor::Attach(UInt retry) {
   using namespace Internal;
 
-  auto UNUSED(guranteer) = Secure.generate();
-  auto is_new_one = Monitors.find(_Type) == Monitors.end();
   auto thiz = this;
+  auto plock = &Monitors[_Type].Left;
+  auto touched = False;
 
-  if (_Attached) {
+  if (CMP(&_Attached, True)) {
     goto finish;
   }
+  
+  CreateIfNeeded(_Type);
 
-  /* @NOTE: C++ use a vtable to control which function is called according the
-   * class so it might have time when the Monitor is creating and we would hit
-   * virtual methods while it isn't defined and cause corrupted. We should store
-   * these requests to a list and solve them later */
+  do {
+    BARRIER();
 
-  if (is_new_one || Monitors[_Type].Right == None) {
-    Monitors[_Type] = Pair<Monitor*, Monitor*>(None, this);
+    if (LIKELY(Head(), None)) {
+      if (CMPXCHG(plock, None, this)) {
+        _PLast = &_Last;
 
-    if (is_new_one) {
-      MLocks[_Type] = std::make_shared<Base::Lock>();
+        MCOPY(&(Monitors[_Type].Right), &thiz, sizeof(this)); 
+        MCOPY(&_Head, &thiz, sizeof(this));
+        MCOPY(&_Last, &thiz, sizeof(this));
+
+        touched = True;
+        break;
+      }
+    } else if (CMPXCHG(plock, None, this)) {
+      _Head = Head();
+
+      if (!CMP(Head()->_PLast, None)) {
+        /* @NOTE: always add to the end of the list, with that, we can trace which
+         * one should be the next */
+
+        _PNext = &((*Head()->_PLast)->_Next);
+        _PLast = Head()->_PLast;
+
+        MCOPY(_PLast, &thiz, sizeof(this));
+        MCOPY(_PNext, &thiz, sizeof(this));
+  
+        /* @NOTE: this parameter is use to revert to the previous in the case the 
+         * latest is released */
+
+         MCOPY(&_Prev, _PLast, sizeof(this));
+
+        /* @NOTE: this should be used only when the child became the head so we
+         * should configure it as soon as we can so we can use it quick when 
+         * the head is switched */
+
+        MCOPY(&_Head, &thiz, sizeof(this));
+        MCOPY(&_Last, &thiz, sizeof(this));
+
+        touched = True;
+        break;
+      }
     }
 
-    _Children = new List();
-  } else {
-    /* @NOTE: always add to the end of the list, with that, we can trace which
-     * one should be the next */
+    retry--;
+  } while (retry > 0);
 
-    _PPrev = &Currents[_Type];
-    _Children = Head(_Type)->_Children;
+  CMPXCHG(plock, this, None);
 
-    MCOPY(_PPrev, &thiz, sizeof(this));
+  if (retry == 0 && !touched) {
+    return False;
   }
-
-  if ((_Index = Head(_Type)->_Children->Add(this))) {
-    Currents[_Type] = this;
-  } else {
-    if (is_new_one) {
-      delete _Children;
-    }
-
-    throw Except(EBadAccess, "can\'t create new Monitor");
-  }
-
-  /* @NOTE: increase the counter to detech how many children are attaching so
-   * we can use this value to consider when we remove our Monitor system */
-
-  INC(&Counters[_Type].Right);
 
 finish:
   _Attached = True;
+
+  return True;
 }
 
-Void Monitor::Detach() {
+Bool Monitor::Detach(UInt retry) {
   using namespace Internal;
 
-  auto UNUSED(guranteer) = Secure.generate();
   auto is_child = False;
-  auto is_latest = DEC(&Counters[_Type].Right) == 0;
+  auto is_latest = False;
+  auto is_locked = False;
+  auto plock = &(Monitors[_Type].Left);
+  auto phead = &(Monitors[_Type].Right);
 
-  /* @NOTE: if this is the latest monitor of the branch, we should remove it.
-   * Otherwide, we will choose a child to become the head of this brand */
+  if (!CMP(phead, _Head)) {
+    is_child = True;
 
-  if (!_Detached) {
-    auto head = Head(_Type);
-
-    if (!CMP(&head, this)) {
-      /* @NOTE: only CHILD can reach here and we should turn on this flag bellow
-       * to apply action which only happen in child Monitor */
-
-      is_child = True;
-
-detach: 
-      /* @TODO: we should finish jobs before removing our child to prevent race
-       * condition here */
-
-      if (CMP(&_State, EStopping)) {
-        if (SwitchTo(EStopped)) {
-          Bug(EBadLogic, "can\'t switch to EStopped"); 
-        }
-      } else {
-        _Detached = True;
+detach:
+    if (CMP(&_State, EStopping)) {
+      if (SwitchTo(EStopped)) {
+        Bug(EBadLogic, "can\'t switch to EStopped"); 
       }
-
-      MLocks[_Type]->Safe([&]() {
-        _Flush();
-      });
-
-      if (CMP(&_Using, 0)) {
-        head = Head(_Type);
-
-        /* @NOTE: we should detect the child and remove it, if not, throw an
-         * exception because this is a bug */
-
-        if (head) {
-          if (!head->_Children->Del(_Index, this)) {
-            Notice(EBadAccess, Format{"Race condition, this={}"}.Apply(ULong(this)));
-          }
-        }
-
-        /* @NOTE: this is abit trick from Linux kernel and we should follow
-         * this structure to improve performance, consider to build a struct
-         * later to unify this one better */
-
-        MLocks[_Type]->Safe([&]() {
-          auto next = _Next;
-          auto pprev = _PPrev;
-
-          if (pprev && next) {
-            MCOPY(pprev, &next, sizeof(next));
-          }
-        
-          if (next) {
-            next->_PPrev = pprev;
-          }
-        });
-
-        if (!is_child || !Head(_Type)) {
-          /* @NOTE: if it's not CHILD, we should stop here and jump to the
-           * tag finish since everything is done now */
-
-          goto finish;
-        }
-
-        if (!is_latest) {
-          /* @NOTE: we only do this code if we aren't the lastest one on the
-           * group recently to prevent defer to a NULL pointer here which is
-           * caused by the step `clean` bellow */
-
-          MLocks[_Type]->Safe([&]() {
-            if (CMP(&(Head(_Type)->_Next), this)) {
-              MCOPY(&(Head(_Type)->_Next), &_Next, sizeof(_Next));
-            }
-          });
-        }
-      } else {
-        Notice(EBadLogic, Format{"Still have {} pending job(s)"}.Apply(_Using));
-      }
-    } else if (!is_latest) {
-      /* @NOTE: head is always choosen as the next one so we can keep track the
-       * status of monitors with-in the same type */
- 
-      MLocks[_Type]->Safe([&]() {
-        if (CMP(&head, this)) {
-          MCOPY(&Monitors[_Type].Right, &_Next, sizeof(_Next));
-        }
-      });
-
-      goto detach;
-    } else {
-      head = (Monitor*)None;
-
-      /* @NOTE: we are safe here, just secure our head only or we might face core
-       * dump here or the place we create a new Monitor type */
-
-      if (_Clean()) {
-        MLocks[_Type]->Safe([&]() {
-          MCOPY(&Monitors[_Type].Right, &head, sizeof(Monitor*));
-        });
-      }
-      goto detach;
     }
 
-finish:
-    _Detached = True;
-
-    if (is_latest) {
-      /* @NOTE: remove everything if we are the last one. To prevent any
-       * unexpected behavior, we should check None using Atomic before delete
-       * this list */
-
-      delete _Children;
+    _Flush();
+  
+    if (_Detached) {
+      goto finish;
     }
   }
+
+  do {
+    BARRIER();
+
+    if (LIKELY(Head(), None)) {
+      _Detached = True;
+
+      if (is_child) {
+        goto finish;
+      } else if (CMPXCHG(plock, None, this)) {
+        is_locked = True;
+      }
+    } else if (CMPXCHG(plock, None, this)) {
+      is_locked = True;
+    }
+
+    if (is_locked) {
+      auto next = _Next;
+      auto pnext = _PNext;
+
+      /* @NOTE: edit the next pointer of the previous node using pnext so we 
+       * could optimize performance while keep everything safe */
+
+      if (pnext && next) {
+        MCOPY(pnext, &next, sizeof(next));
+      }
+
+      /* @NOTE: it's always safe since the next should be release inside a light
+       * weith lock */
+
+      if (next) {
+        next->_PNext = pnext;
+        next->_Prev = _Prev;
+      } 
+     
+      /* @NOTE: check if we also the latest one so we should change head's 
+       * parameter _Last with this pointer to make sure the later ones don't
+       * touch the wrong pointer */ 
+
+      if (CMP(_PLast, this)) {
+        MCOPY(_PLast, &_Prev, sizeof(_Prev));
+      }
+
+      /* @NOTE: if the head is going to detach, we should migrate to the next
+       * one so the system still works well even if the head is changing on
+       * realtime */
+
+      if (CMP(&_Head, this)) {
+        MCOPY(phead, &_Next, sizeof(_Next));
+        
+        if (_Next == None) {
+          is_latest = True;
+        }
+      }
+
+      break;
+    }
+
+    retry--;
+  } while (retry > 0);
+
+  CMPXCHG(plock, this, None);
+
+  if (retry == 0 && !is_locked) {
+    return False;
+  } else {
+  }
+
+  _Detached = True;
+
+  if (is_child) {
+    goto finish;
+  }    
+
+  goto detach;
+
+finish:
+
+  if (is_latest) {
+    _Clean();
+  }
+
+  return True;
 }
 
 ErrorCodeE Monitor::SwitchTo(UInt state) {
@@ -650,7 +596,7 @@ Monitor* Monitor::Head(UInt type) {
   Monitor* result{None};
 
   if (Internal::Monitors.find(type) != Internal::Monitors.end()) {
-    Internal::MLocks[type]->Safe([&]() {
+    Internal::MLocks[type].Safe([&]() {
       result = Internal::Monitors[type].Right;
     });
   }
@@ -660,13 +606,13 @@ Monitor* Monitor::Head(UInt type) {
 
 void Monitor::Lock(UInt type) {
   if (Internal::MLocks.find(type) != Internal::MLocks.end()) {
-    (*Internal::MLocks[type])(True);
+    Internal::MLocks[type](True);
   }
 }
 
 void Monitor::Unlock(UInt type) {
   if (Internal::MLocks.find(type) != Internal::MLocks.end()) {
-    (*Internal::MLocks[type])(False);
+    Internal::MLocks[type](False);
   }
 }
 
@@ -674,7 +620,7 @@ ErrorCodeE Monitor::_Append(Auto UNUSED(fd), Int UNUSED(mode)) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::MLocks[_Type]->Safe([&]() {
+    Internal::MLocks[_Type].Safe([&]() {
       _Pipeline.push_back(Monitor::Action{EAppend, fd, mode});
     });
     return ENoError;
@@ -685,7 +631,7 @@ ErrorCodeE Monitor::_Modify(Auto fd, Int mode) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::MLocks[_Type]->Safe([&]() {
+    Internal::MLocks[_Type].Safe([&]() {
       _Pipeline.push_back(Monitor::Action{EModify, fd});
     });
     return ENoError;
@@ -696,7 +642,7 @@ ErrorCodeE Monitor::_Find(Auto UNUSED(fd)) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::MLocks[_Type]->Safe([&]() {
+    Internal::MLocks[_Type].Safe([&]() {
       _Pipeline.push_back(Monitor::Action{EFind, fd});
     });
     return ENoError;
@@ -707,7 +653,7 @@ ErrorCodeE Monitor::_Remove(Auto UNUSED(fd)) {
   if (_State) {
     return ENoSupport;
   } else {
-    Internal::MLocks[_Type]->Safe([&]() {
+    Internal::MLocks[_Type].Safe([&]() {
       _Pipeline.push_back(Monitor::Action{ERemove, fd});
     });
     return ENoError;

@@ -97,15 +97,19 @@ class Fildes: public Monitor {
         Bug(EBadLogic, "can\'t switch to EStarted"); 
       } 
     }};
+    TimeSpec spec{.tv_sec=0, .tv_nsec=0};
     Bool retry{False};
     ULong timeout{1};
 
-    Attach();
+    while(!Attach()) {
+      spec.tv_nsec = timeout = (timeout * 2) % ULong(1e9);
+
+      Internal::Idle(&spec);
+    }
 
     do {
       retry = False;
 
-      TimeSpec spec{.tv_sec=0, .tv_nsec=0};
       memset(&_Pool, 0, sizeof(_Pool));
 
       _Pool.Heartbeat = Base::Internal::Fildes::Heartbeat;
@@ -114,7 +118,10 @@ class Fildes: public Monitor {
       _Pool.Flush = Base::Internal::Fildes::Flush;
 
       Internal::Secure.Circle([&]() {
-        if (Monitor::Head(type) == dynamic_cast<Monitor*>(this)) {
+        auto a = Head();
+        auto b = dynamic_cast<Monitor*>(this);
+
+        if (Head() == dynamic_cast<Monitor*>(this)) {
           switch (system) {
           case 0:
 #if LINUX
@@ -160,7 +167,7 @@ class Fildes: public Monitor {
             _Pool.Referral = (Int*)ABI::Calloc(1, sizeof(Int));
           }
         } else {
-          Monitor* head{Monitor::Head(type)};
+          Monitor* head{Head()};
 
           if (head && head->Context() && head->State() == EStarted) {
             Pool* pool = (Pool*)head->Context();
@@ -173,7 +180,7 @@ class Fildes: public Monitor {
               retry = True;
             } else {
               DEBUG(Format("Mitigate lowlevel with referral {}").Apply(
-                      ULong(dynamic_cast<Fildes*>(Monitor::Head(type)))));
+                      ULong(dynamic_cast<Fildes*>(Head()))));
             }
           } else {
            retry = True;
@@ -201,12 +208,6 @@ class Fildes: public Monitor {
          * not to prevent accessing None in dynamic_cast */
 
         Internal::Idle(&spec);
-
-        /* @NOTE: we don't know when the head is None so the best way here is we 
-         * should devote myself frequently so we always update everything with the
-         * newest parameters */
-
-        Devote();
       }
     } while(retry);
 
@@ -237,11 +238,18 @@ class Fildes: public Monitor {
   }
 
   ~Fildes() {
+    TimeSpec spec{.tv_sec=0, .tv_nsec=0};
+    ULong timeout{1};
+
     if (SwitchTo(Monitor::EStopping)) {
       Bug(EBadLogic, "can\'t switch to EStopping");
     }
 
-    Detach();
+    while (!Detach()) {
+      spec.tv_nsec = timeout = (timeout * 2) % ULong(1e9);
+
+      Internal::Idle(&spec);
+    }
   }
 
  protected:

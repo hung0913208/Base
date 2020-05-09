@@ -68,11 +68,11 @@ class Monitor {
 
   /* @NOTE: this function attach a Monitor to the system so it can handle
    * requests from HEAD */
-  Void Attach();
+  Bool Attach(UInt retry = 5);
 
   /* @NOTE: this function detach a Monitor from the system so it can't handle
    * requests from HEAD */
-  Void Detach();
+  Bool Detach(UInt retry = 5);
 
   /* @NOTE: this function allow to read the Monitor status */
   UInt State();
@@ -81,10 +81,9 @@ class Monitor {
    * within the same type */
   Void* Context();
 
-  /* @NOTE: this function is used to devote a monitor to be a candidate to the
-   * head in the case when the head is remove without the choice of new head 
-   * and we must rebuild everything again */
-  Void Devote();
+  /* @NOTE: access the head monitor, they are defined as a single tone and should
+   * be the latest remover */
+  Monitor* &Head();
 
   /* @NOTE: this function is used to switch state to newer state */
   ErrorCodeE SwitchTo(UInt state);
@@ -179,14 +178,13 @@ class Monitor {
   /* @NOTE: this is used to share memory among Monitor inside a type */
   Void* _Shared;
 
+  /* @NOTE: these are used to make links between Head and its children */
+  Monitor **_PNext, **_PLast, *_Head, *_Last, *_Next, *_Prev;
+
   /* @NOTE: these should be managed by CHILD */
-  Monitor **_PPrev, *_Next;
   Vector<Check> _Checks;
   Vector<Fallback> _Fallbacks;
   Map<ULong, Indicate> _Indicators;
-
-  /* @NOTE: this should be managed by HEAD */
-  List* _Children;
 
   /* @NOTE: this variable is used to indicate if the child is fully started */
   UInt _State;

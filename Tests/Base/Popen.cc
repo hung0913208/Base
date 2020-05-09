@@ -9,9 +9,31 @@
 #include <stdio.h>
 
 #define NUM_OF_THREAD 10
+#include <stdio.h>
+#include <stdlib.h>
+
+/* Paste this on the file you want to debug. */
+#include <stdio.h>
+#include <execinfo.h>
+
+void print_trace(void) {
+  char **strings;
+  size_t i, size;
+  enum Constexpr { MAX_SIZE = 1024 };
+  void *array[MAX_SIZE];
+
+  size = backtrace(array, MAX_SIZE);
+  strings = backtrace_symbols(array, size);
+  
+  for (i = 0; i < size; i++)
+    printf("%s\n", strings[i]);
+
+  puts("");
+  free(strings);
+}
 
 using namespace Base;
-
+#if 0
 TEST(Popen, Simple0){
   auto perform = []() {
     Bool is_read_from_err{False};
@@ -273,7 +295,7 @@ TEST(Popen, Exec) {
     }
   } while (!WIFEXITED(status) && !WIFSIGNALED(status));
 }
-
+#endif
 TEST(Popen, Threads) {
   auto count_of_reading_fork = 0;
   auto perform = [&]() {
@@ -324,6 +346,7 @@ TEST(Popen, Threads) {
     Base::Debug::DumpWatch("Stucks");
     Base::Debug::DumpWatch("Counters");
     Base::Debug::DumpWatch("Stucks.Unlock");
+    print_trace();
   });
 
   FINISHDUMP({
