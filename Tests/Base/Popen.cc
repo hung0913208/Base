@@ -33,7 +33,7 @@ void print_trace(void) {
 }
 
 using namespace Base;
-#if 0
+
 TEST(Popen, Simple0){
   auto perform = []() {
     Bool is_read_from_err{False};
@@ -295,7 +295,7 @@ TEST(Popen, Exec) {
     }
   } while (!WIFEXITED(status) && !WIFSIGNALED(status));
 }
-#endif
+
 TEST(Popen, Threads) {
   auto count_of_reading_fork = 0;
   auto perform = [&]() {

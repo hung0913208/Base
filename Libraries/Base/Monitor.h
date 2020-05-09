@@ -27,7 +27,8 @@ class Monitor {
     EStarting = 1,
     EStarted = 2,
     EStopping = 3,
-    EStopped = 4
+    EStopped = 4,
+    EDetached = 5
   };
 
   using Check = Function<ErrorCodeE(Auto, Auto&, Int)>;
@@ -36,6 +37,10 @@ class Monitor {
   using Fallback = Function<ErrorCodeE(Auto fd)>;
 
   virtual ~Monitor();
+
+  /* @NOTE: these methods are used to access next and previous Monitor */
+  inline Monitor* &Next() { return _Next; }
+  inline Monitor* &Prev() { return _Prev; }
 
   /* @NOTE: these methods are used to append, modify or remove a fd */
   ErrorCodeE Append(Auto fd, Int mode);
@@ -60,11 +65,11 @@ class Monitor {
 
   /* @NOTE: this function is used to claim a new job should be done later before
    * the monitor is destroyed */
-  ErrorCodeE Claim(Bool safed = True);
+  ErrorCodeE Claim(UInt retry = 5);
 
   /* @NOTE: this function is used to notify the head that the child has done a
    * job so we should decrease the job counter right now */
-  Bool Done();
+  ErrorCodeE Done();
 
   /* @NOTE: this function attach a Monitor to the system so it can handle
    * requests from HEAD */
@@ -73,6 +78,10 @@ class Monitor {
   /* @NOTE: this function detach a Monitor from the system so it can't handle
    * requests from HEAD */
   Bool Detach(UInt retry = 5);
+
+  /* @NOTE: this function is used to loop through all accessiable children and
+   * perform the callback */
+  ErrorCodeE ForEach(Function<ErrorCodeE (Monitor*)> callback);
 
   /* @NOTE: this function allow to read the Monitor status */
   UInt State();

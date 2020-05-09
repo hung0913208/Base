@@ -5,6 +5,10 @@
 #include <Utils.h>
 #include <Vertex.h>
 
+#include <unistd.h>
+
+using TimeSpec = struct timespec;
+
 namespace Base {
 namespace Internal {
 Mutex* CreateMutex();
@@ -24,6 +28,8 @@ void CreateIfNeeded(UInt type) {
     }
   });
 }
+
+void Idle(TimeSpec* spec);
 
 namespace Fildes {
 Bool Create(String name, UInt type, Int system, Monitor** result);
@@ -205,46 +211,24 @@ ErrorCodeE Monitor::ScanIter(Auto fd, Int mode, Monitor** next,
 }
 
 ErrorCodeE Monitor::Heartbeat(Auto fd) {
-  ErrorCodeE error{ENoError};
+  ErrorCodeE result{ENoError};
 
   if (_Find(fd)) {
-    Vertex<void> escaping{[&]() { Monitor::Lock(_Type); },
-                          [&]() { Monitor::Unlock(_Type); }};
-    Monitor* next = this;
-
-    /* @NOTE: check from children, we wouldn't know it without checking
-     * them because some polling system don't support checking how many
-     * fd has waiting */
-
-    while (!error) {
-      next = next->_Next;
-
-      if (next) {
-        Vertex<void> escaping{[&]() { 
-          next->Claim();
-          Monitor::Unlock(_Type);
-        }, [&]() { 
-          if (next->_Find(fd)) {
-            for (auto fallback: next->_Fallbacks) {
-              if ((error = fallback(fd))) {
-                break;
-              }
-            }
-          }
-
-          next->Done(); 
-          Monitor::Lock(_Type); 
-        }};
-      } else {
-        break;
+    ForEach([&](Monitor* next) -> ErrorCodeE {
+      if ((next)->_Find(fd)) {
+        for (auto fallback: next->_Fallbacks) {
+          result = fallback(fd);
+        }
       }
-    }
 
-    return error;
+      return result;
+    });
+
+    return result;
   } else {
     for (auto fallback: _Fallbacks) {
-      if ((error = fallback(fd))) {
-        return error;
+      if ((result = fallback(fd))) {
+        return result;
       }
     }
   }
@@ -267,38 +251,36 @@ ErrorCodeE Monitor::Reroute(Monitor* child, Auto fd, Perform& callback) {
   return error;
 }
 
-ErrorCodeE Monitor::Claim(Bool safed) {
-  ErrorCodeE result{ENoError};
-  
-  if (safed) {
-    if (!_Detached && _State < EStopping) {
-      _Using++;
+ErrorCodeE Monitor::Claim(UInt retry) {
+  ErrorCodeE result{EDoAgain};
+
+  do {  
+    BARRIER();
+
+    if (CMP(&_State, EStarting)) { 
+      retry--;
+    } else if (!CMP(&_State, EStarted)) {
+      result = EBadAccess;
     } else {
-      result = BadAccess(Format{"_State != {}"}.Apply(_State)).code();
+      INC(&_Using);
+      goto done;
     }
-  } else {
-    Internal::MLocks[_Type].Safe([&]() {
-      if (!_Detached && _State < EStopping) {
-        _Using++;
-      } else {
-        result = BadAccess(Format{"_State != {}"}.Apply(_State)).code();
-      }
-    });
-  }
+  } while (!result && retry > 0);
 
   return result;
+
+done:
+  return ENoError;
 }
 
-Bool Monitor::Done() {
-  Bool result = True;
+ErrorCodeE Monitor::Done() {
+  ErrorCodeE result{ENoError};
 
-  Internal::MLocks[_Type].Safe([&]() {
-    if (_Using > 0) {
-      _Using--;
-    } else {
-      result = False;
-    }
-  });
+  if (CMP(&_State, EStopping) || CMP(&_State, EStarted)) {
+    DEC(&_Using);
+  } else {
+    result = EBadAccess;
+  }
 
   return result;
 }
@@ -322,8 +304,8 @@ Bool Monitor::Attach(UInt retry) {
   auto plock = &Monitors[_Type].Left;
   auto touched = False;
 
-  if (CMP(&_Attached, True)) {
-    goto finish;
+  if (!CMP(&_State, EOffline)) {
+    return True;
   }
   
   CreateIfNeeded(_Type);
@@ -382,7 +364,9 @@ Bool Monitor::Attach(UInt retry) {
   }
 
 finish:
-  _Attached = True;
+  if (SwitchTo(EStarting)) {
+    Bug(EBadLogic, "can\'t switch to EStarting");
+  }
 
   return True;
 }
@@ -393,22 +377,31 @@ Bool Monitor::Detach(UInt retry) {
   auto is_child = False;
   auto is_latest = False;
   auto is_locked = False;
+  auto is_detached = False;
   auto plock = &(Monitors[_Type].Left);
   auto phead = &(Monitors[_Type].Right);
+ 
+  if (!!CMP(&_State, EDetached)) {
+    return True;
+  } else if (!!CMP(&_State, EStarted)) {
+    if (SwitchTo(EStopping)) {
+      Bug(EBadLogic, "can\'t switch to EStopped"); 
+    }
+  }
+
+  if (!CMP(&_Using, 0)) {
+    return False;
+  } else if (SwitchTo(EStopped)) {
+    return False;
+  }
 
   if (!CMP(phead, _Head)) {
     is_child = True;
 
 detach:
-    if (CMP(&_State, EStopping)) {
-      if (SwitchTo(EStopped)) {
-        Bug(EBadLogic, "can\'t switch to EStopped"); 
-      }
-    }
-
     _Flush();
   
-    if (_Detached) {
+    if (is_detached) {
       goto finish;
     }
   }
@@ -477,24 +470,158 @@ detach:
 
   if (retry == 0 && !is_locked) {
     return False;
-  } else {
   }
-
-  _Detached = True;
 
   if (is_child) {
     goto finish;
-  }    
-
+  }
+    
+  is_detached = True;
   goto detach;
 
 finish:
-
   if (is_latest) {
     _Clean();
   }
 
+  if (SwitchTo(EDetached)) {
+    Bug(EBadLogic, "can\'t switch to EDetached");  
+  }
+
   return True;
+}
+
+ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback) {
+  Monitor **pnext{&Next()}, **pcurr{None}, *claiming{None};
+  ErrorCodeE result{ENoError};
+  Bool first{True};
+
+  /* @NOTE: check from children, we wouldn't know it without checking
+   * them because some polling system don't support checking how many
+   * fd has waiting */
+
+  do {
+    TimeSpec spec{.tv_sec=0, .tv_nsec=1};
+    ErrorCodeE error{EBadAccess};
+    
+    if (pcurr && !claiming) {
+      /* @NOTE: this case only happens when we finish claiming a new job so
+       * we can close the old job here */
+
+      if ((error = (*pcurr)->Done())) {
+        Bug(error, "can\'t close an unfinished job");
+      } else {
+        pcurr = None;
+        error = pnext? ENoError: EBadAccess;
+      }
+    } else if (first) {
+      goto init;
+    }
+
+    BARRIER();
+
+    if (claiming && pnext && !result) {
+      /* @NOTE: wait pnext switches to another Monitor since the current pnext
+       * is pointing to a detaching Monitor object */
+
+      while (CMP(pnext, claiming)) {
+        BARRIER();
+
+        spec.tv_nsec = (spec.tv_nsec * 2) % ulong(1e9);
+        Internal::Idle(&spec);
+      } 
+    
+init:
+      BARRIER();
+
+      /* @NOTE; everything is okay recently so we should try claiming again with
+       * the new Monitor object */
+
+      while ((*pnext) && (error = (*pnext)->Claim()) == EDoAgain) {
+        BARRIER();
+
+        spec.tv_nsec = (spec.tv_nsec * 2) % ulong(1e9);
+        Internal::Idle(&spec);
+      }
+
+      /* @NOTE: at the begining, we should claim the next Monitor first, so we
+       * can init the flow */
+
+      first = False;
+    }
+
+    /* @NOTE: we have retried claiming again so if the issue happens, it
+     * isn't out of caring recently, just finish the task we have claimed
+     * to be done before */
+
+    if (pcurr) {
+      if ((*pcurr)->Done()) {
+        Bug(EBadAccess, "can\'t close an unfinished job");
+      } else {
+        pcurr = None;
+      }
+    }
+   
+    if (!error) {
+      /* @NOTE: we only enter here if we have claimed successfully a new job
+       * so we will perform it on parallel while make sure that the node 
+       * can't be detached */
+
+      try {
+        result = callback(*pnext);
+        pcurr = pnext;
+        pnext = &((*pnext)->Next());
+        claiming = *pnext;
+      } catch (Exception &except) {
+        result = except.code();
+      } catch (std::exception &except) {
+        result = EBadAccess;
+      } catch (...) {
+        result = EBadAccess;
+      }
+
+      /* @NOTE: if we face any issue during testing just stop claiming new job
+       * and mark the current job is `Done` */
+
+      if (result) {
+        pnext = None;
+        claiming = None;
+
+        continue;
+      }
+
+      BARRIER();
+
+      if (*pnext) {
+        error = EBadAccess;
+
+        /* @NOTE: claim a new job so we could make sure that the loop can't 
+         * be jump into unexpected states */
+
+        while ((*pnext) && (error = (*pnext)->Claim()) == EDoAgain) {
+          BARRIER();
+
+          spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
+          Internal::Idle(&spec);
+        }
+
+        /* @NOTE; if we claim successfully the next job, we are in good flow
+         * where we have threads lining on the right direction. If not, we 
+         * should report that we can't claim a new job. This only happen
+         * when we access the node too late and we should wait until the next
+         * child emerges */
+
+        if (!error) {
+          claiming = None;
+        }
+      } else {
+        claiming = None;
+        pnext = None;
+      }
+    }
+  } while (pcurr);
+
+  return result;
 }
 
 ErrorCodeE Monitor::SwitchTo(UInt state) {

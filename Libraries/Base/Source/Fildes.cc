@@ -118,9 +118,6 @@ class Fildes: public Monitor {
       _Pool.Flush = Base::Internal::Fildes::Flush;
 
       Internal::Secure.Circle([&]() {
-        auto a = Head();
-        auto b = dynamic_cast<Monitor*>(this);
-
         if (Head() == dynamic_cast<Monitor*>(this)) {
           switch (system) {
           case 0:
@@ -211,12 +208,6 @@ class Fildes: public Monitor {
       }
     } while(retry);
 
-    /* @NOTE: the initing state is done, now switch to starting state to allow
-     * children to be joined */
-    if (SwitchTo(EStarting)) {
-      Bug(EBadLogic, "can\'t switch to EStarting"); 
-    }
-
     if (type == Monitor::EPipe) {
       _Fallbacks.push_back([&](Auto fd) -> ErrorCodeE {
         if (Internal::IsPipeAlive(fd.Get<Int>())) {
@@ -239,14 +230,9 @@ class Fildes: public Monitor {
 
   ~Fildes() {
     TimeSpec spec{.tv_sec=0, .tv_nsec=0};
-    ULong timeout{1};
-
-    if (SwitchTo(Monitor::EStopping)) {
-      Bug(EBadLogic, "can\'t switch to EStopping");
-    }
 
     while (!Detach()) {
-      spec.tv_nsec = timeout = (timeout * 2) % ULong(1e9);
+      spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
 
       Internal::Idle(&spec);
     }
@@ -457,35 +443,16 @@ class Fildes: public Monitor {
       if (_Entries.size() > 0) {
         return EInterrupted;
       } else {
-        Vertex<void> escaping{[&]() { Monitor::Lock(_Type); },
-                              [&]() { Monitor::Unlock(_Type); }};
-        ErrorCodeE result = ENoError;
-        Fildes* next = this;
+        ErrorCodeE result{ENoError};
 
-        /* @NOTE: check from children, we wouldn't know it without checking
-         * them because some polling system don't support checking how many
-         * fd has waiting */
-
-        while (!result) {
-          next = dynamic_cast<Fildes*>(next->_Next);
-
-          if (next) {
-            Vertex<void> escaping{[&]() { 
-              next->Claim();
-              Monitor::Unlock(_Type);
-            }, [&]() { 
-              if (dynamic_cast<Fildes*>(next)->_Entries.size() > 0) {
-                result = EInterrupted;
-              }
-
-              next->Done(); 
-              Monitor::Lock(_Type); 
-            }};
-          } else {
-            break;
+        ForEach([&](Monitor* next) -> ErrorCodeE {
+          if (dynamic_cast<Fildes*>(next)->_Entries.size() > 0) {
+            result = EInterrupted;
           }
-        }
 
+          return result;
+        });
+ 
         return result;
       }
     }
@@ -547,7 +514,7 @@ class Fildes: public Monitor {
  private:
   Bool IsIdle(Monitor** next) {
     if (next) {
-      *next = _Next;
+      *next = Next();    
     }
 
     if (_Entries.size() > 0) {
@@ -681,42 +648,28 @@ class Fildes: public Monitor {
   }
 
   ErrorCodeE OnRemoving(Int socket) {
-    Vertex<void> escaping{[&]() { Monitor::Lock(_Type); },
-                          [&]() { Monitor::Unlock(_Type); }};
     Auto fd{Auto::As<Int>(socket)};
     Bool passed{False};
-    ErrorCodeE result{ENoError};
-    Fildes* next{this};
 
     if ((passed = !Find(fd))) {
       _Entries.erase(socket);
     }
 
-    /* @NOTE: check from children, we wouldn't know it without checking
-     * them because some polling system don't support checking how many
-     * fd has waiting */
+    ForEach([&](Monitor* next) -> ErrorCodeE {
+      auto casted = dynamic_cast<Fildes*>(next);
 
-    while (!result) {
-      next = dynamic_cast<Fildes*>(next->_Next);
+      /* @NOTE: we only enter here if we have claimed successfully a new job
+       * so we will perform it on parallel while make sure that the node 
+       * can't be detached */
 
-      if (next) {
-        Vertex<void> escaping{[&]() { 
-          next->Claim();
-          Monitor::Unlock(_Type);
-        }, [&]() { 
-          if (!next->Find(fd)) {
-            if (!next->Remove(fd)) {
-              passed = True;
-            }
-          }
-
-          next->Done(); 
-          Monitor::Lock(_Type); 
-        }};
-      } else {
-        break;
+      if (!next->Find(fd)) {
+        if (!next->Remove(fd)) {
+          passed = True;
+        }
       }
-    }
+
+      return ENoError;
+    });
 
     return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
   }
