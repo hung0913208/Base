@@ -209,22 +209,22 @@ if [ $(which git) ]; then
 		PIDs=()
 
 		if [[ $MODE -eq 0 ]]; then
-			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Release $ROOT >& ./Release.txt" &
+			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Release $ROOT >& ./Release.txt" &
 			RELEASE_PID=$!
 		fi
 
 		if [[ $MODE -eq 3 ]] || [[ $MODE -eq 1 ]] || [[ $MODE -eq 0 ]]; then
-			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Sanitize $ROOT >& ./Sanitize.txt" &
+			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Sanitize $ROOT >& ./Sanitize.txt" &
 			SANITIZE_PID=$!
 		fi
 
 		if [[ $MODE -eq 1 ]] || [[ $MODE -eq 0 ]]; then
-			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Debug $ROOT >& ./Debug.txt" &
+			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Debug $ROOT >& ./Debug.txt" &
 			DEBUG_PID=$!
 		fi
 
 		if [[ $MODE -eq 2 ]] || [[ $MODE -eq 0 ]]; then
-			bash -c "CONFIGURE="$BUILD" $BASE/Tools/Utilities/$CMAKE Coverage $ROOT >& ./Coverage.txt" &
+			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Coverage $ROOT >& ./Coverage.txt" &
 			COVERAGE_PID=$!
 		fi
 
