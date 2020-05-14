@@ -71,17 +71,21 @@ class Monitor {
    * job so we should decrease the job counter right now */
   ErrorCodeE Done();
 
-  /* @NOTE: this function attach a Monitor to the system so it can handle
+  /* @NOTE: this function attaches a Monitor to the system so it can handle
    * requests from HEAD */
   Bool Attach(UInt retry = 5);
 
-  /* @NOTE: this function detach a Monitor from the system so it can't handle
+  /* @NOTE: this function detaches a Monitor from the system so it can't handle
    * requests from HEAD */
   Bool Detach(UInt retry = 5);
 
+  /* @NOTE: this function devotes a Monitor to be a new Head when the old Head
+   * is ceased while new Monitors are waiting to be joined */
+  Bool Devote(UInt retry = 5);
+
   /* @NOTE: this function is used to loop through all accessiable children and
    * perform the callback */
-  ErrorCodeE ForEach(Function<ErrorCodeE (Monitor*)> callback);
+  ErrorCodeE ForEach(Function<ErrorCodeE (Monitor*)> callback, UInt retry = 5);
 
   /* @NOTE: this function allow to read the Monitor status */
   UInt State();

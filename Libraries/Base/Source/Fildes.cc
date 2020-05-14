@@ -91,24 +91,25 @@ class Fildes: public Monitor {
       Monitor(name, type), _Tid{-1} {
     using namespace std::placeholders;  // for _1, _2, _3...
 
-    Vertex<void> escaping{[&]() { 
-    }, [&]() { 
+    TimeSpec spec{.tv_sec=0, .tv_nsec=0};
+    Int max_step_to_do_devoting{1};
+    Bool need_retry{True};
+
+    Vertex<void> escaping{[&]() { }, [&]() { 
       if (SwitchTo(EStarted)) {
         Bug(EBadLogic, "can\'t switch to EStarted"); 
       } 
     }};
-    TimeSpec spec{.tv_sec=0, .tv_nsec=0};
-    Bool retry{False};
-    ULong timeout{1};
 
-    while(!Attach()) {
-      spec.tv_nsec = timeout = (timeout * 2) % ULong(1e9);
-
+    while (!Attach()) {
+      spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
       Internal::Idle(&spec);
     }
 
-    do {
-      retry = False;
+    spec.tv_nsec = 1;
+
+    for (auto step = 0; need_retry; ++step) {
+      need_retry = False;
 
       memset(&_Pool, 0, sizeof(_Pool));
 
@@ -116,6 +117,18 @@ class Fildes: public Monitor {
       _Pool.Trigger = Base::Internal::Fildes::Trigger;
       _Pool.Remove = Base::Internal::Fildes::Remove;
       _Pool.Flush = Base::Internal::Fildes::Flush;
+
+      if (step > max_step_to_do_devoting) {
+        spec.tv_nsec = 1;
+
+        while (!Devote()) {
+          spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
+          Internal::Idle(&spec);
+        }
+
+        max_step_to_do_devoting = step + 1;
+        spec.tv_nsec = 1;
+      }
 
       Internal::Secure.Circle([&]() {
         if (Head() == dynamic_cast<Monitor*>(this)) {
@@ -172,19 +185,20 @@ class Fildes: public Monitor {
             _Pool.Referral = pool->Referral;
             _Pool.ll = pool->ll;
             _Pool.Run = pool->Run;
+            _Pool.Build = pool->Build;
 
             if (!_Pool.ll.Append || !_Pool.ll.Modify || !_Pool.ll.Probe) {
-              retry = True;
+              need_retry = True;
             } else {
               DEBUG(Format("Mitigate lowlevel with referral {}").Apply(
                       ULong(dynamic_cast<Fildes*>(Head()))));
             }
           } else {
-           retry = True;
+           need_retry = True;
           }
         }
       
-        if (!retry) {
+        if (!need_retry) {
           _Shared = &_Pool;
           
           /* @NOTE: increase referral counter to prevent removing our pool
@@ -194,19 +208,17 @@ class Fildes: public Monitor {
 
       });
 
-      timeout = (timeout * 2) % ULong(1e9);
-
-      if (retry) {
-        spec.tv_nsec = timeout;
+      if (need_retry) {
+        spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
 
         /* @NOTE: wait the head to be activated so we can access Head's 
-         * _Pool without locking. This is the good choice since Monitor 
-         * can't communicate so it can't know if the head is switched or 
-         * not to prevent accessing None in dynamic_cast */
+         * _Pool without locking. This is the good choice since Monitors
+         * can't communicate each-other so they can't know if the head is
+         * switched or not to prevent accessing None in dynamic_cast */
 
         Internal::Idle(&spec);
       }
-    } while(retry);
+    }
 
     if (type == Monitor::EPipe) {
       _Fallbacks.push_back([&](Auto fd) -> ErrorCodeE {

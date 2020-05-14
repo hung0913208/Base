@@ -42,25 +42,7 @@ Monitor::Monitor(String name, UInt type): _Name{name}, _Type{type},
     _Detached{False} { 
 }
 
-Monitor::~Monitor() {
-  using namespace Internal;
-
-  if (_Attached) {
-    if (_Detached) {
-      if (_State != EStopped) {
-        if (SwitchTo(EStopped)) {
-          Bug(EBadLogic, "can\'t switch to EStopped"); 
-        }
-      }
-    } else {
-      Detach();
-    }
-
-    if (!_Detached) {
-      Bug(EBadLogic, "can\'t detach our Monitor as expected");
-    }
-  }    
-}
+Monitor::~Monitor() { }
 
 ErrorCodeE Monitor::Append(Auto fd, Int mode) {
   using namespace Internal;
@@ -149,7 +131,7 @@ ErrorCodeE Monitor::ScanImpl(Auto fd, Int mode, Bool heading,
    * don't invoke it here. Instead, i will do them later on differnet */
 
   if (heading && this != Head()) {
-    return BadAccess("child shouldn\'t call method scan").code();
+    return EBadAccess;
   } else if (_Find(fd)) {
     return ENotFound;
   }
@@ -183,7 +165,7 @@ ErrorCodeE Monitor::ScanIter(Auto fd, Int mode, Monitor** next,
    * here or when we remove the child while the head access it on parallel */
 
   if (_State != EStarted) {
-    return BadAccess(Format{"_State({}) != EStarted"}.Apply(_State)).code();
+    return EBadAccess;
   }
 
   for (auto& check: _Checks) {
@@ -277,7 +259,11 @@ ErrorCodeE Monitor::Done() {
   ErrorCodeE result{ENoError};
 
   if (CMP(&_State, EStopping) || CMP(&_State, EStarted)) {
-    DEC(&_Using);
+    if (!CMP(&_Using, 0)) {
+      DEC(&_Using);
+    } else {
+      Bug(BadAccess, "Claiming done too much");
+    }
   } else {
     result = EBadAccess;
   }
@@ -302,6 +288,7 @@ Bool Monitor::Attach(UInt retry) {
 
   auto thiz = this;
   auto plock = &Monitors[_Type].Left;
+  auto phead = &Monitors[_Type].Right;
   auto touched = False;
 
   if (!CMP(&_State, EOffline)) {
@@ -313,7 +300,7 @@ Bool Monitor::Attach(UInt retry) {
   do {
     BARRIER();
 
-    if (LIKELY(Head(), None)) {
+    if (CMP(&Head(), None)) {
       if (CMPXCHG(plock, None, this)) {
         _PLast = &_Last;
 
@@ -325,7 +312,9 @@ Bool Monitor::Attach(UInt retry) {
         break;
       }
     } else if (CMPXCHG(plock, None, this)) {
-      _Head = Head();
+      if (CMP(phead, None) || (*phead)->Claim()) {
+        goto unlock;
+      }
 
       if (!CMP(Head()->_PLast, None)) {
         /* @NOTE: always add to the end of the list, with that, we can trace which
@@ -350,8 +339,16 @@ Bool Monitor::Attach(UInt retry) {
         MCOPY(&_Last, &thiz, sizeof(this));
 
         touched = True;
+      }
+
+      if ((*phead)->Done()) {
+        Bug(EBadAccess, "can\'t finish a job");
+      } else if (touched) { 
         break;
       }
+
+unlock: 
+      CMPXCHG(plock, this, None);
     }
 
     retry--;
@@ -363,7 +360,6 @@ Bool Monitor::Attach(UInt retry) {
     return False;
   }
 
-finish:
   if (SwitchTo(EStarting)) {
     Bug(EBadLogic, "can\'t switch to EStarting");
   }
@@ -491,9 +487,76 @@ finish:
   return True;
 }
 
-ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback) {
+Bool Monitor::Devote(UInt retry) {
+  using namespace Internal;
+
+  auto thiz = this;
+  auto plock = &Monitors[_Type].Left;
+  auto phead = &Monitors[_Type].Right;
+  auto touched = False;
+
+  /* @NOTE: we assume that Devote is called when the old Head is abandoned
+   * completedly while we have a numberous Monitor waiting to join but fail
+   * because the Head is cut off abrupted */
+
+  if (!CMP(&_State, EStarting)) {
+    return True;
+  }
+
+  do {
+    BARRIER();
+
+    if (CMPXCHG(plock, None, this)) {
+      if (CMPXCHG(phead, None, this)) {
+        _PLast = &_Last;
+
+        MCOPY(&_Head, &thiz, sizeof(this));
+        MCOPY(&_Last, &thiz, sizeof(this));
+
+        touched = True;
+        break;
+      } else if (!CMP(phead, _Head)) {
+        /* @NOTE: always add to the end of the list, with that, we can trace
+         * which one should be the next */
+
+        _PNext = &((*Head()->_PLast)->_Next);
+        _PLast = Head()->_PLast;
+
+        MCOPY(_PLast, &thiz, sizeof(this));
+        MCOPY(_PNext, &thiz, sizeof(this));
+  
+        /* @NOTE: this parameter is use to revert to the previous in the case the 
+         * latest is released */
+
+         MCOPY(&_Prev, _PLast, sizeof(this));
+
+        /* @NOTE: this should be used only when the child became the head so we
+         * should configure it as soon as we can so we can use it quick when 
+         * the head is switched */
+
+        MCOPY(&_Head, &thiz, sizeof(this));
+        MCOPY(&_Last, &thiz, sizeof(this));
+
+        touched = True;
+        break;
+      } else {
+        touched = True;
+        break;
+      }
+    }
+
+    retry--;
+  } while (retry > 0);
+
+unlock:
+  CMPXCHG(plock, this, None);
+  return touched;
+}
+
+ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback, UInt retry) {
   Monitor **pnext{&Next()}, **pcurr{None}, *claiming{None};
   ErrorCodeE result{ENoError};
+  UInt timeout{0};
   Bool first{True};
 
   /* @NOTE: check from children, we wouldn't know it without checking
@@ -501,6 +564,7 @@ ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback) {
    * fd has waiting */
 
   do {
+    Bool ceased{False};
     TimeSpec spec{.tv_sec=0, .tv_nsec=1};
     ErrorCodeE error{EBadAccess};
     
@@ -524,25 +588,38 @@ ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback) {
       /* @NOTE: wait pnext switches to another Monitor since the current pnext
        * is pointing to a detaching Monitor object */
 
-      while (CMP(pnext, claiming)) {
+      for (timeout = 0; timeout < retry && CMP(pnext, claiming); ++timeout) {
         BARRIER();
 
         spec.tv_nsec = (spec.tv_nsec * 2) % ulong(1e9);
         Internal::Idle(&spec);
       } 
-    
+   
+      if (timeout == retry) {
+        ceased = True;
+      } 
 init:
+      error = EBadAccess;
+
       BARRIER();
 
       /* @NOTE; everything is okay recently so we should try claiming again with
        * the new Monitor object */
 
-      while ((*pnext) && (error = (*pnext)->Claim()) == EDoAgain) {
+      for (timeout = 0; timeout < retry && !ceased && (*pnext); ++timeout) {
+        if ((error = (*pnext)->Claim()) != EDoAgain) {
+          break;
+        }
+
         BARRIER();
 
         spec.tv_nsec = (spec.tv_nsec * 2) % ulong(1e9);
         Internal::Idle(&spec);
       }
+
+      if (timeout == retry) {
+        ceased = True;
+      } 
 
       /* @NOTE: at the begining, we should claim the next Monitor first, so we
        * can init the flow */
@@ -561,8 +638,8 @@ init:
         pcurr = None;
       }
     }
-   
-    if (!error) {
+  
+    if (!ceased && !error) {
       /* @NOTE: we only enter here if we have claimed successfully a new job
        * so we will perform it on parallel while make sure that the node 
        * can't be detached */
@@ -586,7 +663,6 @@ init:
       if (result) {
         pnext = None;
         claiming = None;
-
         continue;
       }
 
@@ -598,7 +674,11 @@ init:
         /* @NOTE: claim a new job so we could make sure that the loop can't 
          * be jump into unexpected states */
 
-        while ((*pnext) && (error = (*pnext)->Claim()) == EDoAgain) {
+        for (timeout = 0; timeout < retry && (*pnext); ++timeout) {
+          if ((error = (*pnext)->Claim()) != EDoAgain) {
+            break;
+          }
+
           BARRIER();
 
           spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);

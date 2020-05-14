@@ -1,0 +1,13 @@
+name: Verify commit with the simple test suite
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: prepare
+        run: ./Tests/Pipeline/Prepare.sh
+      - name: build and test
+        run: ./Tests/Pipeline/Build.sh
