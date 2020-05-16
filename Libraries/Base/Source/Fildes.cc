@@ -312,7 +312,7 @@ class Fildes: public Monitor {
 
   /* @NOTE: this function is used to enqueue callback into our pipeline, waiting
    * to be handled asynchronously */
-  ErrorCodeE _Route(Auto fd, Perform& callback) {
+  ErrorCodeE _Route(Auto UNUSED(fd), Perform& UNUSED(callback)) {
     return ENoSupport;
   }
 
@@ -519,7 +519,8 @@ class Fildes: public Monitor {
     }
   }
 
-  ErrorCodeE _Handle(Monitor* child, Int timeout, Int backlog = 100) final {
+  ErrorCodeE _Handle(Monitor* UNUSED(child), Int UNUSED(timeout),
+                     Int UNUSED(backlog) = 100) final {
     return ENoSupport;
   }
 
@@ -668,8 +669,6 @@ class Fildes: public Monitor {
     }
 
     ForEach([&](Monitor* next) -> ErrorCodeE {
-      auto casted = dynamic_cast<Fildes*>(next);
-
       /* @NOTE: we only enter here if we have claimed successfully a new job
        * so we will perform it on parallel while make sure that the node 
        * can't be detached */

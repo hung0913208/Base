@@ -228,10 +228,12 @@ class Watch {
 
     if (Exiting) {
     } else {
+#if DEV
       for (auto& item: _Stoppers) {
         for (auto stopper: std::get<1>(item)) {
         }
       }
+#endif
     }
   }
 
