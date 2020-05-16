@@ -1,8 +1,16 @@
 #ifndef BASE_TABLE_H_
 #define BASE_TABLE_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Type.h>
+#include <Data/Memmap.h>
+#else
 #include <Auto.h>
 #include <Memmap.h>
 #include <Type.h>
+#endif
 
 namespace Base {
 class Table {

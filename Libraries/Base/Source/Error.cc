@@ -1,10 +1,15 @@
-#include <Config.h>
 #include <Logcat.h>
 #include <Utils.h>
 #include <Vertex.h>
 #include <iostream>
 
 namespace Base {
+namespace Config {
+namespace Locks {
+extern Mutex Error;
+} // namespace Locks
+} // namespace Config
+
 Error::Error(ErrorCodeE code, String message, String function, String file,
              int line, ErrorLevelE level)
     : Stream(),

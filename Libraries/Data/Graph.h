@@ -1,8 +1,16 @@
 #ifndef BASE_GRAPH_H_
 #define BASE_GRAPH_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Type.h>
+#include <Base/Lock.h>
+#else
 #include <Auto.h>
 #include <Type.h>
 #include <Lock.h>
+#endif
 
 #define USE_FINITE_GRAPH_CHECK 0
 

@@ -8,6 +8,12 @@
 #include <unistd.h>
 
 namespace Base {
+namespace Config {
+namespace Locks {
+extern Mutex Error;
+} // namespace Locks
+} // namespace Config
+
 Exception::Exception(Error& error) : Stream{}, _Printed{True} {
   error.Print(True);
 

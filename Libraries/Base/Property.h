@@ -28,9 +28,17 @@
 
 #if !defined(BASE_PROPERTY_H_) && __cplusplus
 #define BASE_PROPERTY_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Exception.h>
+#include <Base/Type.h>
+#include <Base/Utils.h>
+#else
 #include <Exception.h>
 #include <Type.h>
 #include <Utils.h>
+#endif
 
 namespace Base {
 template <typename Type>

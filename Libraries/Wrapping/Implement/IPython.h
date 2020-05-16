@@ -1,15 +1,28 @@
 #if USE_PYTHON && !defined(BASE_PYTHON_WRAPPER_H_)
 #define BASE_PYTHON_WRAPPER_H_
+#include <Config.h>
+#include <Python.h>
 
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Exception.h>
+#include <Base/Utils.h>
+#include <Base/Vertex.h>
+#include <Base/Type.h>
+#else
 #include <Auto.h>
 #include <Exception.h>
-#include <Python.h>
 #include <Utils.h>
 #include <Vertex.h>
 #include <Type.h>
+#endif
 
 #ifndef BASE_WRAPPING_H_
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Wrapping/Wrapping.h>
+#else
 #include <Wrapping.h>
+#endif
 #endif
 
 namespace Base {

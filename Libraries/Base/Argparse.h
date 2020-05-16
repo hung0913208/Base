@@ -1,9 +1,18 @@
 #ifndef BASE_ARGPARSE_H_
 #define BASE_ARGPARSE_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Exception.h>
+#include <Base/Utils.h>
+#include <Base/Type.h>
+#else
 #include <Auto.h>
 #include <Exception.h>
 #include <Utils.h>
 #include <Type.h>
+#endif
 
 #if __cplusplus
 #include <typeinfo>

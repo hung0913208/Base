@@ -1,8 +1,16 @@
 #if !defined(BASE_LOGCAT_H_)
 #define BASE_LOGCAT_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Property.h>
+#include <Base/Stream.h>
+#include <Base/Type.h>
+#else
 #include <Property.h>
 #include <Stream.h>
 #include <Type.h>
+#endif
 
 #define LOGLEVEL 1
 #define READABLE 1

@@ -1,7 +1,14 @@
 #if !defined(BASE_VERTEX_H_) && __cplusplus
 #define BASE_VERTEX_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Property.h>
+#include <Base/Type.h>
+#else
 #include <Property.h>
 #include <Type.h>
+#endif
 
 namespace Base {
 template <typename Type, Bool templated = False>

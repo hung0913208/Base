@@ -2,7 +2,13 @@
 #define UNITTEST_EXPECT_EQUAL_H_
 
 #ifndef UNITTEST_IMPLEMENT
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Unittest/Unittest.h>
+#else
 #include <Unittest.h>
+#endif
 #endif  // UNITTEST_IMPLEMENT
 
 template <typename Left, typename Right>

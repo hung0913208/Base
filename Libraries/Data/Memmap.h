@@ -1,8 +1,16 @@
 #ifndef BASE_MEMMAP_H_
 #define BASE_MEMMAP_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Exception.h>
+#include <Base/Macro.h>
+#include <Base/Type.h>
+#else
 #include <Exception.h>
 #include <Macro.h>
 #include <Type.h>
+#endif
 
 #if LINUX || BSD || APPLE || WINDOWS
 /* @NOTE: only support WINDOWS, LINUX, BSD and APPLE */

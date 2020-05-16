@@ -1,9 +1,18 @@
 #ifndef BASE_HASHTABLE_H_
 #define BASE_HASHTABLE_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Exception.h>
+#include <Base/Logcat.h>
+#include <Base/Type.h>
+#include <Base/Utils.h>
+#else
 #include <Exception.h>
 #include <Logcat.h>
 #include <Type.h>
 #include <Utils.h>
+#endif
 
 /* @NOTE: this header will be used to calculate log */
 #include <math.h>

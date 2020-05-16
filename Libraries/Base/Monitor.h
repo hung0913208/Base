@@ -1,9 +1,18 @@
 #ifndef BASE_MONITOR_H_
 #define BASE_MONITOR_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/List.h>
+#include <Base/Type.h>
+#include <Base/Logcat.h>
+#else
 #include <Auto.h>
 #include <List.h>
 #include <Type.h>
 #include <Logcat.h>
+#endif
 
 #if __cplusplus
 namespace Base {

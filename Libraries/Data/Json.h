@@ -1,11 +1,22 @@
 #ifndef DATA_JSON_H_
 #define DATA_JSON_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Data.h>
+#include <Base/Logcat.h>
+#include <Base/Type.h>
+#include <Base/Stream.h>
+#include <Base/Utils.h>
+#else
 #include <Auto.h>
 #include <Data.h>
 #include <Logcat.h>
 #include <Type.h>
 #include <Stream.h>
 #include <Utils.h>
+#endif
 
 namespace Base {
 class Json: Parser, Generator{

@@ -1,7 +1,14 @@
 #ifndef BASE_THREAD_H_
 #define BASE_THREAD_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Property.h>
+#include <Base/Type.h>
+#else
 #include <Property.h>
 #include <Type.h>
+#endif
 
 #if __cplusplus
 namespace Base {

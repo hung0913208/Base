@@ -1,8 +1,14 @@
 #ifndef BASE_LIST_H_
 #define BASE_LIST_H_
+#include <Config.h>
 
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Type.h>
+#include <Base/Utils.h>
+#else
 #include <Type.h>
 #include <Utils.h>
+#endif
 
 #if __cplusplus
 namespace Base {

@@ -1,6 +1,13 @@
 #ifndef BASE_ATOMIC_H_
 #define BASE_ATOMIC_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Type.h>
+#else
 #include <Type.h>
+#endif
+
 #include <string.h>
 #include <unistd.h>
 

@@ -28,10 +28,20 @@
 
 #ifndef BASE_UNITTEST_H_
 #define BASE_UNITTEST_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Macro.h>
+#include <Base/Type.h>
+#include <Base/Vertex.h>
+#else
 #include <Auto.h>
 #include <Macro.h>
 #include <Type.h>
 #include <Vertex.h>
+#endif
+
 #include <signal.h>
 #include <thread>
 

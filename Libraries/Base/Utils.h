@@ -28,9 +28,17 @@
 
 #ifndef BASE_UTILS_H_
 #define BASE_UTILS_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Exception.h>
+#include <Base/Macro.h>
+#include <Base/Type.h>
+#else
 #include <Exception.h>
 #include <Macro.h>
 #include <Type.h>
+#endif
 
 #if WINDOWS
 #include <windows.h>

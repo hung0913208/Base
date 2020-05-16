@@ -1,7 +1,15 @@
 #ifndef DATA_FORMAT_H_
 #define DATA_FORMAT_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Type.h>
+#else
 #include <Auto.h>
 #include <Type.h>
+#endif
+
 #include <typeinfo>
 
 namespace Base {

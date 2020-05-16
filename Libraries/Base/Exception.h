@@ -1,7 +1,14 @@
 #if !defined(BASE_EXCEPTION_H_) && __cplusplus
 #define BASE_EXCEPTION_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Stream.h>
+#include <Base/Type.h>
+#else
 #include <Stream.h>
 #include <Type.h>
+#endif
 
 #define Except(code, message) \
   Base::Exception { code, message, __FUNCTION__, __FILE__, __LINE__ }

@@ -1,7 +1,14 @@
 #ifndef BASE_WRAPPING_H_
 #define BASE_WRAPPING_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Auto.h>
+#include <Base/Type.h>
+#else
 #include <Auto.h>
 #include <Type.h>
+#endif
 
 namespace Base {
 class Wrapping {

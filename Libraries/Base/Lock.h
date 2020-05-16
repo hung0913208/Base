@@ -1,6 +1,12 @@
 #if !defined(BASE_LOCK_H_) && __cplusplus
 #define BASE_LOCK_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Type.h>
+#else
 #include <Type.h>
+#endif
 
 namespace Base {
 class Lock {

@@ -1,10 +1,16 @@
-#include <Config.h>
+#include <Lock.h>
 #include <Logcat.h>
 #include <Utils.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
 namespace Base {
+namespace Config {
+namespace Locks {
+extern Base::Lock Global;
+} // namespace Locks
+} // namespace Config
+
 namespace Internal {
 static Vector<Fork*> Forks;
 

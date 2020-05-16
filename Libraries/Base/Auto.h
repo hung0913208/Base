@@ -1,10 +1,20 @@
 #ifndef BASE_AUTO_H_
 #define BASE_AUTO_H_
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Exception.h>
+#include <Base/Logcat.h>
+#include <Base/Property.h>
+#include <Base/Stream.h>
+#include <Base/Utils.h>
+#else
 #include <Exception.h>
 #include <Logcat.h>
 #include <Property.h>
 #include <Stream.h>
 #include <Utils.h>
+#endif
 
 #if __cplusplus
 extern "C" {
