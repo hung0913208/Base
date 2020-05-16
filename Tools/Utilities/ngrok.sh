@@ -51,7 +51,8 @@ if [ $SERVICE = 'ngrok' ]; then
 	while [ $# -gt 0 ]; do
 		case $1 in
 			--token)	NGROK_TOKEN="$2"; shift;;
-			--wait)		WAIT=1; shift;;
+			--wait)		WAIT=1;;
+			--port)		PORT=$2; shift;;
 			(--) 		shift; break;;
 			(-*) 		error "unrecognized option $1";;
 			(*)		METHOD="$1";;
@@ -86,6 +87,7 @@ elif [ $SERVICE = 'pktriot' ]; then
 			--email)	PKTRIOT_EMAIL="$2"; shift;;
 			--password)	PKTRIOT_PASSWORD="$2"; shift;;
 			--region)	PKTRIOT_REGION="$2"; shift;;
+			--port)		PORT=$2; shift;;
 			(--) 		shift; break;;
 			(-*) 		error "unrecognized option $1";;
 			(*)		METHOD="$1";;
