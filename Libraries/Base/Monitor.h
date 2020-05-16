@@ -143,10 +143,10 @@ class Monitor {
   ErrorCodeE Heartbeat(Auto fd);
 
   /* @NOTE: these virtual methods are used to interact with monitor */
-  virtual ErrorCodeE _Append(Auto fd, Int mode);
-  virtual ErrorCodeE _Modify(Auto fd, Int mode);
-  virtual ErrorCodeE _Find(Auto fd);
-  virtual ErrorCodeE _Remove(Auto fd);
+  virtual ErrorCodeE _Append(Auto fd, Int mode) = 0;
+  virtual ErrorCodeE _Modify(Auto fd, Int mode) = 0;
+  virtual ErrorCodeE _Find(Auto fd) = 0;
+  virtual ErrorCodeE _Remove(Auto fd) = 0;
 
   /* @NOTE: this virtual method is used to register a triggering with
    * specific events */
@@ -213,18 +213,7 @@ class Monitor {
   ErrorCodeE ScanIter(Auto fd, Int mode, Monitor** next,
                       Vector<Pair<Monitor*, Perform*>>& callbacks);
 
-  struct Action {
-    ActTypeE type;
-    Auto fd; Int mode;
-
-    Action(ActTypeE type, Auto fd, Int mode);
-    Action(ActTypeE type, Auto fd);
-  };
-
-  Int _Index;
   Int _Using;
-  Bool _Attached, _Detached;
-  Vector<Action> _Pipeline;
 };
 } // namespace Base
 #else

@@ -38,8 +38,7 @@ Bool Create(String name, UInt type, Int system, Monitor** result);
 
 Monitor::Monitor(String name, UInt type): _Name{name}, _Type{type}, 
     _Shared{None}, _PNext{None}, _PLast{None}, _Head{None}, _Last{None}, 
-    _Next{None}, _Prev{None},  _State{0}, _Using{0}, _Attached{False}, 
-    _Detached{False} { 
+    _Next{None}, _Prev{None},  _State{0}, _Using{0} {
 }
 
 Monitor::~Monitor() { }
@@ -406,7 +405,7 @@ detach:
     BARRIER();
 
     if (LIKELY(Head(), None)) {
-      _Detached = True;
+      is_detached = True;
 
       if (is_child) {
         goto finish;
@@ -548,7 +547,6 @@ Bool Monitor::Devote(UInt retry) {
     retry--;
   } while (retry > 0);
 
-unlock:
   CMPXCHG(plock, this, None);
   return touched;
 }
@@ -820,79 +818,6 @@ void Monitor::Lock(UInt type) {
 void Monitor::Unlock(UInt type) {
   if (Internal::MLocks.find(type) != Internal::MLocks.end()) {
     Internal::MLocks[type](False);
-  }
-}
-
-ErrorCodeE Monitor::_Append(Auto UNUSED(fd), Int UNUSED(mode)) {
-  if (_State) {
-    return ENoSupport;
-  } else {
-    Internal::MLocks[_Type].Safe([&]() {
-      _Pipeline.push_back(Monitor::Action{EAppend, fd, mode});
-    });
-    return ENoError;
-  }
-}
-
-ErrorCodeE Monitor::_Modify(Auto fd, Int mode) {
-  if (_State) {
-    return ENoSupport;
-  } else {
-    Internal::MLocks[_Type].Safe([&]() {
-      _Pipeline.push_back(Monitor::Action{EModify, fd});
-    });
-    return ENoError;
-  }
-}
-
-ErrorCodeE Monitor::_Find(Auto UNUSED(fd)) {
-  if (_State) {
-    return ENoSupport;
-  } else {
-    Internal::MLocks[_Type].Safe([&]() {
-      _Pipeline.push_back(Monitor::Action{EFind, fd});
-    });
-    return ENoError;
-  }
-}
-
-ErrorCodeE Monitor::_Remove(Auto UNUSED(fd)) {
-  if (_State) {
-    return ENoSupport;
-  } else {
-    Internal::MLocks[_Type].Safe([&]() {
-      _Pipeline.push_back(Monitor::Action{ERemove, fd});
-    });
-    return ENoError;
-  }
-}
-
-Monitor::Action::Action(ActTypeE type, Auto fd, Int mode) {
-  this->type = type;
-
-  switch(type) {
-  case Monitor::EAppend:
-  case Monitor::EModify:
-    this->fd = fd;
-    this->mode = mode;
-    break;
-
-  default:
-    throw Except(ENoSupport, "can't recognine your action");
-  }
-}
-
-Monitor::Action::Action(ActTypeE type, Auto fd) {
-  this->type = type;
-
-  switch(type) {
-  case Monitor::EFind:
-  case Monitor::ERemove:
-    this->fd = fd;
-    break;
-
-  default:
-    throw Except(ENoSupport, "can't recognine your action");
   }
 }
 } // namespace Base
