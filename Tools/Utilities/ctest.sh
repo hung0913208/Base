@@ -283,12 +283,13 @@ if [ -d "./$1" ]; then
 			if [[ $# -gt 1 ]]; then
 				LIB="$2/"
 			else
-				LIB="."
+				LIB=""
 			fi
 
-			for FILE in $(ls -1c ./Tests/$LIB); do
-				FILE="./Tests/$LIB/$FILE"
-
+			for FILE in $(ls -1cR ./Tests/$LIB | awk '
+/:$/&&f{s=$0;f=0}
+/:$/&&!f{sub(/:$/,"");s=$0;f=1;next}
+NF&&f{ print s"/"$0 }'); do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
 					if ! file $FILE | grep "executable\|linked" &> /dev/null; then
 						continue
