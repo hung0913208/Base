@@ -866,12 +866,14 @@ function create_image() {
 
 		cd "$WORKSPACE" || error "can't cd to $WORKSPACE"
 
-		if [ ${#KER_FILENAME} -gt 0 ]; then
+		if [ -f $WORKSPACE/Tests/Pipeline/Boot.sh ]; then
+			$WORKSPACE/Tests/Pipeline/Boot.sh $1
+		elif [ ${#KER_FILENAME} -gt 0 ]; then
 			boot_kernel $RAM_FILENAME $KER_FILENAME $MASTER
 		elif [ ${#IMG_FILENAME} -gt 0 ]; then
 			boot_image $IMG_FILENAME
 		else
-			boot_pxelinux
+			boot_pxelinux $1
 		fi
 	fi
 }
