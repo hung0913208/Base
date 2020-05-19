@@ -875,11 +875,7 @@ function boot_image() {
 		KVM='-enable-kvm'
 	fi
 
-	if [ -f "$RAM_FILENAME" ]; then
-		if [ ! -f $KER_FILENAME ]; then
-			compile_linux_kernel
-		fi
-
+	if [ -f "$IMG_FILENAME" ]; then
 		if [[ ${#DEBUG} -gt 0 ]]; then
 			TIMEOUT="timeout 2700"
 		else
@@ -897,7 +893,7 @@ function boot_image() {
 		fi
 
 		if [[ $2 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
-			info "run the slave VM($IDX) with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+			info "run the slave VM($IDX) with image $IMG_FILENAME"
 
 			if [[ ${#CPU} -gt 0 ]]; then
 				if [ ${#VNC} -gt 0 ]; then
@@ -906,7 +902,7 @@ VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio		\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
 		-cpu $CPU -s -hda "${IMG_FILENAME} 								\
 		-smp $(nproc) -m $RAM										\
 		-serial telnet:localhost:101$PORT,server,nowait 						\
@@ -929,10 +925,9 @@ VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio		\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
 		-hda "${IMG_FILENAME} 										\
 		-m $RAM												\
-		-serial telnet:localhost:101$PORT,server,nowait 						\
 		$NETWORK $KVM
 EOF
 				else
@@ -948,7 +943,7 @@ EOF
 				fi
 			fi
 		elif [[ ${#CPU} -gt 0 ]]; then
-			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+			info "run the master VM with image $IMG_FILENAME"
 
 			if [ ${#VNC} -gt 0 ]; then
 				cat >> $ROOT/vms/start << EOF
@@ -956,10 +951,9 @@ VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio		\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
 		-cpu $CPU -s -hda "${IMG_FILENAME} 								\
 		-smp $(nproc) -m $RAM										\
-		-serial telnet:localhost:101$PORT,server,nowait 						\
 		$NETWORK $KVM
 EOF
 			else
@@ -975,7 +969,7 @@ echo ""
 EOF
 			fi
 		else
-			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+			info "run the master VM with image $IMG_FILENAME"
 
 			if [ ${#VNC} -gt 0 ]; then
 				cat >> $ROOT/vms/start << EOF
@@ -983,10 +977,9 @@ VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio		\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
 		-hda "${IMG_FILENAME} 										\
 		-m $RAM												\
-		-serial telnet:localhost:101$PORT,server,nowait 						\
 		$NETWORK $KVM
 EOF
 			else
@@ -1007,7 +1000,7 @@ screen -ls "vms.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print \$1}' | while 
 rm -fr $ROOT/vms
 EOF
 	else
-		warning "i can't start QEmu because i don't see any approviated test suites"
+		warning "i can't start QEmu because i don't see any disk image"
 		CODE=1
 	fi
 }
@@ -1021,144 +1014,135 @@ function boot_pxelinux() {
 
 	mkdir -p $ROOT/vms
 
-	if [ $CPU = 'host' ]; then
+	if [ "$CPU" = 'host' ]; then
 		KVM='-enable-kvm'
 	fi
 
-	if [ -f "$RAM_FILENAME" ]; then
-		if [ ! -f $KER_FILENAME ]; then
-			compile_linux_kernel
-		fi
+	if [[ ${#DEBUG} -gt 0 ]]; then
+		TIMEOUT="timeout 2700"
+	else
+		TIMEOUT=""
+	fi
 
-		if [[ ${#DEBUG} -gt 0 ]]; then
-			TIMEOUT="timeout 2700"
-		else
-			TIMEOUT=""
-		fi
+	if [[ ${#RAM} -eq 0 ]]; then
+		RAM="1G"
+	fi
 
-		if [[ ${#RAM} -eq 0 ]]; then
-			RAM="1G"
-		fi
+	if [[ $IDX -lt 10 ]]; then
+		PORT="0$IDX"
+	else
+		PORT=$IDX
+	fi
 
-		if [[ $IDX -lt 10 ]]; then
-			PORT="0$IDX"
-		else
-			PORT=$IDX
-		fi
+	if [[ $2 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
+		info "run the slave VM($IDX) with pxeboot"
 
-		if [[ $2 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
-			info "run the slave VM($IDX) with pxeboot"
-
-			if [[ ${#CPU} -gt 0 ]]; then
-				if [ ${#VNC} -gt 0 ]; then
-					cat >> $ROOT/vms/start << EOF
-VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
-VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
-
-screen -S "vms.pid" -dm 										\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
-		-cpu $CPU -s -boot n 									\
-		-smp $(nproc) -m $RAM									\
-		-serial telnet:localhost:101$PORT,server,nowait 					\
-		$NETWORK $KVM
-EOF
-				else
-					cat >> $ROOT/vms/start << EOF
-screen -S "vms.pid" -dm 					\
-qemu-system-x86_64 -serial stdio 				\
-		-cpu $CPU -s -boot n 				\
-		-nographic 					\
-		-smp $(nproc) -m $RAM				\
-		-serial telnet:localhost:101$PORT,server,nowait \
-		$NETWORK $KVM
-EOF
-				fi
-			else
-				if [ ${#VNC} -gt 0 ]; then
-					cat >> $ROOT/vms/start << EOF
-VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
-VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
-
-screen -S "vms.pid" -dm 											\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio		\
-		-smp $(nproc) -m $RAM -boot n									\
-		-serial telnet:localhost:101$PORT,server,nowait 						\
-		$NETWORK $KVM
-EOF
-				else
-					cat >> $ROOT/vms/start << EOF
-screen -S "vms.pid" -dm 					\
-qemu-system-x86_64 -serial stdio 				\
-		-nographic -boot n 				\
-		-m $RAM						\
-		-serial telnet:localhost:101$PORT,server,nowait \
-		$NETWORK $KVM
-EOF
-				fi
-			fi
-		elif [[ ${#CPU} -gt 0 ]]; then
-			info "run the master VM with pxeboot"
-
+		if [[ ${#CPU} -gt 0 ]]; then
 			if [ ${#VNC} -gt 0 ]; then
 				cat >> $ROOT/vms/start << EOF
 VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio		\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
 		-cpu $CPU -s -boot n 										\
 		-smp $(nproc) -m $RAM										\
-		-serial telnet:localhost:101$PORT,server,nowait 						\
 		$NETWORK $KVM
 EOF
 			else
 				cat >> $ROOT/vms/start << EOF
+screen -S "vms.pid" -dm 					\
+qemu-system-x86_64 -cpu $CPU -s -boot n 			\
+		-nographic 					\
+		-smp $(nproc) -m $RAM				\
+		-serial telnet:localhost:101$PORT,server,nowait \
+		-option-rom /usr/share/qemu/pxe-rtl8139.rom	\
+		$NETWORK $KVM
+EOF
+			fi
+		else
+			if [ ${#VNC} -gt 0 ]; then
+				cat >> $ROOT/vms/start << EOF
+VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
+VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
+
+screen -S "vms.pid" -dm 											\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
+		-smp $(nproc) -m $RAM -boot n									\
+		$NETWORK $KVM
+EOF
+			else
+				cat >> $ROOT/vms/start << EOF
+screen -S "vms.pid" -dm 					\
+qemu-system-x86_64 -nographic -boot n 				\
+		-m $RAM						\
+		-option-rom /usr/share/qemu/pxe-rtl8139.rom	\
+		-serial telnet:localhost:101$PORT,server,nowait \
+		$NETWORK $KVM
+EOF
+			fi
+		fi
+	elif [[ ${#CPU} -gt 0 ]]; then
+		info "run the master VM with pxeboot"
+
+		if [ ${#VNC} -gt 0 ]; then
+			cat >> $ROOT/vms/start << EOF
+VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
+VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
+
+screen -S "vms.pid" -dm 											\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+		-cpu $CPU -s -boot n 										\
+		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
+		-smp $(nproc) -m $RAM										\
+		$NETWORK $KVM
+EOF
+		else
+			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM($CPU):"
-$TIMEOUT qemu-system-x86_64 -serial stdio 		\
-	-cpu $CPU -s -boot n 				\
+$TIMEOUT qemu-system-x86_64 -cpu $CPU -s -boot n 	\
 	-nographic 					\
 	-smp $(nproc) -m $RAM				\
+	-option-rom /usr/share/qemu/pxe-rtl8139.rom	\
 	-serial telnet:localhost:101$PORT,server,nowait \
 	$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
 EOF
-			fi
-		else
-			info "run the master VM with kernel $KER_FILENAME and initrd $RAM_FILENAME"
+		fi
+	else
+		info "run the master VM with pxeboot"
 
-			if [ ${#VNC} -gt 0 ]; then
-				cat >> $ROOT/vms/start << EOF
+		if [ ${#VNC} -gt 0 ]; then
+			cat >> $ROOT/vms/start << EOF
 VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\n%s\n" VNC_PW | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio		\
+printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
 		-boot n -smp $(nproc) -m $RAM									\
-		-serial telnet:localhost:101$PORT,server,nowait 						\
+		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
 		$NETWORK $KVM
 EOF
-			else
-				cat >> $ROOT/vms/start << EOF
+		else
+			cat >> $ROOT/vms/start << EOF
 echo "[   INFO  ]: console log from master VM:"
-$TIMEOUT qemu-system-x86_64 -serial stdio 			\
-		-nographic -boot n 				\
+$TIMEOUT qemu-system-x86_64 -nographic -boot n 			\
 		-m $RAM						\
 		-serial telnet:localhost:101$PORT,server,nowait \
+		-option-rom /usr/share/qemu/pxe-rtl8139.rom	\
 		$NETWORK $KVM
 echo "--------------------------------------------------------------------------------------------------------------------"
 echo ""
 EOF
-			fi
 		fi
-			cat >> $ROOT/vms/stop << EOF
+	fi
+		cat >> $ROOT/vms/stop << EOF
 screen -ls "vms.pid" | grep -E '\s+[0-9]+\.' | awk -F ' ' '{print \$1}' | while read s; do screen -XS \$s quit; done
 rm -fr $ROOT/vms
 EOF
-	else
-		warning "i can't start QEmu because i don't see any approviated test suites"
-		CODE=1
-	fi
 }
 
 function start_vms() {
@@ -1236,8 +1220,10 @@ function create_image() {
 
 		if ! generate_netscript $IDX $IFUP_FILENAME $IPDOWN_FILENAME; then
 			warning "can't build network to VM($IDX)"
-		elif [[ ${#IMG_FILENAME} -eq 0 ]]; then
+		elif [[ ${#IMG_FILENAME} -eq 0 ]] && [[ ${#RAM_FILENAME} -gt 0 ]]; then
 			# @NOTE: build a new initrd
+
+			info "generate file initramfs $RAM_FILENAME with kernel $KER_FILENAME"
 
 			if [ ! -f $RAM_FILENAME ]; then
 				compile_busybox
@@ -1247,14 +1233,18 @@ function create_image() {
 				generate_initrd "$WORKSPACE/build" $RAM_FILENAME $IFUP_FILENAME $IDX
 			fi
 		fi
-
+		
+		if [[ ${#IMG_FILENAME} -gt 0 ]]; then
+			info "use image $IMG_FILENAME to boot our system"
+		fi
+	
 		cd "$WORKSPACE" || error "can't cd to $WORKSPACE"
 
 		if [ -f $WORKSPACE/Tests/Pipeline/Boot.sh ]; then
 			$WORKSPACE/Tests/Pipeline/Boot.sh $1 $SLAVER
-		elif [ ${#KER_FILENAME} -gt 0 ]; then
+		elif [[ ${#KER_FILENAME} -gt 0 ]] && [[ ${#RAM_FILENAME} -gt 0 ]]; then
 			boot_kernel $RAM_FILENAME $KER_FILENAME $SLAVER $1
-		elif [ ${#IMG_FILENAME} -gt 0 ]; then
+		elif [[ ${#IMG_FILENAME} -gt 0 ]]; then
 			boot_image $IMG_FILENAME $SLAVER $1
 		else
 			boot_pxelinux $1 $SLAVER
