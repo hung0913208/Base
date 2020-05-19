@@ -1216,9 +1216,7 @@ function create_image() {
 	IFUP_FILENAME="$ROOT/ifup"
 	IPDOWN_FILENAME="$ROOT/ifdown"
 
-	$WORKSPACE/Tests/Pipeline/Build.sh $2 1 $1
-
-	if [ $? != 0 ]; then
+	if ! $WORKSPACE/Tests/Pipeline/Build.sh $2 1 $1; then
 		warning "Fail repo $REPO/$BRANCH"
 		CODE=1
 	else
@@ -1286,6 +1284,7 @@ function process() {
 		VMS_NUMBER=1
 
 		$BASE/Tests/Pipeline/Prepare.sh
+
 		if [ -f $WORKSPACE/.environment ]; then
 			source $WORKSPACE/.environment
 		fi
@@ -1307,14 +1306,20 @@ function process() {
 				create_image $IDX $1
 			done
 
-			start_vms
+			if [[ $CODE -eq 0 ]]; then
+				start_vms
+			else
+				warning "Fail repo $REPO/$BRANCH"
+			fi
 		fi
 	else
 		warning "repo $REPO don't support usual CI method"
 		CODE=1
 	fi
 
-	rm -fr "$WORKSPACE"
+	if [ $ROOT != $WORKSPACE ]; then
+		rm -fr "$WORKSPACE"
+	fi
 	return $CODE
 }
 
@@ -1408,7 +1413,7 @@ elif [ "$METHOD" = "prepare" ]; then
 					create_image $IDX $(basename $WORKSPACE)
 				fi
 
-				if [ $? != 0 ]; then
+				if [ $CODE != 0 ]; then
 					error "Fail repo $REPO/$BRANCH"
 				fi
 			done
@@ -1480,14 +1485,19 @@ elif [ "$METHOD" == "build" ]; then
 		info "import '$REPO $BRANCH' >> ./repo.list"
 
 		echo "$REPO $BRANCH" >> ./repo.list
-	else
+	elif [[ ${#REPO} -gt 0 ]]; then
 		# @NOTE: fetch the list project we would like to build from remote server
 		if [ ! -f './repo.list' ]; then
 			curl -k --insecure $REPO -o './repo.list' >> /dev/null
+
 			if [ $? != 0 ]; then
 				error "Can't fetch list of project from $REPO"
 			fi
 		fi
+	elif [ "$(detect_libbase $ROOT)" != "$ROOT" ]; then
+		echo "$(realpath $ROOT) HEAD" > ./repo.list
+	else
+		error "can't find repo.list"
 	fi
 
 	HOST=""
@@ -1510,15 +1520,21 @@ elif [ "$METHOD" == "build" ]; then
 		fi
 
 		# @NOTE: clone this Repo, including its submodules
-		git clone --branch $BRANCH $REPO $PROJECT
 
-		if [ $? != 0 ]; then
-			FAIL=(${FAIL[@]} $PROJECT)
-			continue
+		if [ ! -d $REPO ]; then
+			git clone --branch $BRANCH $REPO $PROJECT
+
+			if [ $? != 0 ]; then
+				FAIL=(${FAIL[@]} $PROJECT)
+				continue
+			fi
+
+			ROOT=$(pwd)
+			WORKSPACE="$ROOT/$PROJECT"
+
+		else
+			WORKSPACE=$REPO
 		fi
-
-		ROOT=$(pwd)
-		WORKSPACE="$ROOT/$PROJECT"
 
 		# @NOTE: everything was okey from now, run CI steps
 		cd $WORKSPACE

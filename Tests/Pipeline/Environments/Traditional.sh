@@ -230,14 +230,19 @@ elif [ "$METHOD" = "build" ]; then
 		info "import '$REPO $BRANCH' >> ./repo.list"
 
 		echo "$REPO $BRANCH" >> ./repo.list
-	else
+	elif [[ ${#REPO} -gt 0 ]]; then
 		# @NOTE: fetch the list project we would like to build from remote server
 		if [ ! -f './repo.list' ]; then
 			curl -k --insecure $REPO -o './repo.list' >> /dev/null
+
 			if [ $? != 0 ]; then
 				error "Can't fetch list of project from $REPO"
 			fi
 		fi
+	elif [ "$(detect_libbase $ROOT)" != "$ROOT" ]; then
+		echo "$(realpath $ROOT) HEAD" > ./repo.list
+	else
+		error "can't find repo.list"
 	fi
 
 	function process() {
@@ -302,16 +307,20 @@ elif [ "$METHOD" = "build" ]; then
 		fi
 
 		# @NOTE: clone this Repo, including its submodules
-		git clone --branch $BRANCH $REPO $PROJECT
 
-		if [ $? != 0 ]; then
-			FAIL=(${FAIL[@]} $PROJECT)
-			continue
+		if [ ! -d $REPO ]; then
+			git clone --branch $BRANCH $REPO $PROJECT
+
+			if [ $? != 0 ]; then
+				FAIL=(${FAIL[@]} $PROJECT)
+				continue
+			fi
+
+			ROOT=$(pwd)
+			WORKSPACE="$ROOT/$PROJECT"
+		else
+			WORKSPACE=$REPO
 		fi
-
-		ROOT=$(pwd)
-		WORKSPACE="$ROOT/$PROJECT"
-
 		# @NOTE: everything was okey from now, run CI steps
 		cd $WORKSPACE
 
@@ -384,7 +393,10 @@ except Exception as error:
 
 		# @NOTE: back to the root before jumping to another Repos
 		cd $ROOT
-		rm -fr $WORKSPACE
+
+		if [ $ROOT != $WORKSPACE ]; then
+			rm -fr $WORKSPACE
+		fi
 	done
 
 	if [ -f /tmp/fail ]; then
