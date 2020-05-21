@@ -117,11 +117,11 @@ function get_state_interface() {
 }
 
 function get_ip_interface() {
-	ip addr show $1 | grep inet | awk '{ print $2 }' | awk '{ split($0,a,"/"); print a[1]; }'
+	ip addr show $1 | grep inet | grep -v inet6 | awk '{ print $2 }' | awk '{ split($0,a,"/"); print a[1]; }'
 }
 
 function get_netmask_interface() {
-	ip addr show $1 | grep inet | awk '{ print $2 }' | awk '{ split($0,a,"/"); print a[2]; }'
+	ip addr show $1 | grep inet | grep -v inet6 | awk '{ print $2 }' | awk '{ split($0,a,"/"); print a[2]; }'
 }
 
 function get_range_interface() {
