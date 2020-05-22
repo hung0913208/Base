@@ -892,17 +892,19 @@ function boot_image() {
 			PORT=$IDX
 		fi
 
+		if [ ${#VNC} -gt 0 ]; then
+			VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
+			VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
+		fi
+
 		if [[ $2 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
 			info "run the slave VM($IDX) with image $IMG_FILENAME"
 
 			if [[ ${#CPU} -gt 0 ]]; then
 				if [ ${#VNC} -gt 0 ]; then
 					cat >> $ROOT/vms/start << EOF
-VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
-VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
-
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio		\
 		-cpu $CPU -s -hda "${IMG_FILENAME} 								\
 		-smp $(nproc) -m $RAM										\
 		-serial telnet:localhost:101$PORT,server,nowait 						\
@@ -925,7 +927,7 @@ VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio	\
 		-hda "${IMG_FILENAME} 										\
 		-m $RAM												\
 		$NETWORK $KVM
@@ -951,7 +953,7 @@ VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio	\
 		-cpu $CPU -s -hda "${IMG_FILENAME} 								\
 		-smp $(nproc) -m $RAM										\
 		$NETWORK $KVM
@@ -973,11 +975,8 @@ EOF
 
 			if [ ${#VNC} -gt 0 ]; then
 				cat >> $ROOT/vms/start << EOF
-VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
-VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
-
 screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio	\
 		-hda "${IMG_FILENAME} 										\
 		-m $RAM												\
 		$NETWORK $KVM
@@ -1034,21 +1033,23 @@ function boot_pxelinux() {
 		PORT=$IDX
 	fi
 
+	if [ ${#VNC} -gt 0 ]; then
+		VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
+		VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
+	fi
+
 	if [[ $2 -eq 1 ]] || [[ ${#DEBUG} -gt 0 ]]; then
 		info "run the slave VM($IDX) with pxeboot"
 
 		if [[ ${#CPU} -gt 0 ]]; then
 			if [ ${#VNC} -gt 0 ]; then
 				cat >> $ROOT/vms/start << EOF
-VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
-VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
-
-screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+screen -S "vms.pid" -dm bash -c ' 										\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio		\
 		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
 		-cpu $CPU -s -boot n 										\
 		-smp $(nproc) -m $RAM										\
-		$NETWORK $KVM
+		$NETWORK $KVM'
 EOF
 			else
 				cat >> $ROOT/vms/start << EOF
@@ -1064,14 +1065,11 @@ EOF
 		else
 			if [ ${#VNC} -gt 0 ]; then
 				cat >> $ROOT/vms/start << EOF
-VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
-VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
-
-screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+screen -S "vms.pid" -dm bash -c '										\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio		\
 		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
 		-smp $(nproc) -m $RAM -boot n									\
-		$NETWORK $KVM
+		$NETWORK $KVM'
 EOF
 			else
 				cat >> $ROOT/vms/start << EOF
@@ -1089,15 +1087,12 @@ EOF
 
 		if [ ${#VNC} -gt 0 ]; then
 			cat >> $ROOT/vms/start << EOF
-VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
-VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
-
-screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+screen -S "vms.pid" -dm bash -c '										\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio		\
 		-cpu $CPU -s -boot n 										\
 		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
 		-smp $(nproc) -m $RAM										\
-		$NETWORK $KVM
+		$NETWORK $KVM'
 EOF
 		else
 			cat >> $ROOT/vms/start << EOF
@@ -1120,11 +1115,11 @@ EOF
 VNC_PW=$(echo $VNC | awk '{ split($0,a,":"); print a[1] }')
 VNC_ID=$(echo $VNC | awk '{ split($0,a,":"); print a[2] }')
 
-screen -S "vms.pid" -dm 											\
-printf "change vnc password\\n\$VNC_PW\\n" | qemu-system-x86_64 -vnc ":\$VNC_ID,password" -monitor stdio	\
+screen -S "vms.pid" -dm bash -c '										\
+printf "change vnc password\\n$VNC_PW\\n" | qemu-system-x86_64 -vnc ":$VNC_ID,password" -monitor stdio		\
 		-boot n -smp $(nproc) -m $RAM									\
 		-option-rom /usr/share/qemu/pxe-rtl8139.rom							\
-		$NETWORK $KVM
+		$NETWORK $KVM'
 EOF
 		else
 			cat >> $ROOT/vms/start << EOF
@@ -1153,7 +1148,6 @@ function start_vms() {
 
 		if $SU ip addr add 192.168.100.1/24 dev $EBRD; then
 			$SU ip link set $EBRD up
-			$SU kill -15 $(pgrep dnsmasq)
 
 			cat > $ROOT/vms/dhcpd.script << EOF
 OP="\${1:-op}"
