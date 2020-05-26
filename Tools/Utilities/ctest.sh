@@ -262,6 +262,14 @@ if [ -d "./$1" ]; then
 	$SU sysctl -w kernel.core_pattern="core-%e.%p.%h.%t"
 	ulimit -c unlimited
 
+	if [ -d ./Tests ]; then
+		TEST="Tests"
+	elif [ -d ./tests ]; then
+		TEST="tests"
+	else
+		exit 0
+	fi
+
 	if [ "$1" == "Debug" ] || [ "$1" == "Release" ] || [ "$1" == "Coverage" ] || [ "$1" == "Sanitize" ] || [ "$1" == "Profiling" ]; then
 		export ASAN_SYMBOLIZER_PATH=$LLVM_SYMBOLIZER
 		export LSAN_OPTIONS=verbosity=1:log_threads=1
@@ -286,7 +294,7 @@ if [ -d "./$1" ]; then
 				LIB=""
 			fi
 
-			for FILE in $(ls -1cR ./Tests/$LIB | awk '
+			for FILE in $(ls -1cR ./$TEST/$LIB | awk '
 /:$/&&f{s=$0;f=0}
 /:$/&&!f{sub(/:$/,"");s=$0;f=1;next}
 NF&&f{ print s"/"$0 }'); do
@@ -378,7 +386,7 @@ NF&&f{ print s"/"$0 }'); do
 				echo "Check coredump"
 				echo "=============================================================================="
 
-				for FILE in ./Tests/*; do
+				for FILE in ./$TEST/*; do
 					if [ -x "$FILE" ]; then
 						coredump $FILE
 					fi
@@ -395,7 +403,7 @@ NF&&f{ print s"/"$0 }'); do
 					echo "Run with ASAN_SYMBOLIZER"
 					echo "=============================================================================="
 
-					for FILE in ./Tests/*; do
+					for FILE in ./$TEST/*; do
 						if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
 							if ! $FILE; then
 								coredump $FILE
@@ -409,7 +417,7 @@ NF&&f{ print s"/"$0 }'); do
 					echo "Run with ASAN_LEAK"
 					echo "=============================================================================="
 
-					for FILE in ./Tests/*; do
+					for FILE in ./$TEST/*; do
 						if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
 							if ! $FILE; then
 								coredump $FILE
@@ -428,7 +436,7 @@ NF&&f{ print s"/"$0 }'); do
 			echo "Run with GDB"
 			echo "=============================================================================="
 
-			for FILE in ./Tests/*; do
+			for FILE in ./$TEST/*; do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
 					exec 2>&-
 					OUTPUT=$(gdb -ex="set confirm on" -ex=run -ex="bt" -ex=quit --args $FILE 1>& /dev/null | tee /dev/fd/2)
@@ -457,7 +465,7 @@ NF&&f{ print s"/"$0 }'); do
 				echo "Check coredump"
 				echo "=============================================================================="
 	
-				for FILE in ./Tests/*; do
+				for FILE in ./$TEST/*; do
 					if [ -x "$FILE" ]; then
 						coredump $FILE
 					fi
