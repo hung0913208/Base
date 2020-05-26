@@ -1210,6 +1210,12 @@ EOF
 			if [[ $CODE -eq 0 ]]; then
 				CODE=$?
 			fi
+		elif [ -f $WORKSPACE/tests/pipeline/test.sh ]; then
+			bash "$WORKSPACE/tests/pipeline/test.sh"
+
+			if [[ $CODE -eq 0 ]]; then
+				CODE=$?
+			fi
 		else
 			warning "without script $WORKSPACE/Tests/Pipeline/Test.sh we can't deduce the project is worked or not"
 		fi
@@ -1226,11 +1232,19 @@ function create_image() {
 	IFUP_FILENAME="$ROOT/ifup"
 	IPDOWN_FILENAME="$ROOT/ifdown"
 
-	if ! $WORKSPACE/Tests/Pipeline/Build.sh $2 1 $1; then
+	if [ -d $WORKSPACE/Tests ]; then	
+		BUILD="$WORKSPACE/Tests/Pipeline/Build.sh"
+	elif [ -d $WORKSPACE/tests ]; then	
+		BUILD="$WORKSPACE/tests/pipeline/build.sh"
+	else
+		exit -1
+	fi
+
+	if ! bash $BUILD $2 1 $1; then
 		warning "Fail repo $REPO/$BRANCH"
 		CODE=1
 	else
-		if [[ $1 -eq $VMS_NUMBER ]] || [[ -f $WORKSPACE/Tests/Pipeline/Test.sh ]]; then
+		if [[ $1 -eq $VMS_NUMBER ]] || [ -f $WORKSPACE/Tests/Pipeline/Test.sh ] || [ -f $WORKSPACE/tests/pipeline/test.sh ]; then
 			SLAVER=0
 		else
 			SLAVER=1
@@ -1268,6 +1282,8 @@ function create_image() {
 
 		if [ -f $WORKSPACE/Tests/Pipeline/Boot.sh ]; then
 			$WORKSPACE/Tests/Pipeline/Boot.sh $1 $SLAVER
+		elif [ -f $WORKSPACE/tests/pipeline/boot.sh ]; then
+			$WORKSPACE/tests/pipeline/boot.sh $1 $SLAVER
 		elif [[ ${#KER_FILENAME} -gt 0 ]] && [[ ${#RAM_FILENAME} -gt 0 ]]; then
 			boot_kernel $RAM_FILENAME $KER_FILENAME $SLAVER $1
 		elif [[ ${#IMG_FILENAME} -gt 0 ]]; then
@@ -1440,7 +1456,7 @@ elif [ "$METHOD" = "prepare" ]; then
 elif [ "$METHOD" = "test" ]; then
 	WORKSPACE=$(pwd)
 
-	if [ -x $PIPELINE/Test.sh ]; then
+	if [ -x $PIPELINE/Test.sh ] || [ -x $PIPELINE/test.sh ]; then
 		start_vms
 		CODE=$?
 	else
