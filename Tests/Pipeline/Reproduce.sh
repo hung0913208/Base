@@ -3,8 +3,17 @@
 # - Description: this file will run separately to provide the way to reproduce any issues
 
 PIPELINE="$(dirname "$0" )"
-source $PIPELINE/Libraries/Logcat.sh
-source $PIPELINE/Libraries/Package.sh
+
+if [ -d "$PIPELINE/Libraries" ]; then
+	LIBRARIES="$PIPELINE/Libraries"
+elif [ -d "$PIPELINE/libraries" ]; then
+	LIBRARIES="$PIPELINE/libraries"
+else
+	exit -1
+fi
+
+source $PIPELINE/$LIBRARIES/Logcat.sh
+source $PIPELINE/$LIBRARIES/Package.sh
 
 SCRIPT="$(basename "$0")"
 ROOT="$(git rev-parse --show-toplevel)"
@@ -60,7 +69,7 @@ elif [ ! -f "$ROOT/repo.list" ]; then
 fi
 
 # @NOTE: okey now, reproducing is comming
-if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
+if [ -f "$PIPELINE/$LIBRARIES/Reproduce.sh" ]; then
 	BEGIN=$(date +%s)
 	LOG="$ROOT/Logs"
 	CODE=0
@@ -93,7 +102,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 				echo -1 > $ROOT/.reproduce.d/${ISSUE}.txt
 			fi
 
-			"$PIPELINE/Libraries/Reproduce.sh" clone "$ISSUE" "$REPO" "$ROOT" "$SPEC" "$AUTH" "$COMMIT" "$REVS"
+			"$PIPELINE/$LIBRARIES/Reproduce.sh" clone "$ISSUE" "$REPO" "$ROOT" "$SPEC" "$AUTH" "$COMMIT" "$REVS"
 
 			if [ $? != 0 ]; then
 				CODE=$?
@@ -106,7 +115,7 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 				if [ $? != 0 ]; then
 					error "not found issue $ISSUE"
 				elif [ ! -f $ROOT/.reproduce.d/${ISSUE}.txt ]; then
-					if ! "$PIPELINE/Libraries/Reproduce.sh" prepare "$ISSUE" "$ROOT" $MOD; then
+					if ! "$PIPELINE/$LIBRARIES/Reproduce.sh" prepare "$ISSUE" "$ROOT" $MOD; then
 						CODE=$?
 						continue
 					else
@@ -136,16 +145,16 @@ if [ -f "$PIPELINE/Libraries/Reproduce.sh" ]; then
 					touch "$LOG/$ISSUE"
 				fi
 	
-				"$PIPELINE/Libraries/Reproduce.sh" inject "$ISSUE" "$ROOT" "$CODE"
+				"$PIPELINE/$LIBRARIES/Reproduce.sh" inject "$ISSUE" "$ROOT" "$CODE"
 				if [ $? != 0 ]; then
 					error "fait to inject reproducing scripts"
 				fi
 
-				"$PIPELINE/Libraries/Reproduce.sh" reproduce "$ISSUE" "$ROOT" "$LOG/$ISSUE" "$LIB" "$SUITE" "$CASE"
+				"$PIPELINE/$LIBRARIES/Reproduce.sh" reproduce "$ISSUE" "$ROOT" "$LOG/$ISSUE" "$LIB" "$SUITE" "$CASE"
 				CODE=$?
 
 				if [ $CODE != 0 ]; then
-					"$PIPELINE/Libraries/Reproduce.sh" verify "$ISSUE" "$ROOT" "$LOG/$ISSUE" "$CODE"
+					"$PIPELINE/$LIBRARIES/Reproduce.sh" verify "$ISSUE" "$ROOT" "$LOG/$ISSUE" "$CODE"
 	
 					if [ $? != 0 ]; then
 						FOUND=1
@@ -192,7 +201,7 @@ EOF
 						$PIPELINE/../../Tools/Utilities/fsend.sh upload "$LOG/$ISSUE" "$INTERVIEW"
 					fi
 			
-					$PIPELINE/Libraries/Reproduce.sh report "$ISSUE" "$ROOT" "$LOG/$ISSUE" $MOD
+					$PIPELINE/$LIBRARIES/Reproduce.sh report "$ISSUE" "$ROOT" "$LOG/$ISSUE" $MOD
 
 					if [ ! -e "$ROOT/BUG" ]; then
 						touch "$ROOT/BUG"

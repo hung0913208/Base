@@ -341,14 +341,14 @@ else
 		mkdir -p $ROOT/tests/pipeline/libraries
 	fi
 
-	cp -a "$BASE/Tests/Pipeline/Libraries" "$ROOT/test/pipeline/libraries"
+	cp -a "$BASE/Tests/Pipeline/Libraries"/*.sh "$ROOT/tests/pipeline/libraries"
 
 	# @NOTE: migrate Pipeline's installing scripts
 	if [ ! -d $ROOT/tests/pipeline/packages ]; then
 		mkdir -p $ROOT/tests/pipeline/packages
 	fi
 
-	cp -a "$BASE/Tests/Pipeline/Packages" "$ROOT/tests/pipeline/packages/"
+	cp -a "$BASE/Tests/Pipeline/Packages"/*.sh "$ROOT/tests/pipeline/packages/"
 
 	# @NOTE: migrate reproduce script
 	cp -a "$BASE/Tests/Pipeline/Reproduce.sh" "$ROOT/tests/pipeline"
