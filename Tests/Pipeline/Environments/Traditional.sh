@@ -123,6 +123,22 @@ elif [ "$METHOD" = "prepare" ]; then
 				error "Fail repo $REPO/$BRANCH"
 			fi
 		fi
+	elif [ -e "$BASE/tests/pipeline/prepare.sh" ]; then
+		$BASE/tests/pipeline/prepare.sh
+
+		if [ $? != 0 ]; then
+			error "Fail repo $REPO/$BRANCH"
+		else
+			if [ $BASE = $WORKSPACE ]; then
+				$WORKSPACE/tests/pipeline/build.sh Base 2 $3
+			else
+				$WORKSPACE/tests/pipeline/build.sh $(basename $WORKSPACE 2) $3
+			fi
+
+			if [ $? != 0 ]; then
+				error "Fail repo $REPO/$BRANCH"
+			fi
+		fi
 	else
 		error "we can't support this kind of project for reproducing automatically"
 	fi
@@ -248,6 +264,22 @@ elif [ "$METHOD" = "build" ]; then
 				if [ $? != 0 ]; then
 					warning "Fail repo $REPO/$BRANCH"
 					CODE=1
+				fi
+			fi
+		elif [ -e "$BASE/tests/pipeline/prepare.sh" ]; then
+			$BASE/tests/pipeline/prepare.sh
+
+			if [ $? != 0 ]; then
+				error "Fail repo $REPO/$BRANCH"
+			else
+				if [ $BASE = $WORKSPACE ]; then
+					$WORKSPACE/tests/pipeline/build.sh Base 2 $3
+				else
+					$WORKSPACE/tests/pipeline/build.sh $(basename $WORKSPACE 2) $3
+				fi
+
+				if [ $? != 0 ]; then
+					error "Fail repo $REPO/$BRANCH"
 				fi
 			fi
 		else
