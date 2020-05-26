@@ -267,7 +267,7 @@ else
 	"""
 fi
 
-if [ ! -d "$ROOT/Tests" ]; then
+if [ ! -d "$ROOT/Tests" ] && [ ! -d "$ROOT/tests" ]; then
 	warning "$ROOT/Tests must exist before doing anything"
 
 	# @NOTE: if package 'tree' has been installed, use it to present current
@@ -276,7 +276,7 @@ if [ ! -d "$ROOT/Tests" ]; then
 	if [ $? == 0 ]; then
 		tree $ROOT
 	fi
-else
+elif [ -d "$ROOT/Tests" ]; then
 	# @NOTE: remove $ROOT/Tests/Pipeline if it is a file
 	if [ -f "$ROOT/Tests/Pipeline" ]; then
 		rm -fr "$ROOT/Tests/Pipeline"
@@ -325,13 +325,69 @@ else
 			cp -a "$BASE/Tests/Pipeline/Build.sh" "$ROOT/Tests/Pipeline"
 		fi
 	fi
+else
+	# @NOTE: remove $ROOT/Tests/Pipeline if it is a file
+	if [ -f "$ROOT/tests/pipeline" ]; then
+		rm -fr "$ROOT/tests/pipeline"
+	fi
+
+	# @NOTE: create directory $ROOT/Tests/Pipeline
+	if [ ! -d "$ROOT/tests/pipeline" ]; then
+		mkdir -p "$ROOT/tests/pipeline"
+	fi
+
+	# @NOTE: migrate Pipeline's libraries
+	if [ ! -d $ROOT/tests/pipeline/libraries ]; then
+		mkdir -p $ROOT/tests/pipeline/libraries
+	fi
+
+	cp -a "$BASE/Tests/Pipeline/Libraries" "$ROOT/test/pipeline/libraries"
+
+	# @NOTE: migrate Pipeline's installing scripts
+	if [ ! -d $ROOT/tests/pipeline/packages ]; then
+		mkdir -p $ROOT/tests/pipeline/packages
+	fi
+
+	cp -a "$BASE/Tests/Pipeline/Packages" "$ROOT/tests/pipeline/packages/"
+
+	# @NOTE: migrate reproduce script
+	cp -a "$BASE/Tests/Pipeline/Reproduce.sh" "$ROOT/tests/pipeline"
+
+	if [ ! -f $ROOT/tests/pipeline/build.sh ] && [ ! -f $ROOT/tests/pipeline/test.sh ]; then
+		# @NOTE: migrate builder to an approviated position
+
+		if [ -f $BASE/Tools/Builder/Install.sh ]; then
+			CURRENT=$(pwd)
+			cd $BASE || error "can't jump to $BASE"
+
+			$BASE/Tools/Builder/Install.sh
+			if [ $? != 0 ]; then
+				error "Error when run script $BASE/Tools/Builder/Install.sh"
+			fi
+
+			cd $CURRENT || error "can't jump to $CURRENT"
+		fi
+
+		info "moving $BASE/Tests/Pipeline/*.sh -> $ROOT/tests/pipeline"
+
+		# @NOTE: migrate build script if it needs
+		if [ ! -f "$ROOT/tests/pipeline/build.sh" ]; then
+			cp -a "$BASE/Tests/Pipeline/Build.sh" "$ROOT/tests/pipeline/build.sh"
+		fi
+	fi
 fi
 
-if [ -f "$ROOT/Tests/Pipeline/Prepare.sh" ]; then
+if [ -f "$ROOT/tests/pipeline/prepare.sh" ]; then
+	bash "$ROOT/tests/pipeline/prepare.sh"
+
+	if [ $? != 0 ]; then
+		error "Error when run script $ROOT/tests/pipeline/prepare.sh"
+	fi
+elif [ -f "$ROOT/Tests/Pipeline/Prepare.sh" ]; then
 	bash "$ROOT/Tests/Pipeline/Prepare.sh"
 
 	if [ $? != 0 ]; then
-		error "Error when run script $ROOT/Tests/Prepare.sh"
+		error "Error when run script $ROOT/Tests/Pipeline/Prepare.sh"
 	fi
 fi
 
