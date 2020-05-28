@@ -3,7 +3,7 @@
 namespace Base{
 namespace Config{
 namespace Locks{
-Lock Global{};
+Mutex Global{};
 Mutex Error{};
 } // namespace Locks
 } // namespace Config

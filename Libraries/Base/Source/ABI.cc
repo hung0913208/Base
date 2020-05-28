@@ -5,6 +5,8 @@
 
 namespace Base {
 namespace Internal {
+void RemoveWatcherIfNeeded(Bool call_early);
+
 namespace Dump {
 extern void (*Crasher)(int, siginfo_t*, void*);
 } // namespace Dump
@@ -70,5 +72,16 @@ UInt Strlen(const CString str) {
     for (; str[result]; ++result) { }
   }
   return result;
+}
+
+Int Exit(Int code, Bool force) {
+  /* @NOTE: by default we should call this to remove Watcher*/
+  Base::Internal::RemoveWatcherIfNeeded(True);
+
+  if (force) {
+    exit(code);
+  }
+
+  return code;
 }
 } // namespace ABI

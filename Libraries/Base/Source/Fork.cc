@@ -1,4 +1,5 @@
 #include <Lock.h>
+#include <Vertex.h>
 #include <Logcat.h>
 #include <Utils.h>
 #include <sys/types.h>
@@ -7,7 +8,7 @@
 namespace Base {
 namespace Config {
 namespace Locks {
-extern Base::Lock Global;
+extern Mutex Global;
 } // namespace Locks
 } // namespace Config
 
@@ -15,36 +16,36 @@ namespace Internal {
 static Vector<Fork*> Forks;
 
 Bool IsPipeAlive(Int pipe) {
-  Bool result = False;
+  Vertex<void> escaping{[](){ LOCK(&Config::Locks::Global); }, 
+                        [](){ UNLOCK(&Config::Locks::Global); }};
+  Bool result{False};
 
-  Config::Locks::Global.Safe([&]() {
-    for (auto& fork: Forks) {
-      if ((fork->Input() != pipe) && (fork->Output() != pipe) &&
-          (fork->Error() != pipe)) {
-        continue;
-      }
-
-      result = fork->Status() >= 0;
-      break;
+  for (auto& fork: Forks) {
+    if ((fork->Input() != pipe) && (fork->Output() != pipe) &&
+        (fork->Error() != pipe)) {
+      continue;
     }
-  });
+
+    result = fork->Status() >= 0;
+    break;
+  }
 
   return result;
 }
 
 Bool IsPipeWaiting(Int pipe) {
+  Vertex<void> escaping{[](){ LOCK(&Config::Locks::Global); }, 
+                        [](){ UNLOCK(&Config::Locks::Global); }};
   Bool result = False;
 
-  Config::Locks::Global.Safe([&]() {
-    for (auto& fork: Forks) {
-      if ((fork->Output() != pipe) && (fork->Error() != pipe)) {
-        continue;
-      }
-
-      result = True;
-      break;
+  for (auto& fork: Forks) {
+    if ((fork->Output() != pipe) && (fork->Error() != pipe)) {
+      continue;
     }
-  });
+
+    result = True;
+    break;
+  }
 
   return result;
 }
@@ -124,20 +125,20 @@ Fork::Fork(Fork&& src): Refcount(src) {
 }
 
 Fork::~Fork() {
+  Vertex<void> escaping{[](){ LOCK(&Config::Locks::Global); }, 
+                        [](){ UNLOCK(&Config::Locks::Global); }};
   /* @NOTE: just to make sure everything is safe from a single process POV, i
    * need to secure the cleaning process here with the highest lock */
 
-  Config::Locks::Global.Safe([&]() {
-    for (UInt i = 0; i < Internal::Forks.size(); ++i) {
-      /* @NOTE: search the fork on our database and clean it now to prevent bad
-       * access if another threads try to access the deadly fork like this */
+  for (UInt i = 0; i < Internal::Forks.size(); ++i) {
+    /* @NOTE: search the fork on our database and clean it now to prevent bad
+     * access if another threads try to access the deadly fork like this */
 
-      if (this == Internal::Forks[i]) {
-        Internal::Forks.erase(Internal::Forks.begin() + i);
-        break;
-      }
+    if (this == Internal::Forks[i]) {
+      Internal::Forks.erase(Internal::Forks.begin() + i);
+      break;
     }
-  });
+  }
 }
 
 Fork& Fork::operator=(const Fork& src) {
