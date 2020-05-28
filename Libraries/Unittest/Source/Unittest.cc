@@ -823,7 +823,7 @@ ending:
       VLOG(EInfo) << name << Base::EOL;
     }
   }
-  return did_everything_pass ? 0 : 255;
+  return ABI::Exit(did_everything_pass ? 0 : 255, False);
 }
 
 void BSExpectTrue(Unittest* unit, Bool condition, String describe, String file,

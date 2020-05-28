@@ -32,6 +32,9 @@
 #include <iostream>
 
 namespace Base {
+CString EOL = (CString)"\n";
+CString TAB = (CString)"\t";
+
 Stream::Stream(Write writer, Read reader) : _Writer{writer}, _Reader{reader} {}
 
 Stream::~Stream() {}

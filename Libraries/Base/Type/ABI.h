@@ -87,6 +87,9 @@ UInt Strlen(const CString str);
 
 /* @NOTE: kill myself if i got crash */
 void KillMe();
+
+/* @NOTE: exit program with provided exit code */
+Int Exit(Int code, Bool force = True);
 } // namespace ABI
 #endif
 #endif  // BASE_TYPE_CXX_ABI_H_

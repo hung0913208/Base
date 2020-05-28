@@ -405,14 +405,18 @@ namespace Summary {
 void WatchStopper() { Watcher->Summary(); }
 }  // namespace Summary
 
-void RemoveWatcherIfNeeded() {
-  if (Watcher->Size() == Watcher->Solved()) {
-    if (Watcher->Count<Implement::Lock>() == 0) {
-      /* @TODO: find a solution to detect how many lock and thread sould be
-       * removed during exiting to notify to user. */
+void RemoveWatcherIfNeeded(Bool call_early) {
+  if (!call_early || Watcher) {
+    if (Watcher->Size() == Watcher->Solved()) {
+      if (Watcher->Count<Implement::Lock>() == 0) {
+        /* @TODO: find a solution to detect how many lock and thread sould be
+         * removed during exiting to notify to user. */
 
-      if (Watcher->Exiting) {
-        delete Watcher;
+        if (Watcher->Exiting) {
+          delete Watcher;
+
+          Watcher = None;
+        }
       }
     }
   }
@@ -458,7 +462,7 @@ Bool WatchStopper(Base::Lock& lock) {
 }
 
 void UnwatchStopper(Base::Thread& thread) {
-  Vertex<Void> escaping{[](){}, []() { RemoveWatcherIfNeeded(); }};
+  Vertex<Void> escaping{[](){}, []() { RemoveWatcherIfNeeded(False); }};
 
   Watcher->OnUnregister<Implement::Thread>(thread.Identity(False));
 
@@ -468,7 +472,7 @@ void UnwatchStopper(Base::Thread& thread) {
 }
 
 Bool UnwatchStopper(Base::Lock& lock) {
-  Vertex<Void> escaping{[](){}, []() { RemoveWatcherIfNeeded(); }};
+  Vertex<Void> escaping{[](){}, []() { RemoveWatcherIfNeeded(False); }};
 
   if (Context(lock)) {
     Watcher->OnUnregister<Implement::Lock>(lock.Identity());
@@ -680,7 +684,7 @@ void Capture (Void* ptr, Bool status) {
       }
       
       if (!Watcher->Exiting) {
-         RemoveWatcherIfNeeded();
+         RemoveWatcherIfNeeded(False);
       }
     }
   }

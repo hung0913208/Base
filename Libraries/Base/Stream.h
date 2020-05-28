@@ -37,8 +37,8 @@
 #endif
 
 namespace Base {
-const String EOL = "\n";
-const String TAB = "\t";
+extern CString EOL;
+extern CString TAB;
 
 class Stream {
  public:

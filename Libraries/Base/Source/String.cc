@@ -23,7 +23,7 @@ String::String(Base::String& str) {
       _Ref = None;
     }
   } else {
-    _Ref = (Int*)ABI::Malloc(sizeof(Int));
+    _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
 
     if (!_Ref || !_String) {
@@ -49,7 +49,7 @@ String::String(Base::String&& str): _Autoclean{True} {
       _Ref = None;
     }
   } else {
-    _Ref = (Int*)ABI::Malloc(sizeof(Int));
+    _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
 
     if (!_Ref || !_String) {
@@ -76,7 +76,7 @@ String::String(const Base::String& str): _Autoclean{True} {
       _Ref = None;
     }
   } else {
-    _Ref = (Int*)ABI::Malloc(sizeof(Int));
+    _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
 
     if (!_Ref || !_String) {
@@ -92,7 +92,7 @@ String::String(const CString str): _Autoclean{False} {
   /* @NOTE: need to improve the way to load const CString since Base::String
    * consumes more memory than std::string */
 
-  _Ref = (Int*)ABI::Malloc(sizeof(Int));
+  _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
 
   if (!_Ref) {
     Abort(EDrainMem);
@@ -105,7 +105,7 @@ String::String(const CString str): _Autoclean{False} {
 }
 
 String::String(const CString str, ULong size): _Autoclean{True} {
-  _Ref = (Int*)ABI::Malloc(sizeof(Int));
+  _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
 
   if (!_Ref) {
     Abort(EDrainMem);
@@ -124,7 +124,7 @@ String::String(const CString str, ULong size): _Autoclean{True} {
 }
 
 String::String(ULong size, Char c): _Autoclean{True} {
-  _Ref = (Int*)ABI::Malloc(sizeof(Int));
+  _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
 
   if (!_Ref) {
     Abort(EDrainMem);
@@ -211,20 +211,14 @@ ULong String::size() const { return _Size; }
 Bool String::empty() const { return _Size == 0 || _String == None; }
 
 Void String::clear() {
-  Bool passed = False;
-
   if (_Ref != None) {
-    if (!CMP(_Ref, 0)) { // <-- hanging here, possible cause by gcc protecting memory
-      passed = True;
+    if (DEC(_Ref) == 0) {
+      if (_String && _Autoclean) {
+        ABI::Free(_String);
+      }
 
-      if (DEC(_Ref) == 0 && CMP(_Ref, 0)) {
-        if (_String && _Autoclean) {
-          ABI::Free(_String);
-        }
-
-        if (_Ref != None) {
-          ABI::Free(_Ref);
-        }
+      if (_Ref != None) {
+        ABI::Free(_Ref);
       }
     }
   }
@@ -269,7 +263,7 @@ Void String::resize(ULong size) {
       memcpy(tmp, _String, _Size);
       clear();
 
-      if (!(_Ref = (Int*)ABI::Malloc(sizeof(Int)))) {
+      if (!(_Ref = (Int*)ABI::Calloc(1, sizeof(Int)))) {
         ABI::Free(tmp);
         Abort(EDrainMem);
       }
@@ -350,7 +344,7 @@ Base::String& String::operator=(Base::String& str) {
       _Ref = None;
     }
   } else {
-    _Ref = (Int*)ABI::Malloc(sizeof(Int));
+    _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
     _Autoclean = True;
 
@@ -381,7 +375,7 @@ Base::String& String::operator=(Base::String&& str) {
       _Ref = None;
     }
   } else {
-    _Ref = (Int*)ABI::Malloc(sizeof(Int));
+    _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
     _Autoclean = True;
 
@@ -549,7 +543,7 @@ String& String::copy() {
 
     clear();
 
-    _Ref = (Int*)ABI::Malloc(sizeof(Int));
+    _Ref = (Int*)ABI::Calloc(1, sizeof(Int));
     _Size = size;
     _String = (CString)ABI::Calloc(_Size + 1, sizeof(Char));
     _Autoclean = True;
