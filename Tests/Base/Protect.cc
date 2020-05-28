@@ -10,9 +10,14 @@ TEST(Protect, Execuable) {
   auto codes = PROT_EXEC|PROT_READ|PROT_WRITE;
 
   ASSERT_NEQ(address, None);
-  EXPECT_EQ(Base::Protect(address, 10, codes), ENoError);
 
-  ABI::Free(address);
+  IGNORE({
+    EXPECT_EQ(Base::Protect(address, 10, codes), ENoError);
+  });
+
+  if (address) {
+    ABI::Free(address);
+  }
 }
 
 int main() {
