@@ -246,13 +246,16 @@ Void String::resize(ULong size) {
     }
 
     if (_Ref) { clear(); }
-    _String = tmp;
-    _Autoclean = True;
-    _Size = saved;
 
-    if (!_Ref) {
-      _Ref = (Int*)malloc(sizeof(Int));
+    if (!(_Ref = (Int*)ABI::Calloc(1, sizeof(Int)))) {
+      ABI::Free(tmp);
+      Abort(EDrainMem);
+    } else {
       SET(_Ref, 1);
+
+      _String = tmp;
+      _Autoclean = True;
+      _Size = saved;
     }
   } else if (size > _Size) {
     /* @NOTE: don't use Realloc reachlessly since it will broken the link between
