@@ -1205,16 +1205,12 @@ EOF
 	troubleshoot 'start' $ROOT/vms
 	if [ -f $ROOT/vms/start ]; then
 		if [ -f $WORKSPACE/Tests/Pipeline/Test.sh ]; then
-			$WORKSPACE/Tests/Pipeline/Test.sh
-
-			if [[ $CODE -eq 0 ]]; then
-				CODE=$?
+			if ! $WORKSPACE/Tests/Pipeline/Test.sh; then
+				CODE=-1
 			fi
 		elif [ -f $WORKSPACE/tests/pipeline/test.sh ]; then
-			bash "$WORKSPACE/tests/pipeline/test.sh"
-
-			if [[ $CODE -eq 0 ]]; then
-				CODE=$?
+			if ! bash "$WORKSPACE/tests/pipeline/test.sh"; then
+				CODE=-1
 			fi
 		else
 			warning "without script $WORKSPACE/Tests/Pipeline/Test.sh we can't deduce the project is worked or not"
@@ -1335,11 +1331,18 @@ function process() {
 			CODE=1
 		else
 			for IDX in $(seq 1 1 $VMS_NUMBER); do
-				create_image $IDX $1
+				if ! create_image $IDX $1; then
+					CODE=-1
+					break
+				fi
 			done
 
 			if [[ $CODE -eq 0 ]]; then
-				start_vms
+				if ! start_vms; then
+					warning "Fail repo $REPO/$BRANCH"
+					CODE=-1
+				fi
+
 			else
 				warning "Fail repo $REPO/$BRANCH"
 			fi
@@ -1457,13 +1460,12 @@ elif [ "$METHOD" = "test" ]; then
 	WORKSPACE=$(pwd)
 
 	if [ -x $PIPELINE/Test.sh ] || [ -x $PIPELINE/test.sh ]; then
-		start_vms
-		CODE=$?
+		if ! start_vms; then
+			error "fail stating VM"
+		fi
 	else
 		error "Reproduce requires script $PIPELINE/Test.sh"
 	fi
-
-	exit $CODE
 elif [ "$METHOD" = "inject" ]; then
 	SCREEN=$2
 
