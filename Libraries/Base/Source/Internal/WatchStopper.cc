@@ -419,6 +419,16 @@ void RemoveWatcherIfNeeded() {
 }
 
 void WatchStopper(Base::Thread& thread) {
+  if (!Watcher) {
+    Watcher = new Watch();
+
+    AtExit([](){
+      if (Watcher) {
+        Watcher->Exiting = True; 
+      }
+    });
+  }
+
   Watcher->Join(&thread);
 }
 
