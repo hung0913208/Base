@@ -506,6 +506,16 @@ namespace Locker {
 Bool Lock(Base::Lock& locker) {
   auto context = reinterpret_cast<Internal::Implement::Lock*>(Context(locker));
 
+  if (!Internal::Watcher) {
+    Internal::Watcher = new Internal::Watch();
+
+    Internal::AtExit([](){
+      if (Internal::Watcher) {
+        Internal::Watcher->Exiting = True; 
+      }
+    });
+  }
+
   /* @NOTE: lock may fail and cause coredump because we allow to another side
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
@@ -518,6 +528,16 @@ Bool Lock(Base::Lock& locker) {
 }
 
 Bool Lock(Mutex& locker) {
+  if (!Internal::Watcher) {
+    Internal::Watcher = new Internal::Watch();
+
+    Internal::AtExit([](){
+      if (Internal::Watcher) {
+        Internal::Watcher->Exiting = True; 
+      }
+    });
+  }
+
   if (Internal::Mutexes) {
     auto context = &(Internal::Mutexes->at(ULong(&locker)));
 
@@ -541,6 +561,10 @@ Bool Lock(Mutex& locker) {
 Bool Unlock(Base::Lock& locker) {
   using namespace Internal;
 
+  if (!Internal::Watcher) {
+    Bug(EBadLogic, "can't unlock a locker when Watcher is None");
+  }
+
   /* @NOTE: unlock may fail and cause coredump because we allow to another side
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
@@ -556,6 +580,10 @@ Bool Unlock(Base::Lock& locker) {
 
 Bool Unlock(Mutex& locker) {
   using namespace Internal;
+
+  if (!Internal::Watcher) {
+    Bug(EBadLogic, "can't unlock a locker when Watcher is None");
+  }
 
   if (Mutexes) {
     /* @NOTE: unlock may fail and cause coredump because we allow to another side
