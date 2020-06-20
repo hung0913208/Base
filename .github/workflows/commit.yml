@@ -3,7 +3,7 @@ name: Verify commit with the simple test suite
 on: [push, pull_request]
 
 jobs:
-  build:
+  verify_with_linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -12,4 +12,12 @@ jobs:
       - name: build and test
         env:
           CODECOV_TOKEN: ${{ secrets.codecov }}
+        run: ./Tests/Pipeline/Build.sh
+  verify_with_macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: prepare
+        run: ./Tests/Pipeline/Prepare.sh
+      - name: build and test
         run: ./Tests/Pipeline/Build.sh

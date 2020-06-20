@@ -26,3 +26,27 @@ perform_reproducing_on_linux:
     - ./Tests/Pipeline/Enqueue.sh ./.gitlab-ci.d/reproduce.sh --cleanup
   tags:
     - Yggdrasil
+
+perform_testing_on_macos:
+  stage: test
+  script:
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
+    - echo "REVIEW sftp://3380741_libbase:XXh01664957141@f19-preview.freehostingeu.com:221/" >> ./variables.txt
+    - echo "WEBINDEX http://libbase.eu5.net/" >> ./variables.txt
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/build.sh -- --labs ${MACOS} --os macos --environment ./variables.txt
+  after_script:
+    - ./Tests/Pipeline/Enqueue.sh ./.gitlab-ci.d/build.sh --cleanup
+  tags:
+    - Yggdrasil
+
+perform_reproducing_on_macos:
+  stage: test
+  script:
+    - if [[ ${#TASK} -gt 0 ]] && [ $TASK != 'build' ]; then exit 0; fi
+    - echo "REVIEW sftp://3380741_libbase:XXh01664957141@f19-preview.freehostingeu.com:221/" >> ./variables.txt
+    - echo "WEBINDEX http://libbase.eu5.net/" >> ./variables.txt
+    - ./Tests/Pipeline/Enqueue.sh $(pwd)/.gitlab-ci.d/reproduce.sh -- --labs ${MACOS} --os macos
+  after_script:
+    - ./Tests/Pipeline/Enqueue.sh ./.gitlab-ci.d/reproduce.sh --cleanup
+  tags:
+    - Yggdrasil
