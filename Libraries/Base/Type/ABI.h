@@ -22,13 +22,17 @@ using Atomic = std::atomic<Type>;
 template <typename Type>
 using Iterator = Type*;
 
-#ifndef BASE_TYPE_FUNCTION_H_
-#define BASE_TYPE_FUNCTION_H_ 1
-#endif  // BASE_TYPE_FUNCTION_H_
+#ifndef USE_BASE_FUNCTION
+#define USE_BASE_FUNCTION 1
+#endif  // USE_BASE_FUNCTION
 
-#ifndef BASE_TYPE_TUPLE_H_
-#define BASE_TYPE_TUPLE_H_ 1
-#endif  // BASE_TYPE_TUPLE_H_
+#ifndef USE_BASE_TUPLE
+#define USE_BASE_TUPLE 1
+#endif  // USE_BASE_TUPLE
+
+#ifndef USE_BASE_VECTOR
+#define USE_BASE_VECTOR 1
+#endif  // USE_BASE_TUPLE
 #else
 #include <functional>
 #include <list>
@@ -60,9 +64,6 @@ template <typename Key>
 using Set = std::set<Key>;
 
 template <typename Type>
-using Vector = std::vector<Type>;
-
-template <typename Type>
 using Queue = std::queue<Type>;
 
 template <typename Type>
@@ -88,44 +89,31 @@ using Weak = std::weak_ptr<Type>;
 #endif
 
 #if USE_BASE_WITH_FULL_PATH_HEADER
-#ifdef BASE_TYPE_FUNCTION_H_
 #include <Base/Type/Function.h>
-#endif // BASE_TYPE_FUNCTION_H_
-
-#ifdef BASE_TYPE_TUPLE_H_
 #include <Base/Type/Tuple.h>
-#endif  // BASE_TYPE_TUPLE_H_
+#include <Base/Type/Vector.h>
 #else
-
-#ifdef BASE_TYPE_FUNCTION_H_
 #include <Function.h>
-#endif  // BASE_TYPE_FUNCTION_H_
-
-#ifdef BASE_TYPE_TUPLE_H_
 #include <Tuple.h>
-#endif  // BASE_TYPE_TUPLE_H_
+#include <Vector.h>
 #endif  // USE_BASE_WITH_FULL_PATH_HEADER
 
 #ifndef BASE_TYPE_FUNCTION_H_
 template <typename F> using Function = std::function<F>;
 #else
-namespace Base {
-template <typename F>
-class Function;
-} // namespace Base
-
 template <typename F> using Function = Base::Function<F>;
 #endif // BASE_TYPE_FUNCTION_H_
 
 #ifndef BASE_TYPE_TUPLE_H_
 template <typename... Args> using Tuple = std::tuple<Args...>;
 #else
-namespace Base {
-template <typename... Args>
-class Tuple;
-} // namespace Base
-
 template <typename... Args> using Tuple = Base::Tuple<Args...>;
+#endif  // BASE_TYPE_TUPLE_H_
+
+#ifndef BASE_TYPE_VECTOR_H_
+template <typename Type> using Vector = std::vector<Type>;
+#else
+template <typename Type> using Vector = Base::Vector<Type>;
 #endif  // BASE_TYPE_TUPLE_H_
 
 namespace ABI {

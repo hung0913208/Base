@@ -22,12 +22,16 @@ struct Sequence<0, Is...> : Implement::Sequence<Is...>{};
 
 namespace Implement {
 namespace Tuple {
-template<unsigned I, class T>
-struct Element{ T value; };
+template<unsigned I, typename T>
+struct Element{ 
+  typedef T Type;
 
-template<class Seq, class... Ts> struct Gather;
+  T value; 
+};
 
-template<unsigned... Is, class... Ts>
+template<typename Seq, typename... Ts> struct Gather;
+
+template<unsigned... Is, typename... Ts>
 struct Gather<Implement::Sequence<Is...>, Ts...> : Element<Is, Ts>...{
   template <unsigned I, typename T>
   using Element = Tuple::Element<I, T>;
@@ -40,7 +44,7 @@ struct Gather<Implement::Sequence<Is...>, Ts...> : Element<Is, Ts>...{
 } // namespace Tuple
 } // namespace Implement
 
-template<class... Ts>
+template<typename... Ts>
 struct Tuple :
       Implement::Tuple::Gather<typename Sequence<sizeof...(Ts)>::Type, Ts...> {
   template<class... Us>
@@ -48,22 +52,23 @@ struct Tuple :
 
   template<class... Us>
   Tuple(Us&&... us) : Tuple::BaseType(static_cast<Us&&>(us)...){}
-
-  template<unsigned I, class T>
-  static T& Get(Implement::Tuple::Element<I, T>& e){ return e.value; }
 };
 
 template<>
 struct Tuple<> {
-  template<typename ...Ts>
+  template<typename... Ts>
   static Tuple<Ts...> Make(Ts&&... value) {
     return Tuple<Ts...>(value...);
   }
 
-  template<typename ...Ts>
+  template<typename... Ts>
   static Tuple<Ts...> Make(const Ts&... value) {
     return Tuple<Ts...>(value...);
   }
+
+  template<unsigned I, typename T>
+  static T& Get(Implement::Tuple::Element<I, T>& e){ return e.value; }
 };
+
 } // namespace Base
 #endif  // BASE_TYPE_TUPLE_H_

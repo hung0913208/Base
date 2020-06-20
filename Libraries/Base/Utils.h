@@ -224,15 +224,35 @@ Float ToFloat<String>(String value);
 template <>
 Float ToFloat<CString>(CString value);
 
-template<unsigned Index, typename ...Ts>
 #ifndef BASE_TYPE_TUPLE_H_
-auto Get(Tuple<Ts...>& tuple) -> decltype(Base::Get<Index>(tuple)) {
-  return std::get<Index>(tuple);
+template<std::size_t __i, typename... _Elements>
+  constexpr const std::__tuple_element_t<__i, std::tuple<_Elements...>>&
+Get(const std::tuple<_Elements...>& __t) noexcept {
+  return std::__get_helper<__i>(__t);
 }
+
+template<std::size_t __i, typename... _Elements>
+  constexpr std::__tuple_element_t<__i, std::tuple<_Elements...>>&&
+Get(std::tuple<_Elements...>&& __t) noexcept {
+  typedef std::__tuple_element_t<__i, std::tuple<_Elements...>> __element_type;
+    
+  return std::forward<__element_type&&>(std::get<__i>(__t));
+}
+
+template<std::size_t __i, typename... _Elements>
+  constexpr const std::__tuple_element_t<__i, std::tuple<_Elements...>>&&
+Get(const std::tuple<_Elements...>&& __t) noexcept {
+  typedef std::__tuple_element_t<__i, std::tuple<_Elements...>> __element_type;
+
+  return std::forward<const __element_type&&>(std::get<__i>(__t));
+}
+
 #else
-auto Get(Tuple<Ts...>& t) -> decltype(t.template Get<Index>(t)){
-  return t.template Get<Index>(t);
-}
+template<unsigned I, typename T>
+T& Get(Implement::Tuple::Element<I, T>& e) { return e.value; }
+
+template<unsigned I, typename T>
+T& Get(Implement::Tuple::Element<I, T>&& e) { return e.value; }
 #endif
 
 template <typename Type>
@@ -385,7 +405,13 @@ class Format{
       if (index < 0){
         return result;
       } else {
-        return result + Format::_Apply(Tuple<>::Make(thiz, format, index, type), args...);
+        return result + Format::_Apply(
+#ifndef BASE_TYPE_TUPLE_H_
+          std::make_tuple(thiz, format, index, type),
+#else
+          Tuple<>::Make(thiz, format, index, type), 
+#endif
+          args...);
       }
     } else {
       return Format::_Apply(RValue(config), value);
