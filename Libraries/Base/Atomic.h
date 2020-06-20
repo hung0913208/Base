@@ -8,7 +8,7 @@
 #include <Type.h>
 #endif
 
-#include <string.h>
+//#include <string.h>
 #include <unistd.h>
 
 #if __cplusplus

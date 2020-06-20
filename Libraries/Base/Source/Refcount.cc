@@ -96,7 +96,7 @@ Refcount::Refcount(void (*init)(Refcount* thiz),
   _Count = new Int{0};
   _Init = init;
   _Release = release;
-  _Secure = new Hashtable<Int, Void*>();
+  _Secure = new Map<Int, Void*>();
 
   Internal::Secure.Circle([&]() {
     if (Internal::RefMasters == None) {
@@ -110,7 +110,7 @@ Refcount::Refcount(void (*init)(Refcount* thiz),
 Refcount::Refcount(void (*release)(Refcount* thiz)): _Status{False} {
   _Count = new Int{0};
   _Release = release;
-  _Secure = new Hashtable<Int, Void*>();
+  _Secure = new Map<Int, Void*>();
 
   Internal::Secure.Circle([&]() {
     if (Internal::RefMasters == None) {
@@ -125,7 +125,7 @@ Refcount::Refcount(): _Status{False} {
   _Count = new Int{0};
   _Init = None;
   _Release = None;
-  _Secure = new Hashtable<Int, Void*>();
+  _Secure = new Map<Int, Void*>();
 
   Internal::Secure.Circle([&]() {
     if (Internal::RefMasters == None) {

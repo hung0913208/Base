@@ -1,6 +1,6 @@
 #include <Type.h>
 #include <Function.h>
-#include <gtest/gtest.h>
+#include <Unittest.h>
 
 #if !USE_STD_FUNCTION
 Bool global = False;
@@ -30,6 +30,5 @@ TEST(Function, Simple) {
 #endif
 
 int main(int argc, CString argv[]) {
-  ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

@@ -70,5 +70,37 @@ struct Tuple<> {
   static T& Get(Implement::Tuple::Element<I, T>& e){ return e.value; }
 };
 
+
+template<unsigned I, typename T>
+T& Get(Implement::Tuple::Element<I, T>& e) { return e.value; }
+
+template<unsigned I, typename T>
+T& Get(Implement::Tuple::Element<I, T>&& e) { return e.value; }
+} // namespace Base
+#else
+#include <tuple>
+
+namespace Base {
+template<std::size_t __i, typename... _Elements>
+  constexpr const std::__tuple_element_t<__i, std::tuple<_Elements...>>&
+Get(const std::tuple<_Elements...>& __t) noexcept {
+  return std::__get_helper<__i>(__t);
+}
+
+template<std::size_t __i, typename... _Elements>
+  constexpr std::__tuple_element_t<__i, std::tuple<_Elements...>>&&
+Get(std::tuple<_Elements...>&& __t) noexcept {
+  typedef std::__tuple_element_t<__i, std::tuple<_Elements...>> __element_type;
+    
+  return std::forward<__element_type&&>(std::get<__i>(__t));
+}
+
+template<std::size_t __i, typename... _Elements>
+  constexpr const std::__tuple_element_t<__i, std::tuple<_Elements...>>&&
+Get(const std::tuple<_Elements...>&& __t) noexcept {
+  typedef std::__tuple_element_t<__i, std::tuple<_Elements...>> __element_type;
+
+  return std::forward<const __element_type&&>(std::get<__i>(__t));
+}
 } // namespace Base
 #endif  // BASE_TYPE_TUPLE_H_

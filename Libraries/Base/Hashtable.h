@@ -3,27 +3,44 @@
 #include <Config.h>
 
 #if USE_BASE_WITH_FULL_PATH_HEADER
+#ifdef BUILD_AS_ABI_TYPE
+#include <Base/Type/Common.h>
+#else
 #include <Base/Exception.h>
 #include <Base/Logcat.h>
 #include <Base/Type.h>
 #include <Base/Utils.h>
+#endif
+#else
+#ifdef BUILD_AS_ABI_TYPE
+#include <Common.h>
 #else
 #include <Exception.h>
 #include <Logcat.h>
 #include <Type.h>
 #include <Utils.h>
 #endif
+#endif
 
 /* @NOTE: this header will be used to calculate log */
 #include <math.h>
 
 namespace Base {
-template<typename KeyT, typename ValueT, typename IndexT=Int>
+#ifdef BUILD_AS_ABI_TYPE
+template<typename KeyT, typename ValueT, typename IndexT>
 class Hashtable {
+#else
+template<typename KeyT, typename ValueT, typename IndexT=Int>
+class Table {
+#endif
  protected:
   /* @NOTH: this tricky way will help to build a manual Hashtable with specific
    * memory addresses */
+#ifdef BUILD_AS_ABI_TYPE
   Hashtable(){}
+#else
+  Table() {}
+#endif
 
  public:
   struct MappingV1 {
@@ -42,7 +59,11 @@ class Hashtable {
     IndexT *Roots, *Left, *Right;
   };
 
+#ifdef BUILD_AS_ABI_TYPE
   explicit Hashtable(Function<IndexT(KeyT*)> hashing, Bool use_bintree = False):
+#else
+  explicit Table(Function<IndexT(KeyT*)> hashing, Bool use_bintree = False):
+#endif
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
 
@@ -61,7 +82,11 @@ class Hashtable {
     Clear();
   }
 
+#if BUILD_AS_ABI_TYPE
   explicit Hashtable(IndexT(*hashing)(KeyT*), Bool use_bintree = False):
+#else
+  explicit Table(IndexT(*hashing)(KeyT*), Bool use_bintree = False):
+#endif
       _Hash{hashing}, _Style{use_bintree}, _Bitwise{True}, _Count{0} {
     memset(&_Map, 0, sizeof(_Map));
 
@@ -80,7 +105,11 @@ class Hashtable {
     Clear();
   }
 
+#if BUILD_AS_ABI_TYPE
   explicit Hashtable(UInt size, IndexT(*hashing)(KeyT*), Bool use_bintree = False):
+#else
+  explicit Table(UInt size, IndexT(*hashing)(KeyT*), Bool use_bintree = False):
+#endif
       _Hash{hashing}, _Style{use_bintree}, _Count{0} {
     auto n = log(size)/log(2);
 
@@ -102,7 +131,11 @@ class Hashtable {
     Clear();
   }
 
+#if BUILD_AS_ABI_TYPE
   virtual ~Hashtable() { Clear(True); }
+#else
+  virtual ~Table() { Clear(True); }
+#endif
 
   /* @NOTE: put key-value to our Hashtable */
   ErrorCodeE Put(KeyT&& key, ValueT&& value) {
@@ -124,13 +157,17 @@ class Hashtable {
           return Put(RValue(key), RValue(value));
         }
       } else {
-        return OutOfRange.code();
+        return EOutOfRange;
       }
     }
 
     /* @NOTE: analyze table and pick the approviated index */
     if (_Style) {
-      return NoSupport("still on developing").code();
+#if BUILD_AS_ABI_TYPE
+      return ENoSupport;
+#else
+      return NoSupport("still under-developing").code();
+#endif
     } else {
       IndexT* indexes = _Map.v1.Indexes;
 
@@ -151,7 +188,11 @@ class Hashtable {
         /* @NOTE: not found the key, going to find a new slot to insert this
          * key-value */
         if ((next = FindEmpty(index)) < 0) {
+#if BUILD_AS_ABI_TYPE
+          return EOutOfRange;
+#else
           return OutOfRange.code();
+#endif
         }
 
         /* @NOTE: make the current index to point to the end of Hashtable */
@@ -181,7 +222,7 @@ insert_keyval:
   }
 
   ErrorCodeE Put(Pair<KeyT, ValueT> instance) {
-    return Put(std::get<0>(instance), std::get<1>(instance));
+    return Put(Get<0>(instance), Get<1>(instance));
   }
 
   /* @NOTE: get value from existence key */
@@ -193,18 +234,31 @@ insert_keyval:
   template<typename ResultT=ValueT>
   ResultT Get(KeyT&& key) {
     ResultT output;
+#if BUILD_AS_ABI_TYPE
+    ErrorCodeE error{Get(RValue(key), output)};
+
+    if (error) {
+      throw error;
+    }
+#else
     Error error{Get(RValue(key), output)};
 
     if (error) {
       throw Exception(error);
     }
+#endif
 
     return output;
   }
 
   template<typename ResultT=ValueT>
+#if BUILD_AS_ABI_TYPE
+  ErrorCodeE Get(KeyT&& key, ResultT& output) {
+    ErrorCodeE error{ENoError};
+#else
   Error Get(KeyT&& key, ResultT& output) {
     Error error{};
+#endif
     ValueT* values{None};
     Void* pointer{None};
     KeyT* keys{None};
@@ -221,12 +275,20 @@ insert_keyval:
     } else if (typeid(ResultT) == typeid(ValueT&&)) {
       select = 3;
     } else {
+#if BUILD_AS_ABI_TYPE
+      return ENoSupport;
+#else
       return NoSupport << Nametype<ResultT>();
+#endif
     }
 
     /* @NOTE: select value base on key value */
     if (_Style) {
+#if BUILD_AS_ABI_TYPE
+      return ENoSupport;
+#else
       return (NoSupport << "Hashtable with binary tree is still on developing");
+#endif
     } else {
       IndexT* indexes = _Map.v1.Indexes;
       size = _Map.v1.Size;
@@ -234,11 +296,23 @@ insert_keyval:
       values = (ValueT*)_Map.v1.Values;
 
       if (size == 0) {
+#if BUILD_AS_ABI_TYPE
+        error = EDoNothing;
+#else
         error = DoNothing << "Hashtable is empty recently";
+#endif
       } else if (!keys) {
+#if BUILD_AS_ABI_TYPE
+        error = EBadLogic;
+#else
         error = BadLogic << "Hastable::Keys is empty recently";
+#endif
       } else if (!values) {
+#if BUILD_AS_ABI_TYPE
+        error = EBadLogic;
+#else
         error = BadLogic << "Hastable::Values is empty recently";
+#endif
       } else {
         for (UInt index = Mod(hashing);
              index <= size;
@@ -258,7 +332,11 @@ insert_keyval:
       if (error){
         return error;
       } else {
+#if BUILD_AS_ABI_TYPE
+        return ENotFound;
+#else
         return NotFound << Format{"key with hash {}"}.Apply(hashing);
+#endif
       }
     }
 
@@ -271,8 +349,12 @@ insert_keyval:
       if (ToPointer(result, pointer)) {
         output = result;
       } else {
+#if BUILD_AS_ABI_TYPE
+        return EBadLogic;
+#else
         return BadLogic << Format{"is {} pointer?"}
                                   .Apply(Nametype<ResultT>());
+#endif
       }
     }
     break;
@@ -284,7 +366,11 @@ insert_keyval:
       break;
 
     default: /* @NOTE: we shouldn't reach to here */
+#if BUILD_AS_ABI_TYPE
+      return EBadLogic;
+#else
       return BadLogic << "bug from compiler, please report it";
+#endif
     }
 
     return error;
@@ -374,8 +460,12 @@ insert_keyval:
 
     /* @NOTE: realocate variable keys */
     if (!(keys = (KeyT*)ABI::Realloc(keys, 2*size*sizeof(KeyT)))) {
+#if BUILD_AS_ABI_TYPE
+      error = EDrainMem;
+#else
       error = DrainMem(Format{"ABI::Realloc() keys with {}"
                               "bytes"}.Apply(2*size*sizeof(KeyT))).code();
+#endif
     } else if (_Style) {
       _Map.v2.Keys = keys;
     } else {
@@ -385,8 +475,12 @@ insert_keyval:
     /* @NOTE: realocate variable values */
     if (error || !(values = (ValueT*)ABI::Realloc(values, 2*size*sizeof(ValueT)))) {
       if (!error) {
+#if BUILD_AS_ABI_TYPE
+        error = EDrainMem;
+#else
         error = DrainMem(Format{"ABI::Realloc() values with {} "
                                 "bytes"}.Apply(2*size*sizeof(ValueT))).code();
+#endif
       }
     } else if (_Style) {
       _Map.v2.Values = values;
@@ -397,8 +491,12 @@ insert_keyval:
     /* @NOTE: realocate variable levels */
     if (error || !(levels = (Bool*)ABI::Realloc(levels, 2*size*sizeof(Bool)))) {
       if (!error) {
+#if BUILD_AS_ABI_TYPE
+        error = EDrainMem;
+#else
         error = DrainMem(Format{"ABI::Realloc() levels with {} "
                                 "bytes"}.Apply(2*size*sizeof(Bool))).code();
+#endif
       }
     } else if (_Style) {
       _Map.v2.Levels = levels;
@@ -409,8 +507,12 @@ insert_keyval:
     /* @NOTE: realocate variable roots */
     if (error || !(roots = (IndexT*)ABI::Realloc(roots, 2*size*sizeof(IndexT)))) {
       if (!error) {
+#if BUILD_AS_ABI_TYPE
+        error = EDrainMem;
+#else
         error = DrainMem(Format{"ABI::Realloc() roots with {} "
                                 "bytes"}.Apply(2*size*sizeof(IndexT))).code();
+#endif
       }
     } else if (_Style) {
       _Map.v2.Roots = roots;
@@ -426,8 +528,12 @@ insert_keyval:
       /* @NOTE: realocate variable indexes */
       if (error || !(indexes = (IndexT*)ABI::Realloc(indexes, 2*size*sizeof(IndexT)))) {
         if (!error) {
+#if BUILD_AS_ABI_TYPE
+          error = EDrainMem;
+#else
           error = DrainMem(Format{"ABI::Realloc() indexes with {} "
                                   "bytes"}.Apply(2*size*sizeof(IndexT))).code();
+#endif
         }
       } else {
         memset(&indexes[size], -1, size*sizeof(IndexT));
@@ -454,7 +560,11 @@ insert_keyval:
         return (ResultT*)(&KeyAt((KeyT*)_Map.v1.Keys, index));
       }
     } else {
+#if BUILD_AS_ABI_TYPE
+      throw ENoSupport;
+#else
       throw Except(ENoSupport, Nametype<ResultT>());
+#endif
     }
   }
 
@@ -462,6 +572,9 @@ insert_keyval:
    * any pointer when we are working on templating functions */
   template<typename Type>
   static Bool ToPointer(Type& result, Void* pointer) {
+#if BUILD_AS_ABI_TYPE
+    return True;
+#else
     auto name = Nametype<Type>();
 
     if (name[name.size() - 1] == '*') {
@@ -470,6 +583,7 @@ insert_keyval:
     } else {
       return False;
     }
+#endif
   }
 
   /* @NOTE: this helper will support to insert a key-value to slot index-th */
@@ -540,7 +654,11 @@ insert_keyval:
             /* @NOTE: found the candidate move it now */
 
             if (!Move(next, index)) {
+#if BUILD_AS_ABI_TYPE
+              return EBadLogic;
+#else
               return BadLogic("broken link").code();
+#endif
             }
             break;
           }
@@ -614,16 +732,28 @@ insert_keyval:
              *  occupied */
 
             if ((index = FindEmpty(index)) < 0) {
+#if BUILD_AS_ABI_TYPE
+              return EBadLogic;
+#else
               return BadLogic("migrate can\'t find any place to update").code();
+#endif
             }
 
             if (!Insert(KeyAt(keys, i), ValueAt(values, i), index)) {
+#if BUILD_AS_ABI_TYPE
+              return EBadLogic;
+#else
               return BadLogic("migrate can\'t perform function Insert()").code();
+#endif
             }
           }
 
           if (!Deprecate(i, size)) {
+#if BUILD_AS_ABI_TYPE
+            return EBadLogic;
+#else
             return BadLogic("fail to do Deprecate()").code();
+#endif
           }
 
           /* @NOTE: recaculate root and levels */

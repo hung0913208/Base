@@ -30,6 +30,8 @@ enum ErrorCodeE {
 enum ErrorLevelE { EError = 3, EWarning = 2, EInfo = 1, EDebug = 0 };
 
 #if __cplusplus
+#include <typeinfo>
+
 #define True true
 #define False false
 
@@ -129,6 +131,17 @@ inline Bool IsLocked(Mutex* mutex) {
   return IsLocked(*mutex);
 }
 } // namespace Locker
+
+template <typename LeftT, typename RightT>
+struct Pair {
+  LeftT Left;
+  RightT Right;
+
+  explicit Pair(LeftT left, RightT right): Left{left}, Right{right} {}
+
+  Pair() : Left{}, Right{} {}
+  Pair(const Pair& src) : Left{src.Left}, Right{src.Right} {}
+};
 } // namespace Base
 #endif
 

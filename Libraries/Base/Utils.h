@@ -127,34 +127,6 @@ String Datetime();
 template<typename... Args>
 Tie Bond(Args&... args);
 
-template <typename LeftT, typename RightT>
-struct Pair {
-  LeftT Left;
-  RightT Right;
-
-  explicit Pair(LeftT left, RightT right): Left{left}, Right{right} {}
-
-  Pair() : Left{}, Right{} {}
-  Pair(const Pair& src) : Left{src.Left}, Right{src.Right} {}
-};
-
-template<typename Type>
-String Nametype() {
-  auto& type = typeid(Type);
-  auto status = 0;
-  auto result = abi::__cxa_demangle(type.name(), 0, 0, &status);
-
-  if (result) {
-#ifdef BASE_TYPE_STRING_H_
-    return String(result).copy();
-#else
-    return String(result);
-#endif
-  } else {
-    throw Except(EBadAccess, "it seems c++ can\'t access name of the type");
-  }
-}
-
 template <typename Ret, typename... Args>
 Ret Wait(Mutex& locker, Function<Ret(Args...)> run_after_wait, Args... args) {
   if (Locker::IsLocked(locker)) Locker::Lock(locker);
@@ -167,6 +139,23 @@ ULong GetAddress(Function<T(U...)> f) {
 
   fnType **fnPointer = f.template target<fnType *>();
   return (fnPointer)? (size_t)*fnPointer: 0;
+}
+
+template<typename Type>
+String Nametype() {
+  auto& type = typeid(Type);
+  auto  status = 0;
+  auto result = abi::__cxa_demangle(type.name(), 0, 0, &status);
+
+  if (result) {
+#ifdef BASE_TYPE_STRING_H_
+    return String(result).copy();
+#else
+    return String(result);
+#endif
+  } else {
+    throw Except(EBadAccess, "it seems c++ can\'t access name of the type");
+  }
 }
 
 #ifdef BASE_TYPE_STRING_H_
@@ -223,37 +212,6 @@ Float ToFloat<String>(String value);
 
 template <>
 Float ToFloat<CString>(CString value);
-
-#ifndef BASE_TYPE_TUPLE_H_
-template<std::size_t __i, typename... _Elements>
-  constexpr const std::__tuple_element_t<__i, std::tuple<_Elements...>>&
-Get(const std::tuple<_Elements...>& __t) noexcept {
-  return std::__get_helper<__i>(__t);
-}
-
-template<std::size_t __i, typename... _Elements>
-  constexpr std::__tuple_element_t<__i, std::tuple<_Elements...>>&&
-Get(std::tuple<_Elements...>&& __t) noexcept {
-  typedef std::__tuple_element_t<__i, std::tuple<_Elements...>> __element_type;
-    
-  return std::forward<__element_type&&>(std::get<__i>(__t));
-}
-
-template<std::size_t __i, typename... _Elements>
-  constexpr const std::__tuple_element_t<__i, std::tuple<_Elements...>>&&
-Get(const std::tuple<_Elements...>&& __t) noexcept {
-  typedef std::__tuple_element_t<__i, std::tuple<_Elements...>> __element_type;
-
-  return std::forward<const __element_type&&>(std::get<__i>(__t));
-}
-
-#else
-template<unsigned I, typename T>
-T& Get(Implement::Tuple::Element<I, T>& e) { return e.value; }
-
-template<unsigned I, typename T>
-T& Get(Implement::Tuple::Element<I, T>&& e) { return e.value; }
-#endif
 
 template <typename Type>
 Int Find(Iterator<Type> begin, Iterator<Type> end, Type value){

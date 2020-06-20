@@ -11,10 +11,10 @@
 
 #if __cplusplus
 #if USE_BASE_WITH_FULL_PATH_HEADER
-#include <Base/Type/ABI.h>
+//#include <Base/Type/ABI.h>
 #include <Base/Type/Common.h>
 #else
-#include <ABI.h>
+//#include <ABI.h>
 #include <Common.h>
 #endif
 
@@ -33,7 +33,7 @@ class Function<R(Args...)> {
 
   template <typename F>
   static R InvokeFn(F* fn, Args&&... args) {
-    return (*fn)(std::forward<Args>(args)...);
+    return (*fn)(args...);
   }
 
   template <typename F>
@@ -76,6 +76,11 @@ class Function<R(Args...)> {
     return _Invoke(_Data, RValue(args)...);
   }
 
+  operator bool() {
+    return _Size != 0;
+  }
+
+ protected:
   Invoke _Invoke;
   Construct _Construct;
   Destroy _Destroy;

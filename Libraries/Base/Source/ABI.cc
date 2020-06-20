@@ -65,6 +65,25 @@ void Memcpy(void* dst, void* src, UInt size) {
   }
 }
 
+void* Memmove (void* dest, const void* src, ULong len) {
+  CString d = (CString) dest;
+  CString s = (CString) src;
+
+  if (d < s) {
+    while (len--) {
+      *d++ = *s++;
+    }
+  } else {
+    char *lasts = s + (len-1);
+    char *lastd = d + (len-1);
+
+    while (len--) {
+      *lastd-- = *lasts--;
+    }
+  }
+
+  return dest;
+}
 UInt Strlen(const CString str) {
   UInt result = 0;
 
