@@ -29,8 +29,13 @@ if (PYTHONLIBS_FOUND)
 	set(LANGUAGE_LIBRARIES ${LANGUAGE_LIBRARIES} ${PYTHONLIBS_LIBRARIES})
 endif()
 
-add_subdirectory(Source/IBash)
-add_subdirectory(Source/IPython)
+if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+	add_subdirectory(Source/IBash)
+	add_subdirectory(Source/IPython)
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+	add_subdirectory(Source/IPython)
+endif()
+
 add_library(wrapping STATIC ${SOURCES})
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
