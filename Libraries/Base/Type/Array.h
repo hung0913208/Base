@@ -1,9 +1,21 @@
-#include "Macro.h"
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Macro.h>
+#else
+#include <Macro.h>
+#endif
 
 #if !defined(BASE_TYPE_ARRAY_H_) && (USE_BASE_VECTOR || APPLE)
 #define BASE_TYPE_ARRAY_H_
-#include "Common.h"
-#include "Refcount.h"
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Type/Common.h>
+#include <Base/Type/Refcount.h>
+#else
+#include <Common.h>
+#include <Refcount.h>
+#endif
 
 namespace Base {
 template <typename Type>

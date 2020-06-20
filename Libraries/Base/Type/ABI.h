@@ -1,7 +1,14 @@
 #ifndef BASE_TYPE_CXX_ABI_H_
 #define BASE_TYPE_CXX_ABI_H_
-#include "Common.h"
-#include "Macro.h"
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Type/Common.h>
+#include <Base/Macro.h>
+#else
+#include <Common.h>
+#include <Macro.h>
+#endif
 
 #if __cplusplus
 #include <atomic>
@@ -11,10 +18,19 @@
 template <typename Type>
 using Atomic = std::atomic<Type>;
 
-#if APPLE
+#ifdef APPLE
 template <typename Type>
 using Iterator = Type*;
+
+#ifndef BASE_TYPE_FUNCTION_H_
+#define BASE_TYPE_FUNCTION_H_ 1
+#endif  // BASE_TYPE_FUNCTION_H_
+
+#ifndef BASE_TYPE_TUPLE_H_
+#define BASE_TYPE_TUPLE_H_ 1
+#endif  // BASE_TYPE_TUPLE_H_
 #else
+#include <functional>
 #include <list>
 #include <map>
 #include <memory>
@@ -22,6 +38,7 @@ using Iterator = Type*;
 #include <queue>
 #include <set>
 #include <stack>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -60,9 +77,6 @@ using Iterator = typename std::vector<Type>::iterator;
 template <typename Type>
 using Reference = std::reference_wrapper<Type>;
 
-template <typename F>
-using Function = std::function<F>;
-
 template <typename Type>
 using Unique = std::unique_ptr<Type>;
 
@@ -72,6 +86,47 @@ using Shared = std::shared_ptr<Type>;
 template <typename Type>
 using Weak = std::weak_ptr<Type>;
 #endif
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#ifdef BASE_TYPE_FUNCTION_H_
+#include <Base/Type/Function.h>
+#endif // BASE_TYPE_FUNCTION_H_
+
+#ifdef BASE_TYPE_TUPLE_H_
+#include <Base/Type/Tuple.h>
+#endif  // BASE_TYPE_TUPLE_H_
+#else
+
+#ifdef BASE_TYPE_FUNCTION_H_
+#include <Function.h>
+#endif  // BASE_TYPE_FUNCTION_H_
+
+#ifdef BASE_TYPE_TUPLE_H_
+#include <Tuple.h>
+#endif  // BASE_TYPE_TUPLE_H_
+#endif  // USE_BASE_WITH_FULL_PATH_HEADER
+
+#ifndef BASE_TYPE_FUNCTION_H_
+template <typename F> using Function = std::function<F>;
+#else
+namespace Base {
+template <typename F>
+class Function;
+} // namespace Base
+
+template <typename F> using Function = Base::Function<F>;
+#endif // BASE_TYPE_FUNCTION_H_
+
+#ifndef BASE_TYPE_TUPLE_H_
+template <typename... Args> using Tuple = std::tuple<Args...>;
+#else
+namespace Base {
+template <typename... Args>
+class Tuple;
+} // namespace Base
+
+template <typename... Args> using Tuple = Base::Tuple<Args...>;
+#endif  // BASE_TYPE_TUPLE_H_
 
 namespace ABI {
 /* @NOTE: memory allocation */

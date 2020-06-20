@@ -1,7 +1,14 @@
 #if !defined(BASE_REFCOUNT_H_)
 #define BASE_REFCOUNT_H_
-#include "Common.h"
-#include "Function.h"
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Type/Common.h>
+#include <Base/Type/Function.h>
+#else
+#include <Common.h>
+#include <Function.h>
+#endif
 
 #if __cplusplus
 namespace Base {

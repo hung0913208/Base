@@ -1,8 +1,18 @@
-#include "Macro.h"
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Macro.h>
+#else
+#include <Macro.h>
+#endif
 
 #if !defined(BASE_TYPE_VECTOR_H_) && (USE_BASE_VECTOR || APPLE)
 #define BASE_TYPE_VECTOR_H_
-#include "Array.h"
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Type/Array.h>
+#else
+#include <Array.h>
+#endif
 
 namespace Base {
 template <typename Type>

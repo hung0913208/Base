@@ -1,4 +1,10 @@
-#include "Macro.h"
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Macro.h>
+#else
+#include <Macro.h>
+#endif
 
 #if !defined(BASE_TYPE_TUPLE_H_) && (USE_BASE_TUPLE || APPLE)
 #define BASE_TYPE_TUPLE_H_

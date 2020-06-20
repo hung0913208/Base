@@ -4,7 +4,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "Macro.h"
+#include <Config.h>
+
+#if USE_BASE_WITH_FULL_PATH_HEADER
+#include <Base/Macro.h>
+#else
+#include <Macro.h>
+#endif
 
 enum ErrorCodeE {
   ENoError = 0,
