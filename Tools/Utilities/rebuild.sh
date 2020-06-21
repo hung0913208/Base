@@ -69,15 +69,29 @@ if [ $? -ne 0 ]; then
 	code=-1
 fi
 
-unameOut="$(uname -s)"
-case "${unameOut}" in
-	Linux*)     make -j $(($(grep -c ^processor /proc/cpuinfo)*2)) VERBOSE=$VERBOSE;;
-	Darwin*)    make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=$VERBOSE;;
-	CYGWIN*)    make VERBOSE=1;;
-	MINGW*)     make VERBOSE=1;;
-	FreeBSD*)   make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=$VERBOSE;;
-	*)          make VERBOSE=1;;
-esac
+if [[ $VERBOSE -eq 0 ]]; then
+	unameOut="$(uname -s)"
+
+	case "${unameOut}" in
+		Linux*)     make -j $(($(grep -c ^processor /proc/cpuinfo)*2));;
+		Darwin*)    make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2));;
+		CYGWIN*)    make;;
+		MINGW*)     make;;
+		FreeBSD*)   make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2));;
+		*)          make;;
+	esac
+else
+	unameOut="$(uname -s)"
+
+	case "${unameOut}" in
+		Linux*)     make -j $(($(grep -c ^processor /proc/cpuinfo)*2)) VERBOSE=1;;
+		Darwin*)    make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=1;;
+		CYGWIN*)    make VERBOSE=1;;
+		MINGW*)     make VERBOSE=1;;
+		FreeBSD*)   make -j $(($(sysctl hw.ncpu | awk '{print $2}')*2)) VERBOSE=1;;
+		*)          make VERBOSE=1;;
+	esac
+fi
 
 if [ $? -ne 0 ]; then
 	code=-1

@@ -12,6 +12,7 @@
 #include <String.h>
 #endif
 
+#ifdef __cplusplus
 #ifndef BASE_TYPE_STRING_H_
 #include <string>
 
@@ -19,8 +20,7 @@ using String = std::string;
 #else
 using String = Base::String;
 #endif // BASE_TYPE_STRING_H_
-
-#ifndef __cplusplus
+#else
 #include <string.h>
 
 #define String char*

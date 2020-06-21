@@ -2,7 +2,7 @@
 #include <Function.h>
 #include <Unittest.h>
 
-#if !USE_STD_FUNCTION
+#if USE_BASE_FUNCTION
 Bool global = False;
 
 TEST(Function, Simple) {
