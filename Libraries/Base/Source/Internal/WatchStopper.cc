@@ -216,7 +216,7 @@ class Watch {
       throw Except(EBadLogic, "Can\'t init _Global");
     }
 #if DEBUGING
-    ABI::Memset(_Owner, 0, sizeof(_Owner));
+    memset(_Owner, 0, sizeof(_Owner));
 #endif
   }
 
@@ -600,8 +600,8 @@ Bool Unlock(Base::Lock& locker) {
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
 
-  return Watcher->OnUnlocking<Base::Internal::Implement::Lock>(
-    reinterpret_cast<Base::Internal::Implement::Lock*>(Context(locker)),
+  return Watcher->OnUnlocking<Implement::Lock>(
+    reinterpret_cast<Implement::Lock*>(Context(locker)),
     [&]() {
       do {
         UNLOCK((Mutex*)locker.Identity());
@@ -621,7 +621,7 @@ Bool Unlock(Mutex& locker) {
      * to do that, we can't guarantee that everything should be in safe all the
      * time if the user tries to trick the highloaded systems */
 
-    return Watcher->OnUnlocking<Base::Internal::Implement::Lock>(
+    return Watcher->OnUnlocking<Implement::Lock>(
       &(Mutexes->at(ULong(&locker))),
       [&]() {
         do {
@@ -655,8 +655,8 @@ void Cleanup(void* ptr) {
   if (ptr) {
     Thread* thiz = reinterpret_cast<Thread*>(ptr);
     ErrorCodeE error = ENoError;
-    Base::Internal::Implement::Thread* impl =
-      reinterpret_cast<Base::Internal::Implement::Thread*>(Context(*thiz));
+    Implement::Thread* impl =
+      reinterpret_cast<Implement::Thread*>(Context(*thiz));
 
     do {
       if (error == EDoAgain) {
@@ -676,8 +676,7 @@ void Cleanup(void* ptr) {
 void Capture (Void* ptr, Bool status) {
   using namespace Base::Internal;
 
-  Base::Internal::Implement::Thread* thread =
-    reinterpret_cast<Base::Internal::Implement::Thread*>(ptr);
+  Implement::Thread* thread = reinterpret_cast<Implement::Thread*>(ptr);
 
   if (thread) {
     if (status) {
@@ -687,8 +686,7 @@ void Capture (Void* ptr, Bool status) {
       if (!Watcher->Exiting) {
         if (Watcher->Spawn() != Watcher->Size() || 
             Watcher->Rest() != Watcher->Size()) {
-          Watcher->OnLocking<Base::Internal::Implement::Thread>(thread,
-              SolveDeadlock);
+          Watcher->OnLocking<Implement::Thread>(thread, SolveDeadlock);
         }
       }
     } else {
@@ -696,12 +694,11 @@ void Capture (Void* ptr, Bool status) {
        * so at least it should be used to notice that we are done the thread
        * here */
 
-      if (!Watcher->OnUnlocking<Internal::Implement::Thread>(thread, None)) {
+      if (!Watcher->OnUnlocking<Implement::Thread>(thread, None)) {
         Bug(EBadAccess, Format{"unidentify thread {}"} << thread->Identity());
       }
 
-      Watcher->OnUnregister<Internal::Implement::Thread>(
-          thread->Super()->Identity(False));
+      Watcher->OnUnregister<Implement::Thread>(thread->Super()->Identity(False));
       Watcher->_Threads.erase(thread->Super());
 
       /* @NOTE: when the thread reaches here, it would means that this is the
@@ -731,7 +728,7 @@ void* Booting(void* ptr) {
   ULong id = GetUUID();
 
   try {
-    Thiz = new Internal::Implement::Thread(thread);
+    Thiz = new Implement::Thread(thread);
 
     if (LIKELY(thread->_Registering, False)) {
       delete Thiz;
@@ -755,7 +752,7 @@ void* Booting(void* ptr) {
       }
 
       if (!locked) {
-        Watcher->OnRegister<Internal::Implement::Thread>(thread->Identity(False));
+        Watcher->OnRegister<Implement::Thread>(thread->Identity(False));
         Register(*thread, Thiz);
       }
 
@@ -775,10 +772,8 @@ void* Booting(void* ptr) {
     }
   } catch (Base::Exception& except) {
     error = except.code();
-#ifndef APPLE
   } catch (std::bad_alloc&) {
     error = EDrainMem;
-#endif
   } catch (...) {
     error = EBadLogic;
   }
