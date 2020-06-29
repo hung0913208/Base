@@ -45,6 +45,17 @@
 #include <signal.h>
 #include <thread>
 
+#define RUN_LABEL "[ RUN      ]"
+#define FAIL_LABEL "[     FAIL ]"
+#define PASS_LABEL "[     PASS ]"
+#define CRASH_LABEL  "[    CRASH ]"
+#define REPORT_LABEL "[   REPORT ]"
+#define ASSERT_LABEL "[   ASSERT ]"
+#define IGNORED_LABEL "[  IGNORED ]"
+#define EXCEPTION_LABEL "[   EXCEPT ]"
+#define SPLIT_SUITED "[----------]"
+#define PRESENT_BOUND "[==========]"
+
 /* @NOTE: these are basic C-API of Unittest library, since they must be
  * simple and primitived. It would mean you need more line to adapt a single
  * step of checking.
@@ -460,6 +471,7 @@ class Case {
   /* @NOTE: define our testcase with this virtual method */
   explicit Case(String suite, String name);
   virtual void Define();
+  virtual Bool Footer();
 
   Shared<Unittest> _Unit;
   Pharse::Prepare* _Prepare;
@@ -581,6 +593,7 @@ class Dump : Trap {
     TestCase() : Case{#Suite, #TestCase} {}                          \
                                                                      \
     void Define() final;                                             \
+    Bool Footer() final { return False; }                            \
   };                                                                 \
                                                                      \
   static auto Unit##TestCase = Base::Unit::Case::Make(               \

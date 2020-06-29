@@ -35,17 +35,6 @@
 #include <time.h>
 #include <numeric>
 
-#define RUN_LABEL "[ RUN      ]"
-#define FAIL_LABEL "[     FAIL ]"
-#define PASS_LABEL "[     PASS ]"
-#define CRASH_LABEL  "[    CRASH ]"
-#define REPORT_LABEL "[   REPORT ]"
-#define ASSERT_LABEL "[   ASSERT ]"
-#define IGNORED_LABEL "[  IGNORED ]"
-#define EXCEPTION_LABEL "[   EXCEPT ]"
-#define SPLIT_SUITED "[----------]"
-#define PRESENT_BOUND "[==========]"
-
 namespace Base {
 namespace Unit {
 class Assertion : Exception {
@@ -670,6 +659,8 @@ class CaseImpl : public Base::Unit::Case {
       _Status = Base::Unit::EFatal;
     }
   }
+
+  Bool Footer() final { return False; }
 };
 
 extern "C" Unittest* BSDefineTest(CString suite, CString name,
@@ -746,6 +737,10 @@ extern "C" Int BSRunTests() {
         elapsed_test_milisecs = 1000.0 * (clock() - begin) / CLOCKS_PER_SEC;
       }
 
+      if (test->Footer()) {
+        goto dumping;
+      }
+
       /* @NOTE: check status of this test and present it to console */
       if (test->Status() == Base::Unit::EFail) {
         did_everything_pass = False;
@@ -771,6 +766,7 @@ extern "C" Int BSRunTests() {
                     << Base::EOL;
       }
 
+dumping:
       /* @NOTE: dump information at the time the testcase finishing */
       if (Base::Internal::Dump::Finisher) {
         Base::Internal::Dump::Finisher();
