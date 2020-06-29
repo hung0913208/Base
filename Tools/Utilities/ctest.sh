@@ -323,8 +323,41 @@ NF&&f{ print s"/"$0 }'); do
 					if [ $1 = 'Debug' ]; then
 						TEMP=$(mktemp -q)
 
-						gdb -ex="set confirm on" -ex=run -ex="thread apply all bt" -ex=quit \
+						if [ -f $(dirname $FILE)/gdb.cfg ]; then
+							RUNNER=$(mktemp /tmp/gdb-script.XXXXXX)
+							CONFIG="$(dirname $FILE)/gdb.cfg"
+
+							# @NOTE: generate the .gdbinit to make our custom scripts to be called globally
+							awk '/^begin\(init\)$/{flag=1;next}/^end\(init\)$/{flag=0}flag' $CONFIG > $HOME/.gdbinit
+
+							# @NOTE: generate the gdb script to apply custom commands
+							echo 'gdb -ex="set confirm on" \' > $RUNNER
+
+							SAVE=$IFS
+							IFS=$'\n'
+							for LINE in $(awk '/^begin\(head\)$/{flag=1;next}/^end\(head\)$/{flag=0}flag' $CONFIG); do
+								echo "-ex='${LINE//[$'\t\r\n']}' \\" >> $RUNNER	
+							done
+
+							echo '-ex=run \' >> $RUNNER
+
+							for LINE in $(awk '/^begin\(body\)$/{flag=1;next}/^end\(body\)$/{flag=0}flag' $CONFIG); do
+								echo "-ex='${LINE//[$'\t\r\n']}' \\" >> $RUNNER	
+							done
+						
+							IFS=$SAVE
+
+							# @NOTE: at the end, we must call quit to close our gdb session
+							echo "-ex=quit --args $FILE | tee $TEMP" >> $RUNNER
+
+							# @NOTE: everything is done, call it now and remove this temporary script after
+							bash $RUNNER
+							rm -fr $RUNNER
+						else
+							gdb -ex="set confirm on" -ex=run -ex="thread apply all bt" -ex=quit \
 								--args $FILE | tee $TEMP
+						fi
+
 						echo ""
 
 						if ! cat "$TEMP" | grep "exited normally" >& /dev/null; then
