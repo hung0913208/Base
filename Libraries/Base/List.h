@@ -26,8 +26,8 @@ class List {
   ~List();
 
   template<typename T> 
-  T* At(ULong index) {
-    Item* item = Access(ERead, index, True);
+  T* At(ULong position, Bool use_index = False) {
+    Item* item = Access(ERead, position, !use_index);
     T* result = (T*) (item? item->_Ptr : None);
 
     if (Unlock(item)) {

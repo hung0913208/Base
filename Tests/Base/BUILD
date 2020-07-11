@@ -215,3 +215,32 @@ cc_test(
     "-pthread"
   ]
 )
+
+cc_test(
+  name = "Queue",
+  srcs = ["Queue.cc"],
+  deps = [
+    "//Libraries/Base:Base",
+    "//Libraries/Unittest:Unittest",
+    ":Deadlock",
+    ":Thread",
+    ":Tie",
+  ],
+  copts = [
+    "-std=c++11",
+    "-pthread"
+  ]
+)
+
+cc_test(
+  name = "Tie",
+  srcs = ["Tie.cc"],
+  deps = [
+    "//Libraries/Base:Base",
+    "//Libraries/Unittest:Unittest",
+  ],
+  copts = [
+    "-std=c++11",
+    "-pthread"
+  ]
+)

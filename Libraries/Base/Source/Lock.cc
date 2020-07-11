@@ -12,6 +12,10 @@ void RemoveMutex(Mutex* mutex);
 Mutex* CreateMutex();
 }  // namespace Internal
 
+namespace Locker {
+Bool Lock(Mutex& locker, Long timeout, Bool fail_if_autoresolve);
+} // namespace Locker
+
 Lock::Lock(Bool locked) : _Lock{Internal::CreateMutex()} {
   _Count = new Int{0};
   _Context = None;
@@ -111,6 +115,14 @@ const Lock& Lock::operator()(Bool lock) const{
 }
 
 Lock::operator bool() const { return Locker::IsLocked(*_Lock); }
+
+Bool Lock::DoLockWithTimeout(Double timeout) {
+  if (timeout < 0) {
+    return Locker::Lock(*_Lock, -1, True);
+  } else {
+    return Locker::Lock(*_Lock, Long(timeout*1000000000), True);
+  }
+}
 
 void Lock::Wait(Function<Bool()> event, Function<void()> react) {
   /* @NOTE: jump to lock's waiting state and wait another unlock it, at that

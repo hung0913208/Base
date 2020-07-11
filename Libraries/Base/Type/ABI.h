@@ -17,6 +17,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <vector>
+#include <sstream>
 
 template <typename Type>
 using Atomic = std::atomic<Type>;

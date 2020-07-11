@@ -505,8 +505,10 @@ namespace Locker {
 /* @NOTE: this function is used to lock a mutex with the watching to prevent
  * deadlocks happen */
 
-Bool Lock(Base::Lock& locker) {
+Bool Lock(Base::Lock& locker, Long timeout, Bool fail_if_autoresolve) {
   auto context = reinterpret_cast<Internal::Implement::Lock*>(Context(locker));
+  auto status = 0;
+  auto result = False;
 
   if (!Internal::Watcher) {
     Internal::Watcher = new Internal::Watch();
@@ -522,14 +524,26 @@ Bool Lock(Base::Lock& locker) {
    * to do that, we can't guarantee that everything should be in safe all the
    * time if the user tries to trick the highloaded systems */
 
-  return Internal::Watcher->OnLocking<Internal::Implement::Lock>(
+  result = Internal::Watcher->OnLocking<Internal::Implement::Lock>(
     context,
     [&]() {
-      TIMELOCK((Mutex*)locker.Identity(), -1, context->Halt());
+      status = TIMELOCK((Mutex*)locker.Identity(), timeout, context->Halt());
     });
+
+  if (status > 0) {
+    return False;
+  } else if (fail_if_autoresolve && status < 0) {
+    return False;
+  } else {
+    return result;
+  }
 }
 
-Bool Lock(Mutex& locker) {
+Bool Lock(Base::Lock& locker) {
+  return Lock(locker, -1, False);
+}
+
+Bool Lock(Mutex& locker, Long timeout, Bool fail_if_autoresolve) {
   if (!Internal::Watcher) {
     Internal::Watcher = new Internal::Watch();
 
@@ -542,20 +556,33 @@ Bool Lock(Mutex& locker) {
 
   if (Internal::Mutexes) {
     auto context = &(Internal::Mutexes->at(ULong(&locker)));
+    auto status = 0;
 
     /* @NOTE: lock may fail and cause coredump because we allow to another side
      * to do that, we can't guarantee that everything should be in safe all the
      * time if the user tries to trick the highloaded systems */
 
-    return Internal::Watcher->OnLocking<Internal::Implement::Lock>(
+    auto result = Internal::Watcher->OnLocking<Internal::Implement::Lock>(
       context,
       [&]() {
-        TIMELOCK(&locker, -1, context->Halt());
+        status = TIMELOCK(&locker, timeout, context->Halt());
       });
+
+    if (status > 0) {
+      return False;
+    } else if (fail_if_autoresolve && status < 0) {
+      return False;
+    } else {
+      return True;
+    }
   } else {
     Bug(EBadAccess, "Lock a mutex while Internal::Mutexes is None");
     return False;
   }
+}
+
+Bool Lock(Mutex& locker) {
+  return Lock(locker, -1, False);
 }
 
 /* @NOTE: this function is used to unlock a mutex with the watching to prevent
@@ -1752,7 +1779,7 @@ finish:
   if (passed) {
     UNLOCK(mutex);
   }
-  return passed? 0: result;
+  return passed? -1: result;
 }
 
 void SolveDeadlock() {

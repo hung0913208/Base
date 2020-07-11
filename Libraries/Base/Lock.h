@@ -34,6 +34,8 @@ class Lock {
   const Lock& operator()(Bool lock) const;
   operator bool() const;
 
+  Bool DoLockWithTimeout(Double timeout=-1);
+
   void Wait(Function<Bool()> event, Function<void()> react);
   void Wait(Function<Bool()> event);
   void Safe(Function<void()> callback);
