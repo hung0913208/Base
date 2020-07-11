@@ -1,3 +1,5 @@
+#define RELEASE 0
+
 #include <Atomic.h>
 #include <List.h>
 #include <Lock.h>
@@ -1890,32 +1892,13 @@ void DumpWatch(String parameter) {
             << EOL;
     VERBOSE << (Format{" - List's head is {}"} << ULong(Watcher->Stucks._Head))
             << EOL;
-    VERBOSE << (Format{" - List's tail is {}"} << ULong(Watcher->Stucks._Curr))
-            << EOL;
     VERBOSE << (Format{" - List has {} node(s):"} << Watcher->Stucks.Size())
             << EOL;
 
     for (UInt i = 0; i < Watcher->Stucks.Size() && curr; ++i) {
-      VERBOSE << Format{"   + {} -> {}"}.Apply(curr->_Index, (ULong)curr->_Ptr)
+      VERBOSE << Format{"   + {} -> {}"}.Apply(curr->Index, (ULong)curr->Ptr)
               << EOL;
-      curr = curr->_Next;
-    }
-
-    VERBOSE << (Format{" - Have {} running job(s)"} << Watcher->Stucks._Parallel)
-            << EOL;
-
-    for (ULong i = 0; i < Watcher->Stucks._Size[1]; ++i) {
-      auto& barrier = Watcher->Stucks._Barriers[i];
-
-      for (auto j = 0; j < Int(List::EEnd); ++j) {
-        if (barrier.Left[j] == 0) {
-          continue;
-        }
-
-        VERBOSE << Format{"   + {} is doing job {}"}.Apply(barrier.Left[j], j)
-                << EOL;
-        break;
-      }
+      curr = curr->Next;
     }
   } else if (parameter == "Counters") {
     VERBOSE << "Dump Watcher's counters:" << EOL;
@@ -1928,34 +1911,6 @@ void DumpWatch(String parameter) {
     VERBOSE << Format{" - Size() = {}"}.Apply(Watcher->Size()) << EOL;
     VERBOSE << Format{" - Solved() = {}"}.Apply(Watcher->Solved()) << EOL;
     VERBOSE << Format{" - Rest() = {}"}.Apply(Watcher->Rest()) << EOL;
-  } else if (parameter == "Stucks.Unlock") {
-    for (ULong i = 0; i < Watcher->Stucks._Size[1]; ++i) {
-      for (auto j = 0; j < Int(List::EEnd); ++j) {
-        auto index = Watcher->Stucks._Barriers[i].Left[j];
-        auto curr = Watcher->Stucks._Head;
-
-        if (index == 0) {
-          continue;
-        }
-
-        for (UInt i = 0; i < Watcher->Stucks.Size() && curr; ++i) {
-          if (curr->_Index == index) {
-            break;
-          }
-
-          curr = curr->_Next;
-        }
-
-        if (curr) {
-          auto lock = (Implement::Lock*)curr->_Ptr;
-
-          Internal::Debug::DumpLock(*lock, "Count");
-          Internal::Debug::DumpLock(*lock, "Ticket");
-          Internal::Debug::DumpLock(*lock, "Status");
-        }
-        break;
-      }
-    }
   }
 }
 } // namespace Debug

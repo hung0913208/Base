@@ -34,7 +34,8 @@ cc_test(
     "//Libraries/Unittest:Unittest",
     ":Exception",
     ":Refcount",
-    ":String"
+    ":String",
+    ":List"
   ],
   copts=[
     "-std=c++11",
@@ -58,6 +59,19 @@ cc_test(
 cc_test(
   name = "Glob",
   srcs = ["Glob.cc"],
+  deps = [
+    "//Libraries/Base:Base",
+    "//Libraries/Unittest:Unittest"
+  ],
+  copts = [
+    "-std=c++11",
+    "-pthread"
+  ]
+)
+
+cc_test(
+  name = "List",
+  srcs = ["List.cc"],
   deps = [
     "//Libraries/Base:Base",
     "//Libraries/Unittest:Unittest"

@@ -183,6 +183,14 @@ template <>
 inline String ToString<std::nullptr_t>(std::nullptr_t UNUSED(value)) {
   return "None";
 }
+
+template<>
+inline String ToString<Void*>(Void* value) {
+  std::stringstream stream;
+
+  stream << std::hex << reinterpret_cast<intptr_t>(value);;
+  return std::string(stream.str());
+}
 #endif
 
 template <typename Type>
