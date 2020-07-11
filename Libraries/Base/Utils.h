@@ -103,6 +103,7 @@ Int BSWriteToFileDescription(Int fd, Bytes buffer, UInt size);
 namespace Base {
 class Auto;
 class Error;
+class Tie;
 
 namespace Number {
 template <typename Type>
@@ -123,6 +124,9 @@ Bool Unlock(Mutex& locker);
 
 void Wait(Mutex& locker);
 String Datetime();
+
+template<typename... Args>
+Tie Bond(Args&... args);
 
 template <typename LeftT, typename RightT>
 struct Pair {
@@ -467,6 +471,66 @@ class Fork: Refcount {
 
   Int _PID, _Input, _Output, _Error, *_ECode;
 };
+
+class Tie {
+ public:
+  template<typename Input>
+  Tie& operator=(Input& input) {
+    return (*this) << input;
+  }
+
+  template<typename Input>
+  Tie& operator<<(Input& input) {
+    throw Except(ENoSupport, 
+                 Format{"No support type {}"}.Apply(Nametype<Input>()));
+  }
+
+  template<typename Output>
+  Tie& operator>>(Output& output) {
+    throw Except(ENoSupport, 
+                 Format{"No support type {}"}.Apply(Nametype<Output>()));
+  }
+
+ private:
+  Tie();
+
+  Bool Mem2Cache(Void* context, const std::type_info& type, UInt size);
+
+  template<typename T, typename ...Args>
+  Bool Prepare(const T &value, const Args&... args) {
+    if (sizeof...(args) >= 1) {
+      if (Mem2Cache((Void*)&value, typeid(T), sizeof(T))) {
+        return Prepare(args...);
+      } else {
+        return False;
+      }
+    } else {
+      return Mem2Cache((Void*)&value, typeid(T), sizeof(T));
+    }
+  }
+
+  template<typename T>
+  Bool Prepare(const T &value) {
+      return Mem2Cache((Void*)&value, typeid(T), sizeof(T));
+  }
+
+  template<typename... Args>
+  friend Base::Tie Base::Bond(Args&... args);
+
+  Vector<Auto> _Cache;
+  Vector<UInt> _Sizes;
+};
+
+template<typename... Args>
+Tie Bond(Args&... args) {
+  Tie result{};
+  
+  if (result.Prepare(args...)) {
+    return result;
+  } else {
+    throw Except(EBadLogic, "Can't generate a Tie object");
+  }
+}
 
 String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);

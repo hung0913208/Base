@@ -578,4 +578,44 @@ BUILD_USIGN_ToString(ULong);
 BUILD_REAL_ToString(Float);
 BUILD_REAL_ToString(Double);
 #endif
+
+Tie::Tie() { }
+
+Bool Tie::Mem2Cache(Void* context, const std::type_info& type, UInt size) {
+  try {
+    Any temp;
+
+    _Cache.push_back(Auto::FromAny(*BSAssign2Any(&temp, context, 
+                                                 (Void*)&type,
+                                                 None)));
+    _Sizes.push_back(size);
+    return True;
+  } catch (...) {
+    return False;
+  }
+}
+
+template<>
+Tie& Tie::operator<< <Vector<Auto>>(Vector<Auto>& input) {
+  for (UInt i = 0; i < input.size(); ++i) {
+    if (i >= _Cache.size()) {
+      break;
+    } else if (input[i].Type() == _Cache[i].Type()) {
+      ABI::Memcpy((Void*)_Cache[i].Raw(), (Void*)input[i].Raw(), _Sizes[i]);
+    }
+  }
+  return *this;
+}
+
+template<>
+Tie& Tie::operator>> <Vector<Auto>>(Vector<Auto>& input) {
+  for (UInt i = 0; i < input.size(); ++i) {
+    if (i >= _Cache.size()) {
+      break;
+    } else if (input[i].Type() == _Cache[i].Type()) {
+      ABI::Memcpy((Void*)input[i].Raw(), (Void*)_Cache[i].Raw(), _Sizes[i]);
+    }
+  }
+  return *this;
+}
 }  // namespace Base

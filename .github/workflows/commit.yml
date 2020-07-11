@@ -10,4 +10,6 @@ jobs:
       - name: prepare
         run: ./Tests/Pipeline/Prepare.sh
       - name: build and test
+        env:
+          CODECOV_TOKEN: ${{ secrets.codecov }}
         run: ./Tests/Pipeline/Build.sh
