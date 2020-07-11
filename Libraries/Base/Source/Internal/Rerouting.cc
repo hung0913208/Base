@@ -20,5 +20,16 @@ namespace Internal {
 void Idle(TimeSpec* spec) {
   nanosleep(spec, None);
 }
+
+Int Random(Int min, Int max) {
+  static Bool first = True;
+        
+  if (first) {  
+    srand(time(None)); //seeding for the first time only!
+    first = False;
+  }
+
+  return min + rand() % (( max + 1 ) - min);
+}
 } // namespace Internal
 } // namespace Base
