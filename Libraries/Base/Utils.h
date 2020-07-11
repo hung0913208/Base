@@ -103,6 +103,7 @@ Int BSWriteToFileDescription(Int fd, Bytes buffer, UInt size);
 namespace Base {
 class Auto;
 class Error;
+class Tie;
 
 namespace Number {
 template <typename Type>
@@ -123,6 +124,9 @@ Bool Unlock(Mutex& locker);
 
 void Wait(Mutex& locker);
 String Datetime();
+
+template<typename... Args>
+Tie Bond(Args&... args);
 
 template <typename LeftT, typename RightT>
 struct Pair {
@@ -467,6 +471,90 @@ class Fork: Refcount {
 
   Int _PID, _Input, _Output, _Error, *_ECode;
 };
+
+class Tie {
+ public:
+  virtual ~Tie();
+
+  template<typename Input>
+  Tie& operator=(Input& input) {
+    return (*this) << input;
+  }
+
+  template<typename Input>
+  Tie& operator<<(Input& input) {
+    return put(input);
+  }
+
+  template<typename Output>
+  Tie& operator>>(Output& output) {
+    throw Except(ENoSupport, 
+                 Format{"No support type {}"}.Apply(Nametype<Output>()));
+  }
+
+ protected:
+  template<typename Input>
+  Tie& put(Input& input) {
+    throw Except(ENoSupport, 
+                 Format{"No support type {}"}.Apply(Nametype<Input>()));
+  }
+
+  template<typename Output>
+  Tie& get(Output& output) {
+    throw Except(ENoSupport, 
+                 Format{"No support type {}"}.Apply(Nametype<Output>()));
+  }
+
+ private:
+  Tie();
+
+  Bool Mem2Cache(Void* context, const std::type_info& type, UInt size);
+
+  template<typename T, typename ...Args>
+  Bool Prepare(const T &value, const Args&... args) {
+    if (sizeof...(args) >= 1) {
+      if (Mem2Cache((Void*)&value, typeid(T), sizeof(T))) {
+        return Prepare(args...);
+      } else {
+        return False;
+      }
+    } else {
+      return Mem2Cache((Void*)&value, typeid(T), sizeof(T));
+    }
+  }
+
+  template<typename T>
+  Bool Prepare(const T &value) {
+      return Mem2Cache((Void*)&value, typeid(T), sizeof(T));
+  }
+
+  template<typename... Args>
+  friend Base::Tie Base::Bond(Args&... args);
+
+  Vector<Auto> _Cache;
+  Vector<UInt> _Sizes;
+};
+
+/* @NOTE: orignally, we should add these lines to make everything works since
+ * the linker can't detect these function if we use dynamic link libraries
+ * which are widely used with bazel to build a C/C++ project */
+
+template<>
+Tie& Tie::put<Vector<Auto>>(Vector<Auto>& input);
+
+template<>
+Tie& Tie::get<Vector<Auto>>(Vector<Auto>& output);
+
+template<typename... Args>
+Tie Bond(Args&... args) {
+  Tie result{};
+  
+  if (result.Prepare(args...)) {
+    return result;
+  } else {
+    throw Except(EBadLogic, "Can't generate a Tie object");
+  }
+}
 
 String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);

@@ -135,6 +135,8 @@ static Bool IsLocked(Mutex& mutex) {
 #include <sys/time.h>
 #include <unistd.h>
 
+typedef time_t TimeT;
+
 #ifdef SYS_gettid
 #define GetUUID() static_cast<ULong>(syscall(SYS_gettid))
 #else
