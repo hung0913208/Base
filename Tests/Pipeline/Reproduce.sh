@@ -2,12 +2,12 @@
 # - File: reproduce.sh
 # - Description: this file will run separately to provide the way to reproduce any issues
 
-PIPELINE="$(dirname "$0" )"
+PIPELINE="$(dirname "$0")"
 
 if [ -d "$PIPELINE/Libraries" ]; then
-	LIBRARIES="$PIPELINE/Libraries"
+	LIBRARIES="Libraries"
 elif [ -d "$PIPELINE/libraries" ]; then
-	LIBRARIES="$PIPELINE/libraries"
+	LIBRARIES="libraries"
 else
 	exit -1
 fi

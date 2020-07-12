@@ -3,7 +3,7 @@
 # - Description: This bash script will be run right after prepare.sh and it will
 # be used to build based on current branch you want to Tests
 
-PIPELINE="$(dirname "$0" )"
+PIPELINE="$(dirname "$0")"
 source $PIPELINE/Libraries/Logcat.sh
 source $PIPELINE/Libraries/Package.sh
 
