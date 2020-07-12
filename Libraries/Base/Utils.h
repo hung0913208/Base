@@ -474,8 +474,6 @@ class Fork: Refcount {
 
 class Tie {
  public:
-  virtual ~Tie();
-
   template<typename Input>
   Tie& operator=(Input& input) {
     return (*this) << input;
@@ -483,30 +481,29 @@ class Tie {
 
   template<typename Input>
   Tie& operator<<(Input& input) {
-    return put(input);
-  }
-
-  template<typename Output>
-  Tie& operator>>(Output& output) {
-    return get(output);
-  }
-
- protected:
-  Tie();
-
-  template<typename Input>
-  Tie& put(Input& input) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Input>()));
   }
 
   template<typename Output>
-  Tie& get(Output& output) {
+  Tie& operator>>(Output& output) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
 
+  /* @NOTE: orignally, we should add these lines to make everything works since
+   * the linker can't detect these function if we use dynamic link libraries
+   * which are widely used with bazel to build a C/C++ project */
+
+  template<>
+  Tie& operator<< <Vector<Auto>>(Vector<Auto>& input);
+
+  template<>
+  Tie& Tie::operator>> <Vector<Auto>>(Vector<Auto>& input);
+
  private:
+  Tie();
+
   Bool Mem2Cache(Void* context, const std::type_info& type, UInt size);
 
   template<typename T, typename ...Args>

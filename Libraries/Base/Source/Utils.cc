@@ -581,8 +581,6 @@ BUILD_REAL_ToString(Double);
 
 Tie::Tie() { }
 
-Tie::~Tie() { }
-
 Bool Tie::Mem2Cache(Void* context, const std::type_info& type, UInt size) {
   try {
     Any temp;
@@ -598,7 +596,7 @@ Bool Tie::Mem2Cache(Void* context, const std::type_info& type, UInt size) {
 }
 
 template<>
-Tie& Tie::put<Vector<Auto>>(Vector<Auto>& input) {
+Tie& Tie::operator<< <Vector<Auto>>(Vector<Auto>& input) {
   for (UInt i = 0; i < input.size(); ++i) {
     if (i >= _Cache.size()) {
       break;
@@ -610,12 +608,12 @@ Tie& Tie::put<Vector<Auto>>(Vector<Auto>& input) {
 }
 
 template<>
-Tie& Tie::get<Vector<Auto>>(Vector<Auto>& output) {
-  for (UInt i = 0; i < output.size(); ++i) {
+Tie& Tie::operator>> <Vector<Auto>>(Vector<Auto>& input) {
+  for (UInt i = 0; i < input.size(); ++i) {
     if (i >= _Cache.size()) {
       break;
-    } else if (output[i].Type() == _Cache[i].Type()) {
-      ABI::Memcpy((Void*)output[i].Raw(), (Void*)_Cache[i].Raw(), _Sizes[i]);
+    } else if (input[i].Type() == _Cache[i].Type()) {
+      ABI::Memcpy((Void*)input[i].Raw(), (Void*)_Cache[i].Raw(), _Sizes[i]);
     }
   }
   return *this;
