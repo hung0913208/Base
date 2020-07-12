@@ -499,7 +499,7 @@ class Tie {
   Tie& operator<< <Vector<Auto>>(Vector<Auto>& input);
 
   template<>
-  Tie& Tie::operator>> <Vector<Auto>>(Vector<Auto>& input);
+  Tie& operator>> <Vector<Auto>>(Vector<Auto>& input);
 
  private:
   Tie();
