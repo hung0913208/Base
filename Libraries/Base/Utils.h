@@ -474,6 +474,8 @@ class Fork: Refcount {
 
 class Tie {
  public:
+  virtual ~Tie();
+
   template<typename Input>
   Tie& operator=(Input& input) {
     return (*this) << input;
@@ -481,12 +483,24 @@ class Tie {
 
   template<typename Input>
   Tie& operator<<(Input& input) {
+    return put(input);
+  }
+
+  template<typename Output>
+  Tie& operator>>(Output& output) {
+    throw Except(ENoSupport, 
+                 Format{"No support type {}"}.Apply(Nametype<Output>()));
+  }
+
+ protected:
+  template<typename Input>
+  Tie& put(Input& input) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Input>()));
   }
 
   template<typename Output>
-  Tie& operator>>(Output& output) {
+  Tie& get(Output& output) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
@@ -496,10 +510,10 @@ class Tie {
    * which are widely used with bazel to build a C/C++ project */
 
   template<>
-  Tie& operator<< <Vector<Auto>>(Vector<Auto>& input);
+  Tie& put<Vector<Auto>>(Vector<Auto>& input);
 
   template<>
-  Tie& operator>> <Vector<Auto>>(Vector<Auto>& input);
+  Tie& get<Vector<Auto>>(Vector<Auto>& output);
 
  private:
   Tie();
