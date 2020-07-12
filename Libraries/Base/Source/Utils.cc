@@ -581,6 +581,8 @@ BUILD_REAL_ToString(Double);
 
 Tie::Tie() { }
 
+Tie::~Tie() { }
+
 Bool Tie::Mem2Cache(Void* context, const std::type_info& type, UInt size) {
   try {
     Any temp;
