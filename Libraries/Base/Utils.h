@@ -503,7 +503,7 @@ class Tie {
   template<typename Output>
   Tie& get(Output& output) {
     throw Except(ENoSupport, 
-                 Format{"No support type {}"}.Apply(Nametype<Input>()));
+                 Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
 
  private:
