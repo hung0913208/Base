@@ -453,6 +453,8 @@ ErrorCodeE Case::Clear() {
 
 void Case::Define() { throw Except(ENoSupport, ""); }
 
+Bool Case::Footer() { return False; }
+
 void Case::Ignore(Bool apply){
   if (_Status != EFail && _Status != EFatal){
     _Status = apply? EIgnored: EPass;
