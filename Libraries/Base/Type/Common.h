@@ -101,13 +101,7 @@ namespace Base {
 namespace Locker {
 #endif
 
-#if __cplusplus
-inline Bool IsLocked(Mutex& mutex) {
-  auto locker = &mutex;
-#else
-inline Bool IsLocked(Mutex* locker) {
-#endif
-
+inline Bool IsLocked(Mutex* mutex) {
 #if USE_SPINLOCK
   Bool is_locked = (Bool)(ISLOCKED(locker));
 #else
@@ -119,9 +113,10 @@ inline Bool IsLocked(Mutex* locker) {
 }
 
 #if __cplusplus
-inline Bool IsLocked(Mutex* mutex) {
-  return IsLocked(*mutex);
+inline Bool IsLocked(Mutex& mutex) {
+  return IsLocked(&mutex);
 }
+#endif
 } // namespace Locker
 } // namespace Base
 #endif
