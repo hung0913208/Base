@@ -116,7 +116,6 @@ inline Bool IsLocked(Mutex* mutex) {
 inline Bool IsLocked(Mutex& mutex) {
   return IsLocked(&mutex);
 }
-#endif
 } // namespace Locker
 } // namespace Base
 #endif
