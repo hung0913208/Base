@@ -96,31 +96,35 @@ typedef pthread_cond_t Checker;
 # define ISLOCKED(mutex) IsLocked(mutex)
 #endif
 
+#if !__cplusplus
+static Bool IsLocked(Mutex* mutex) {
+#if USE_SPINLOCK
+  Bool is_locked = (Bool)(ISLOCKED(mutex));
+#else
+  Bool is_locked = (Bool)pthread_mutex_trylock(mutex);
+
+  if (!is_locked) pthread_mutex_unlock(mutex);
+#endif
+  return is_locked;
+}
+#endif
+
 #if __cplusplus
 namespace Base {
 namespace Locker {
-#endif
-
-#if __cplusplus
-inline Bool IsLocked(Mutex& mutex) {
-  auto locker = &mutex;
-#else
-inline Bool IsLocked(Mutex* locker) {
-#endif
-
+static Bool IsLocked(Mutex* mutex) {
 #if USE_SPINLOCK
-  Bool is_locked = (Bool)(ISLOCKED(locker));
+  Bool is_locked = (Bool)(ISLOCKED(mutex));
 #else
-  Bool is_locked = (Bool)pthread_mutex_trylock(locker);
+  Bool is_locked = (Bool)pthread_mutex_trylock(mutex);
 
-  if (!is_locked) pthread_mutex_unlock(locker);
+  if (!is_locked) pthread_mutex_unlock(mutex);
 #endif
   return is_locked;
 }
 
-#if __cplusplus
-inline Bool IsLocked(Mutex* mutex) {
-  return IsLocked(*mutex);
+static Bool IsLocked(Mutex& mutex) {
+  return IsLocked(&mutex);
 }
 } // namespace Locker
 } // namespace Base

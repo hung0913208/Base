@@ -361,7 +361,9 @@ finish2:
   } while (pool->Status < RELEASING && pool->Status != INTERRUPTED);
 
   if (pool->Status != INTERRUPTED && pool->Status != INIT) {
-    for (UInt i = 0; i < context->nevents; ++i) {
+    UInt i = 0;
+
+    for (i = 0; i < context->nevents; ++i) {
       close(context->events[i].fd);
     }
   }
