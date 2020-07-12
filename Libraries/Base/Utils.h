@@ -505,16 +505,6 @@ class Tie {
                  Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
 
-  /* @NOTE: orignally, we should add these lines to make everything works since
-   * the linker can't detect these function if we use dynamic link libraries
-   * which are widely used with bazel to build a C/C++ project */
-
-  template<>
-  Tie& put<Vector<Auto>>(Vector<Auto>& input);
-
-  template<>
-  Tie& get<Vector<Auto>>(Vector<Auto>& output);
-
  private:
   Tie();
 
@@ -544,6 +534,16 @@ class Tie {
   Vector<Auto> _Cache;
   Vector<UInt> _Sizes;
 };
+
+/* @NOTE: orignally, we should add these lines to make everything works since
+ * the linker can't detect these function if we use dynamic link libraries
+ * which are widely used with bazel to build a C/C++ project */
+
+template<>
+Tie& Tie::put<Vector<Auto>>(Vector<Auto>& input);
+
+template<>
+Tie& Tie::get<Vector<Auto>>(Vector<Auto>& output);
 
 template<typename... Args>
 Tie Bond(Args&... args) {
