@@ -467,14 +467,12 @@ class Case {
   friend Bool Internal::Unit::CheckUnitStep(Case* unittest);
   friend Void Unit::Init(Int* argc, CString* argv);
 
-  /* @NOTE: this function will act as the entry to run the whole test suite */
-  friend int BSRunTests();
+  virtual void Define();
+  virtual Bool Footer();
 
  protected:
   /* @NOTE: define our testcase with this virtual method */
   explicit Case(String suite, String name);
-  virtual void Define();
-  virtual Bool Footer();
 
   Shared<Unittest> _Unit;
   Pharse::Prepare* _Prepare;
