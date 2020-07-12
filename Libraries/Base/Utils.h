@@ -474,6 +474,8 @@ class Fork: Refcount {
 
 class Tie {
  public:
+  virtual ~Tie();
+
   template<typename Input>
   Tie& operator=(Input& input) {
     return (*this) << input;
@@ -481,19 +483,30 @@ class Tie {
 
   template<typename Input>
   Tie& operator<<(Input& input) {
+    return put(input);
+  }
+
+  template<typename Output>
+  Tie& operator>>(Output& output) {
+    return get(output);
+  }
+
+ protected:
+  Tie();
+
+  template<typename Input>
+  Tie& put(Input& input) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Input>()));
   }
 
   template<typename Output>
-  Tie& operator>>(Output& output) {
+  Tie& get(Output& output) {
     throw Except(ENoSupport, 
-                 Format{"No support type {}"}.Apply(Nametype<Output>()));
+                 Format{"No support type {}"}.Apply(Nametype<Input>()));
   }
 
  private:
-  Tie();
-
   Bool Mem2Cache(Void* context, const std::type_info& type, UInt size);
 
   template<typename T, typename ...Args>

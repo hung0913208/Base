@@ -596,7 +596,7 @@ Bool Tie::Mem2Cache(Void* context, const std::type_info& type, UInt size) {
 }
 
 template<>
-Tie& Tie::operator<< <Vector<Auto>>(Vector<Auto>& input) {
+Tie& Tie::put<Vector<Auto>>(Vector<Auto>& input) {
   for (UInt i = 0; i < input.size(); ++i) {
     if (i >= _Cache.size()) {
       break;
@@ -608,12 +608,12 @@ Tie& Tie::operator<< <Vector<Auto>>(Vector<Auto>& input) {
 }
 
 template<>
-Tie& Tie::operator>> <Vector<Auto>>(Vector<Auto>& input) {
-  for (UInt i = 0; i < input.size(); ++i) {
+Tie& Tie::get<Vector<Auto>>(Vector<Auto>& output) {
+  for (UInt i = 0; i < output.size(); ++i) {
     if (i >= _Cache.size()) {
       break;
-    } else if (input[i].Type() == _Cache[i].Type()) {
-      ABI::Memcpy((Void*)input[i].Raw(), (Void*)_Cache[i].Raw(), _Sizes[i]);
+    } else if (output[i].Type() == _Cache[i].Type()) {
+      ABI::Memcpy((Void*)output[i].Raw(), (Void*)_Cache[i].Raw(), _Sizes[i]);
     }
   }
   return *this;
