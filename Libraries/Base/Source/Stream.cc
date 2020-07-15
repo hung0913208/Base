@@ -51,7 +51,8 @@ String Stream::Cache(){ throw Except(ENoSupport, ""); }
 
 Stream& Stream::operator<<(String&& message) {
   if (_Writer) {
-    auto error = _Writer((Bytes)message.data(), message.size());
+    auto size_of_data = message.size();
+    auto error = _Writer((Bytes)message.data(), &size_of_data);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -60,7 +61,8 @@ Stream& Stream::operator<<(String&& message) {
 
 Stream& Stream::operator<<(const String& message) {
   if (_Writer) {
-    auto error = _Writer((Bytes)message.data(), message.size());
+    auto size_of_data = message.size();
+    auto error = _Writer((Bytes)message.data(), &size_of_data);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -187,8 +189,8 @@ Stream& Stream::operator>>(Double& value) {
   return *this;
 }
 
-ErrorCodeE Stream::WriteToConsole(Bytes&& buffer, UInt buffer_size) {
-  std::cout << String((char*)buffer, buffer_size) << std::flush;
+ErrorCodeE Stream::WriteToConsole(Bytes&& buffer, UInt* buffer_size) {
+  std::cout << String((char*)buffer, *buffer_size) << std::flush;
   return ENoError;
 }
 

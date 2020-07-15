@@ -226,7 +226,7 @@ ErrorCodeE Log::WriteToColorConsole(Bytes&& buffer, UInt size) {
   return ENoError;
 }
 
-ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt size) {
+ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt* size) {
   if (_Device < 0) {
     if (_Color.Code() == Color::White || _Color.Code() == Color::Reset) {
       return Stream::WriteToConsole(RValue(buffer), size);
@@ -234,7 +234,7 @@ ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt size) {
       return WriteToColorConsole(RValue(buffer), size);
     }
   } else {
-    auto writen = BSWriteToFileDescription(_Device, buffer, size);
+    auto writen = BSWriteToFileDescription(_Device, buffer, *size);
 
     /* @NOTE: result of BSWriteToFileDescription must be size or an error_code.
      * When error happens, writen == -ErrorCodeE */
