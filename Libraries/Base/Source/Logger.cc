@@ -108,7 +108,8 @@ Color& Log::Apperance(){ return _Color; }
 
 Log& Log::operator<<(const String& value) {
   if (_Writer && _Status) {
-    auto error = _Writer((Bytes)value.c_str(), value.size());
+    auto size_of_data = value.size();
+    auto error = _Writer((Bytes)value.c_str(), &size_of_data);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -117,7 +118,8 @@ Log& Log::operator<<(const String& value) {
 
 Log& Log::operator<<(String&& value) {
   if (_Writer && _Status) {
-    auto error = _Writer((Bytes)(value.c_str()), value.size());
+    auto size_of_data = value.size();
+    auto error = _Writer((Bytes)value.c_str(), &size_of_data);
 
     if (error != ENoError) throw Exception(error);
   }
