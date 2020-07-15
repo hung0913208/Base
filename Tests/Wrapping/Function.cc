@@ -7,8 +7,8 @@ static Bool EnteredPrint1 = False;
 
 extern "C" Void Print(void) {
   String console, buffer;
-  Stream stream{[&](Bytes&& buffer, UInt buffer_size) -> ErrorCodeE {
-    console += String{(char*)buffer, buffer_size};
+  Stream stream{[&](Bytes&& buffer, UInt* buffer_size) -> ErrorCodeE {
+    console += String{(char*)buffer, *buffer_size};
     return ENoError;
   },
   [&](Bytes& buffer, UInt* size_of_received) -> ErrorCodeE {

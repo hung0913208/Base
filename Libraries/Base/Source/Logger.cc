@@ -220,8 +220,8 @@ Bool Log::AllowChangingStatus(Int UNUSED(device), Bool UNUSED(expected)) {
 
 Bool Log::AllowChangingStatus(Bool UNUSED(expected)) { return True; }
 
-ErrorCodeE Log::WriteToColorConsole(Bytes&& buffer, UInt size) {
-  _Color << String((char*)buffer, size);
+ErrorCodeE Log::WriteToColorConsole(Bytes&& buffer, UInt* size) {
+  _Color << String((char*)buffer, *size);
   _Color.Print();
   return ENoError;
 }
