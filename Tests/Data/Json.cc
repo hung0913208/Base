@@ -38,7 +38,7 @@ class FileStream: public Base::Stream{
   }
 
   ErrorCodeE Write(Bytes&& data, UInt* size) {
-    _FileD.write(reinterpret_cast<char*>(data), size);
+    _FileD.write(reinterpret_cast<char*>(data), *size);
     return ENoError;
   }
 
