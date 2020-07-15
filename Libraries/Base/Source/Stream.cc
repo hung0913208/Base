@@ -91,7 +91,8 @@ Stream& Stream::operator>>(String& message) {
 
 Stream& Stream::operator<<(Byte&& value) {
   if (_Writer) {
-    auto error = _Writer((Bytes)&value, sizeof(value));
+    auto size_of_value = sizeof(value);
+    auto error = _Writer((Bytes)&value, &size_of_value);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -100,7 +101,8 @@ Stream& Stream::operator<<(Byte&& value) {
 
 Stream& Stream::operator<<(Int&& value) {
   if (_Writer) {
-    auto error = _Writer((Bytes)&value, sizeof(value));
+    auto size_of_value = sizeof(value);
+    auto error = _Writer((Bytes)&value, &size_of_value);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -109,7 +111,8 @@ Stream& Stream::operator<<(Int&& value) {
 
 Stream& Stream::operator<<(UInt&& value) {
   if (_Writer) {
-    auto error = _Writer((Bytes)&value, sizeof(value));
+    auto size_of_value = sizeof(value);
+    auto error = _Writer((Bytes)&value, &size_of_value);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -118,7 +121,8 @@ Stream& Stream::operator<<(UInt&& value) {
 
 Stream& Stream::operator<<(Float&& value) {
   if (_Writer) {
-    auto error = _Writer((Bytes)&value, sizeof(value));
+    auto size_of_value = sizeof(value);
+    auto error = _Writer((Bytes)&value, &size_of_value);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -127,7 +131,8 @@ Stream& Stream::operator<<(Float&& value) {
 
 Stream& Stream::operator<<(Double&& value) {
   if (_Writer) {
-    auto error = _Writer((Bytes)&value, sizeof(value));
+    auto size_of_value = sizeof(value);
+    auto error = _Writer((Bytes)&value, &size_of_value);
 
     if (error != ENoError) throw Exception(error);
   }
