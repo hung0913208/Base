@@ -42,7 +42,7 @@ extern CString TAB;
 
 class Stream {
  public:
-  using Write = Function<ErrorCodeE(Bytes&&, UInt)>;
+  using Write = Function<ErrorCodeE(Bytes&&, UInt*)>;
   using Read = Function<ErrorCodeE(Bytes&, UInt*)>;
 
   explicit Stream(Write writer = Stream::WriteToConsole,
@@ -73,7 +73,7 @@ class Stream {
   virtual Stream& operator>>(Float& value);
   virtual Stream& operator>>(Double& value);
 
-  static ErrorCodeE WriteToConsole(Bytes&& buffer, UInt buffer_size);
+  static ErrorCodeE WriteToConsole(Bytes&& buffer, UInt* buffer_size);
   static ErrorCodeE ReadFromConsole(Bytes& buffer, UInt* size_of_received);
 
  protected:

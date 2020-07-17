@@ -33,8 +33,8 @@ class StringStream: public Stream {
     return ENoError;
   }
 
-  ErrorCodeE WriteToString(Bytes&& buffer, UInt size) {
-    _Buffer += String{(char*)buffer, size};
+  ErrorCodeE WriteToString(Bytes&& buffer, UInt* size) {
+    _Buffer += String{(char*)buffer, *size};
     return ENoError;
   }
 

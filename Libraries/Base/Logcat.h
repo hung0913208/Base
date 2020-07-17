@@ -210,12 +210,12 @@ class Log : public Stream {
   static UInt& Level();
 
  protected:
-  virtual ErrorCodeE WriteToDevice(Bytes&& buffer, UInt size);
+  virtual ErrorCodeE WriteToDevice(Bytes&& buffer, UInt* size);
   virtual Bool AllowChangingStatus(Int device, Bool expected);
   virtual Bool AllowChangingStatus(Bool expected);
 
  private:
-  ErrorCodeE WriteToColorConsole(Bytes&& buffer, UInt size);
+  ErrorCodeE WriteToColorConsole(Bytes&& buffer, UInt* size);
 
   Map<Int, Log*> _Loggers;
   Log* _Previous;

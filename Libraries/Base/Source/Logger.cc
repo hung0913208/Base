@@ -108,7 +108,8 @@ Color& Log::Apperance(){ return _Color; }
 
 Log& Log::operator<<(const String& value) {
   if (_Writer && _Status) {
-    auto error = _Writer((Bytes)value.c_str(), value.size());
+    auto size_of_data = UInt(value.size());
+    auto error = _Writer((Bytes)value.c_str(), &size_of_data);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -117,7 +118,8 @@ Log& Log::operator<<(const String& value) {
 
 Log& Log::operator<<(String&& value) {
   if (_Writer && _Status) {
-    auto error = _Writer((Bytes)(value.c_str()), value.size());
+    auto size_of_data = UInt(value.size());
+    auto error = _Writer((Bytes)value.c_str(), &size_of_data);
 
     if (error != ENoError) throw Exception(error);
   }
@@ -220,13 +222,13 @@ Bool Log::AllowChangingStatus(Int UNUSED(device), Bool UNUSED(expected)) {
 
 Bool Log::AllowChangingStatus(Bool UNUSED(expected)) { return True; }
 
-ErrorCodeE Log::WriteToColorConsole(Bytes&& buffer, UInt size) {
-  _Color << String((char*)buffer, size);
+ErrorCodeE Log::WriteToColorConsole(Bytes&& buffer, UInt* size) {
+  _Color << String((char*)buffer, *size);
   _Color.Print();
   return ENoError;
 }
 
-ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt size) {
+ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt* size) {
   if (_Device < 0) {
     if (_Color.Code() == Color::White || _Color.Code() == Color::Reset) {
       return Stream::WriteToConsole(RValue(buffer), size);
@@ -234,7 +236,7 @@ ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt size) {
       return WriteToColorConsole(RValue(buffer), size);
     }
   } else {
-    auto writen = BSWriteToFileDescription(_Device, buffer, size);
+    auto writen = BSWriteToFileDescription(_Device, buffer, *size);
 
     /* @NOTE: result of BSWriteToFileDescription must be size or an error_code.
      * When error happens, writen == -ErrorCodeE */
