@@ -110,7 +110,7 @@ TEST(Auto, SetWithPushing) {
   DEBUG(Base::Format{"cloned is {}"}.Apply(target.Get<const CString>()));
   DEBUG(Base::Format{"refereal is {}"}.Apply(refereal.Get<const CString>()));
 
-  EXPECT_NEQ(strcmp(cloned.Get<const CString>(), target.Get<char[3]>()), 0);
+  EXPECT_NEQ(strcmp(cloned.Get<char[3]>(), target.Get<char[3]>()), 0);
   //EXPECT_NEQ(refereal.Get<const CString>(), None);
   //EXPECT_EQ(strcmp(refereal.Get<const CString>(), target.Get<char[3]>()), 0);
   //EXPECT_NEQ((ULong)&cloned.Get<const CString>(),
