@@ -21,16 +21,6 @@ if [[ $KEEP -eq 0 ]]; then
 	exit 0
 fi
 
-if [[ ${#REPOSITORY} -eq 0 ]] || [[ ${#BRANCH} -eq 0 ]]; then
-	REPOSITORY=${CI_REPOSITORY_URL}
-	BRANCH=${CI_COMMIT_REF_NAME}
-fi
-
-if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
-	PROTOCOL=$(python -c "print('${REPOSITORY}'.split('://')[0])")
-	REPOSITORY="${PROTOCOL}://$USERNAME:$PASSWORD@$(python -c "print('${REPOSITORY}'.split('://')[1].split('@')[1])")"
-fi
-
 ROOT=$(realpath $(dirname $0)/../)
 
 function token() {	

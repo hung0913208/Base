@@ -21,15 +21,17 @@ if [[ $KEEP -eq 0 ]]; then
 	exit 0
 fi
 
-if [[ ${#REPOSITORY} -eq 0 ]] || [[ ${#BRANCH} -eq 0 ]]; then
+if [[ ${#REPOSITORY} -gt 0 ]] && [[ ${#BRANCH} -gt 0 ]]; then
+	if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
+		PROTOCOL=$(python -c "print('${REPOSITORY}'.split('://')[0])")
+		REPOSITORY=$(python -c "print('${REPOSITORY}'.split('://')[1])")
+		REPOSITORY="${PROTOCOL}://$USERNAME:$PASSWORD@$REPOSITORY"
+	fi
+else
 	REPOSITORY=${CI_REPOSITORY_URL}
 	BRANCH=${CI_COMMIT_REF_NAME}
 fi
 
-if [[ ${#USERNAME} -gt 0 ]] && [[ ${#PASSWORD} -gt 0 ]]; then
-	PROTOCOL=$(python -c "print('${REPOSITORY}'.split('://')[0])")
-	REPOSITORY="${PROTOCOL}://$USERNAME:$PASSWORD@$(python -c "print('${REPOSITORY}'.split('://')[1].split('@')[1])")"
-fi
 
 
 BASE=$(realpath $(dirname $0)/../../)
