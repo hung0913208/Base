@@ -112,6 +112,36 @@ TEST(Auto, SetWithPushing) {
              (ULong)&refereal.Get<const CString>());
 }
 
+TEST(Auto, Comparision) {
+  Base::Auto left{10};
+  Base::Auto right0{12};
+  Any right1;
+
+  try {
+    left != right0;
+  } catch (Base::Exception &error) {
+    EXPECT_EQ(error.code(), EBadLogic);
+  }
+
+  try {
+    left == right0;
+  } catch (Base::Exception &error) {
+    EXPECT_EQ(error.code(), EBadLogic);
+  }
+
+  try {
+    left == right1;
+  } catch (Base::Exception &error) {
+    EXPECT_EQ(error.code(), EBadLogic);
+  }
+
+  try {
+    left != right1;
+  } catch (Base::Exception &error) {
+    EXPECT_EQ(error.code(), EBadLogic);
+  }
+}
+
 int main() {
   return RUN_ALL_TESTS(); 
 }
