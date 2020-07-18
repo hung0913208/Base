@@ -35,7 +35,7 @@ fi
 
 START="HOOK"
 STOP="NOTIFY"
-HOOK="\\\"export JOB='build'; sudo apt install qemu; echo '$REPOSITORY $BRANCH' >> ./repo.list\\\""
+HOOK="\\\"export JOB='build'; sudo apt install -y qemu-kvm qemu-utils; echo '$REPOSITORY $BRANCH' >> ./repo.list\\\""
 NOTIFY="\\\"../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $START --token ${TRAVIS} --repo ${REPO}; ../\\\\\$LIBBASE/Tools/Utilities/travis.sh env del --name $STOP --token ${TRAVIS} --repo ${REPO}\\\""
 
 function lock() {
