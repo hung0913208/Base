@@ -320,7 +320,7 @@ NF&&f{ print s"/"$0 }'); do
 
 					START=$(date +%s)
 
-					if [ $1 = 'Debug' ]; then
+					if [ $1 = 'Debug' ] || [ -e $(dirname $FILE)/gdb.cfg ]; then
 						TEMP=$(mktemp -q)
 
 						if [ -f $(dirname $FILE)/gdb.cfg ]; then
