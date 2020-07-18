@@ -69,7 +69,7 @@ function unlock() {
 	fi
 }
 
-eunction check() {
+function check() {
 	while [ $# -gt 0 ]; do
 		case $1 in
 			--verbose)	set -x;;
