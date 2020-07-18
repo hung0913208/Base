@@ -96,7 +96,22 @@ TEST(Auto, Copy) {
   TIMEOUT(1, { perform(); });
 }
 
+TEST(Auto, SetWithPushing) {
+  Base::Auto target{"10"};
+  Base::Auto refereal{target};
+  Base::Auto cloned = target.Copy();
+   
+  EXPECT_NO_THROW({ target.Set("12", True); });
+
+  EXPECT_NEQ(strcmp(cloned.Get<const CString>(), target.Get<char[3]>()), 0);
+  EXPECT_NEQ(refereal.Get<const CString>(), None);
+  EXPECT_NEQ(strcmp(refereal.Get<const CString>(), target.Get<char[3]>()), 0);
+  EXPECT_NEQ((ULong)&cloned.Get<const CString>(),
+             (ULong)&refereal.Get<const CString>());
+  EXPECT_NEQ((ULong)&target.Get<char[3]>(),
+             (ULong)&refereal.Get<const CString>());
+}
+
 int main() {
-  Base::Log::Level() = EDebug;
   return RUN_ALL_TESTS(); 
 }
