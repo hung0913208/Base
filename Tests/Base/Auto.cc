@@ -107,16 +107,16 @@ TEST(Auto, SetWithPushing) {
   DEBUG(Base::Format{"type of cloned is {}"}.Apply(cloned.Nametype()));
   DEBUG(Base::Format{"type of target is {}"}.Apply(target.Nametype()));
   DEBUG(Base::Format{"target is {}"}.Apply(target.Get<char[3]>()));
-  DEBUG(Base::Format{"cloned is {}"}.Apply(target.Get<const CString>()));
+  DEBUG(Base::Format{"cloned is {}"}.Apply(target.Get<char[3]>()));
   DEBUG(Base::Format{"refereal is {}"}.Apply(refereal.Get<const CString>()));
 
   EXPECT_NEQ(strcmp(cloned.Get<char[3]>(), target.Get<char[3]>()), 0);
-  //EXPECT_NEQ(refereal.Get<const CString>(), None);
-  //EXPECT_EQ(strcmp(refereal.Get<const CString>(), target.Get<char[3]>()), 0);
-  //EXPECT_NEQ((ULong)&cloned.Get<const CString>(),
-  //           (ULong)&refereal.Get<const CString>());
-  //EXPECT_EQ((ULong)&target.Get<char[3]>(),
-  //          (ULong)&refereal.Get<const CString>());
+  EXPECT_NEQ(refereal.Get<const CString>(), None);
+  EXPECT_EQ(strcmp(refereal.Get<const CString>(), target.Get<char[3]>()), 0);
+  EXPECT_NEQ((ULong)&cloned.Get<char[3]>(),
+             (ULong)&refereal.Get<const CString>());
+  EXPECT_EQ((ULong)&target.Get<char[3]>(),
+            (ULong)&refereal.Get<const CString>());
 }
 
 int main() {
