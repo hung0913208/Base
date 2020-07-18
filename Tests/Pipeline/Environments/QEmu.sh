@@ -1347,6 +1347,45 @@ function process() {
 				warning "Fail repo $REPO/$BRANCH"
 			fi
 		fi
+	elif [ -e "$BASE/tests/pipeline/prepare.sh" ]; then
+		VMS_NUMBER=1
+
+		$BASE/tests/pipeline/prepare.sh
+
+		if [ -f $WORKSPACE/.environment ]; then
+			source $WORKSPACE/.environment
+		fi
+
+		if [[ ${#DEBUG} -gt 0 ]]; then
+			$PIPELINE/../../Tools/Utilities/ngrok.sh ssh $DEBUG rootroot 0 22
+		fi
+
+		if [ "$MODE" = "bridge" ]; then
+			$SU ip addr flush dev $EBRD
+			$SU ip addr flush dev $IBRD
+		fi
+
+		if [ $? != 0 ]; then
+			warning "Fail repo $REPO/$BRANCH"
+			CODE=1
+		else
+			for IDX in $(seq 1 1 $VMS_NUMBER); do
+				if ! create_image $IDX $1; then
+					CODE=-1
+					break
+				fi
+			done
+
+			if [[ $CODE -eq 0 ]]; then
+				if ! start_vms; then
+					warning "Fail repo $REPO/$BRANCH"
+					CODE=-1
+				fi
+
+			else
+				warning "Fail repo $REPO/$BRANCH"
+			fi
+		fi
 	else
 		warning "repo $REPO don't support usual CI method"
 		CODE=1
@@ -1630,12 +1669,12 @@ except Exception as error:
 				git checkout FETCH_HEAD
 
 				if ! process $PROJECT; then
-					echo "$PROJECT" > ./fail
+					echo "$PROJECT" >> $ROOT/fail
 				fi
 			done
 		else
 			if ! process $PROJECT; then
-				echo "$PROJECT" > ./fail
+				echo "$PROJECT" >> $ROOT/fail
 			fi
 		fi
 
