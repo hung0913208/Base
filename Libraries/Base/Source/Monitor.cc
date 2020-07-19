@@ -87,13 +87,62 @@ ErrorCodeE Monitor::Notify(Auto from, Auto to, Perform perform) {
 }
 
 ErrorCodeE Monitor::Notify(Auto from, Auto to) {
-  return Trigger(from, [&](Auto& UNUSED(context)) -> ErrorCodeE {
-      return _Raise(to);
+  return Trigger(from, 
+   [&](Auto UNUSED(fd), Auto& UNUSED(context)) -> ErrorCodeE {
+      return Raise(to);
     });
 }
 
-ErrorCodeE Monitor::Raise(Auto event) {
-  return _Raise(event);
+ErrorCodeE Monitor::Raise(Auto event, UInt retry) {
+  using namespace Base::Internal;
+
+  auto error = ENoError;
+  auto plock = &Monitors[_Type].Left;
+  auto phead = &Monitors[_Type].Right;
+  auto touched = False;
+
+  if (!CMP(&_State, EOffline)) {
+    return EBadAccess;
+  }
+
+  /* @NOTE: since we move from model 1-1 to model 1-n, i assume we are workig
+   * on parallel where there are multiple raising events happen on the same-time
+   * but we only have single one interface to receive the request. This would
+   * lead our code to use the similar solution like what we have done with
+   * method ForEach */
+
+  do {
+    BARRIER();
+
+    if (CMPXCHG(plock, None, this)) {
+      if (CMP(phead, None) || (*phead)->Claim()) {
+        goto unlock;
+      }
+
+      touched = True;
+
+unlock:
+      CMPXCHG(plock, this, None);
+    }
+    
+    if (touched) {
+      break;
+    } else {
+      retry--;
+    }
+  } while (retry > 0);
+
+  if (touched) {
+    error = (*phead)->_Raise(event);
+  } else {
+    return EDoAgain;
+  }
+
+  if ((*phead)->Done()) {
+    Bug(EBadAccess, "Can't claim done as expected");
+  } else {
+    return error;
+  }
 }
 
 ErrorCodeE Monitor::Trigger(Auto event, Perform perform) {
@@ -276,7 +325,7 @@ ErrorCodeE Monitor::Done() {
     if (!CMP(&_Using, 0)) {
       DEC(&_Using);
     } else {
-      Bug(BadAccess, "Claiming done too much");
+      Bug(EBadAccess, "Claiming done too much");
     }
   } else {
     result = EBadAccess;

@@ -64,7 +64,7 @@ class Monitor {
   ErrorCodeE Notify(Auto from, Auto to);
 
   /* @NOTE: this method is used to raise a notification when events happen */
-  ErrorCodeE Raise(Auto event);
+  ErrorCodeE Raise(Auto event, UInt retry = 10);
 
   /* @NOTE: this method is used register a trigger when fd passes a
    * certain condition */
@@ -118,6 +118,7 @@ class Monitor {
 
   /* @NOTE: this function is used to switch state to newer state */
   ErrorCodeE SwitchTo(UInt state);
+
   /* @NOTE: this function is the only way to create a monitor. With this
    * design, there is no way to create a monitor without diferent type */
   static Shared<Monitor> Make(String name, UInt type);
