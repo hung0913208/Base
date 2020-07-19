@@ -145,21 +145,21 @@ Auto& Auto::operator=(Any&& src) {
   return *this;
 }
 
-Bool Auto::operator==(const Any& UNUSED(value)) {
+Bool Auto::operator==(Any& UNUSED(value)) {
   throw Except(EBadLogic, "can't compare Auto with Any");
 }
 
-Bool Auto::operator==(const Auto& UNUSED(value)) {
+Bool Auto::operator==(Auto& UNUSED(value)) {
   throw Except(EBadLogic, "can't compare Auto with Auto");
 }
 
 Bool Auto::operator==(std::nullptr_t) { return _Context.Type == None; }
 
-Bool Auto::operator!=(const Any& UNUSED(value)) {
+Bool Auto::operator!=(Any& UNUSED(value)) {
   throw Except(EBadLogic, "can't compare Auto with Any");
 }
 
-Bool Auto::operator!=(const Auto& UNUSED(value)) {
+Bool Auto::operator!=(Auto& UNUSED(value)) {
   throw Except(EBadLogic, "can't compare auto with auto");
 }
 

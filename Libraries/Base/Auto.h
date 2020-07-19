@@ -94,14 +94,14 @@ class Auto {
   Auto& operator=(Auto&& src);
   Auto& operator=(Any&& src);
 
-  Bool operator==(const Any& value);
-  Bool operator==(const Auto& value);
+  Bool operator==(Any& value);
+  Bool operator==(Auto& value);
   Bool operator==(Any&& value);
   Bool operator==(Auto&& value);
   Bool operator==(std::nullptr_t);
 
-  Bool operator!=(const Any& value);
-  Bool operator!=(const Auto& value);
+  Bool operator!=(Any& value);
+  Bool operator!=(Auto& value);
   Bool operator!=(Any&& value);
   Bool operator!=(Auto&& value);
   Bool operator!=(std::nullptr_t);
