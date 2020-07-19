@@ -57,6 +57,15 @@ class Monitor {
   ErrorCodeE Find(Auto fd);
   ErrorCodeE Remove(Auto fd);
 
+  /* @NOTE: these methods are used to register a notification so when a fd
+   * raise notices, another fd will be enqueued to be waiting for proceduce
+   * these events asynchronously */
+  ErrorCodeE Notify(Auto from, Auto to, Perform perform);
+  ErrorCodeE Notify(Auto from, Auto to);
+
+  /* @NOTE: this method is used to raise a notification when events happen */
+  ErrorCodeE Raise(Auto event);
+
   /* @NOTE: this method is used register a trigger when fd passes a
    * certain condition */
   ErrorCodeE Trigger(Auto event, Perform perform);
@@ -160,6 +169,9 @@ class Monitor {
   /* @NOTE: this virtual method is used to register a triggering with
    * specific events */
   virtual ErrorCodeE _Trigger(Auto event, Perform perform) = 0;
+
+  /* @NOTE: this method is used to raise a notification when events happen */
+  virtual ErrorCodeE _Raise(Auto event) = 0;
 
   /* @NOTE: this virtual method is used to route a callback to the place and it
    * can be picked by _Handle to process */

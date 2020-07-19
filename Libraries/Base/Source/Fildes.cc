@@ -310,6 +310,21 @@ class Fildes: public Monitor {
     return ENoSupport;
   }
 
+  /* @NOTE: this function is used to raise a notification when events happen */
+  ErrorCodeE _Raise(Auto fd) {
+    try {
+      Int socket = fd.Get<Int>();
+
+      if (IsWaiting(socket)) {
+        return OnWaiting(socket);
+      } else {
+        return OnLooping(socket);
+      }
+    } catch(Exception& except) {
+      return except.code();
+    }
+  }
+
   /* @NOTE: this function is used to enqueue callback into our pipeline, waiting
    * to be handled asynchronously */
   ErrorCodeE _Route(Auto UNUSED(fd), Perform& UNUSED(callback)) {

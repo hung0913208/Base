@@ -76,6 +76,26 @@ ErrorCodeE Monitor::Remove(Auto fd) {
   }
 }
 
+ErrorCodeE Monitor::Notify(Auto from, Auto to, Perform perform) {
+  ErrorCodeE error;
+
+  if ((error = Trigger(from, perform))) {
+    return error;
+  } else {
+    return Notify(from, to);
+  }
+}
+
+ErrorCodeE Monitor::Notify(Auto from, Auto to) {
+  return Trigger(from, [&](Auto& UNUSED(context)) -> ErrorCodeE {
+      return _Raise(to);
+    });
+}
+
+ErrorCodeE Monitor::Raise(Auto event) {
+  return _Raise(event);
+}
+
 ErrorCodeE Monitor::Trigger(Auto event, Perform perform) {
   using namespace Internal;
   /* @NOTE: this method should be called by user to register a new
