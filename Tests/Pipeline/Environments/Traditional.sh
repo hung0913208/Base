@@ -142,11 +142,27 @@ elif [ "$METHOD" = "prepare" ]; then
 	else
 		error "we can't support this kind of project for reproducing automatically"
 	fi
+
+	if [ -d ./build ]; then
+		HASH=$(git rev-parse --verify HEAD)
+
+		git config --global user.name "Continous Intergator"
+		git config --global user.email $(git --no-pager show -s --format='%ae' HEAD)
+
+		if git add --force ./build &> /dev/null; then
+			warning "can't make a save point of the current build"
+		elif git commit -m "debug commit $HASH" &> /dev/null; then
+			warning "can't commit the save point"
+		fi
+	fi
 elif [ "$METHOD" = "test" ]; then
 	PIPELINE=$(dirname $0)
 
 	if [ -d ./build ]; then
 		cd ./build
+
+		git clean -fxd &> /dev/null
+		git clean -fXd &> /dev/null
 
 		for SPEC in ./*; do
 			if [ -f $SPEC ]; then
