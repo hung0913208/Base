@@ -32,7 +32,7 @@ Thread::Thread(const Thread& src) {
   _UUID = src._UUID;
   _Context = src._Context;
 
-  (*_Count)++;
+  INC(_Count);
 }
 
 Thread::Thread(Thread& src) {
@@ -45,7 +45,7 @@ Thread::Thread(Thread& src) {
   _UUID = src._UUID;
   _Context = src._Context;
 
-  (*_Count)++;
+  INC(_Count);
 }
 
 Thread::~Thread() {
@@ -53,7 +53,7 @@ Thread::~Thread() {
 
   if (_Daemon) {
     pthread_join(_ThreadId, None);
-  } else if (*_Count == 0) {
+  } else if (CMP(_Count, 0)) {
     if (_ThreadId == 0) {
       /* @NOTE: auto start the thread it's not */
 
@@ -122,7 +122,7 @@ Thread::~Thread() {
 finish:
     delete _Count;
   } else {
-    (*_Count)--;
+    DEC(_Count);
   }
 }
 
