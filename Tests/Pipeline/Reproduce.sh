@@ -194,6 +194,33 @@ if [ -f "$PIPELINE/$LIBRARIES/Reproduce.sh" ]; then
 put -O $RPATH $LOG/$ISSUE
 EOF
 
+					elif [[ $INTERVIEW =~ 'sftp://' ]]; then
+						RPATH=$(python -c "print(\"/\".join(\"$INTERVIEW\".split('/')[3:]))")
+						HOST=$(python -c "print(\"$INTERVIEW\".split('@')[1].split('/')[0])")
+						USER=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[0])")
+						PASSWORD=$(python -c "print(\"$INTERVIEW\".split('/')[2].split(':')[1].split('@')[0])")
+		
+						if python -c "print(\"$REVIEW\".split('/')[2].split(':')[2])" &> /dev/null; then
+							PORT=$(python -c "print(\"$REVIEW\".split('/')[2].split(':')[2])")
+						else
+							PORT=0
+						fi
+
+						if [[ ${PORT} -gt 0 ]]; then
+							PORT="-P $PORT"
+						else
+							PORT=''
+						fi
+
+						expect -d -c """
+set timeout 600
+
+spawn sftp -q -o StrictHostKeyChecking=no $PORT $USER@$HOST
+expect \"Password:\" { send \"$PASSWORD\n\" }
+expect \"sftp>\" { send \"cd $RPATH\n\" }
+expect \"sftp>\" { send \"put -r $LOG/$ISSUE\n\" }
+expect \"sftp>\" { send \"exit\n\"; interact }
+"""
 					else
 						echo "---------------------------------------------------------------------------------"
 						echo ""
