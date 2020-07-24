@@ -264,6 +264,12 @@ TEST(String, Format2String) {
   EXPECT_EQ(sample, "/tmp/blank.map is dir");
   EXPECT_EQ(sample.append(" function abc"),
             "/tmp/blank.map is dir function abc");
+
+  EXPECT_EQ(Base::Format{"{} is {} again"}.Apply("/tmp/blank.map", "dir"),
+            "/tmp/blank.map is dir again");
+
+  EXPECT_EQ(Base::Format{"{} {} {} again"}.Apply("/tmp/blank.map", "is", "dir"),
+            "/tmp/blank.map is dir again");
 }
 #endif
 

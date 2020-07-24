@@ -354,24 +354,28 @@ class Format{
     /* @NOTE: this is a tricky way to redirect smartly our arguments to
      * specific apply function using c++'s overload */
 
-    if (sizeof...(args) >= 1){
-      auto result = String{};
-      auto next = Format::Control(result, RValue(format), index);
+    auto result = String{};
+    auto next = Format::Control(result, RValue(format), index);
 
-      result = Format::_Apply(RValue(config), value) + result;
-      index = std::get<0>(next);
-      type = std::get<1>(next);
+    result = Format::_Apply(RValue(config), value) + result;
+    index = std::get<0>(next);
+    type = std::get<1>(next);
 
-      /* @NOTE: decide whether of not of applying argument to the
-       * next part */
-      if (index < 0){
-        return result;
-      } else {
-        return result + Format::_Apply(std::make_tuple(thiz, format, index, type), args...);
-      }
-    } else {
-      return Format::_Apply(RValue(config), value);
+    /* @NOTE: decide whether of not of applying argument to the
+     * next part */
+    if (index < 0) {
+      return result;
+    } else if (sizeof...(args) >= 1) {
+      result = result + 
+               Format::_Apply(std::make_tuple(thiz, format, index, type),
+                              args...);
     }
+    
+    if (sizeof...(args) == 1 && index < Int(format.size())) {
+      Format::Control(result, RValue(format), index);
+    }
+
+    return result;
   }
 
   template<typename T>
