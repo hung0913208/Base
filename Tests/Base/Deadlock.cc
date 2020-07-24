@@ -261,7 +261,7 @@ TEST(DeadLock, WaitUntilEnd) {
   });
 #endif
 
-  TIMEOUT(15, {
+  TIMEOUT(50, {
     /* @NOTE: these parameters are used as provided resource from outsite */
     Base::Thread threads[NUM_OF_THREAD];
     Vector<String> requests{};
