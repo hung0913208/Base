@@ -293,13 +293,12 @@ if [ -d "./$1" ]; then
 			else
 				LIB=""
 			fi
-
 			for FILE in $(ls -1cR ./$TEST/$LIB | awk '
 /:$/&&f{s=$0;f=0}
 /:$/&&!f{sub(/:$/,"");s=$0;f=1;next}
 NF&&f{ print s"/"$0 }'); do
 				if [ -x "$FILE" ] && [ ! -d "$FILE" ]; then
-					if ! file $FILE | grep "executable\|linked" &> /dev/null; then
+					if ! file $FILE | grep "executable\|linked\|ACSII" &> /dev/null; then
 						continue
 					elif [[ $# -gt 2 ]] && [ "$3" != $(basename $FILE) ]; then
 						continue
@@ -320,7 +319,23 @@ NF&&f{ print s"/"$0 }'); do
 
 					START=$(date +%s)
 
-					if [ $1 = 'Debug' ] || [ -e $(dirname $FILE)/gdb.cfg ]; then
+					if ! file $FILE | grep "ACSII" &> /dev/null; then
+						CURRENT=$(pwd)
+
+						cd $(dirname $FILE)
+						if ./$(basename $FILE); then
+							echo "$IDX/ Test  #$IDX:  .............................   Passed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
+							echo ""
+						else
+							FAILLIST=("${FAILLIST[@]}" "$(basename $FILE)")
+
+							echo "$IDX/ Test  #$IDX:  .............................   Failed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
+							echo ""
+							FAIL=1
+						fi
+
+						cd $CURRENT
+					elif [ $1 = 'Debug' ] || [ -e $(dirname $FILE)/gdb.cfg ]; then
 						TEMP=$(mktemp -q)
 
 						if [ -f $(dirname $FILE)/gdb.cfg ]; then
