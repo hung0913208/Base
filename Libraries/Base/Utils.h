@@ -556,6 +556,17 @@ Tie Bond(Args&... args) {
   }
 }
 
+class Sequence : public Base::Stream {
+ public:
+  Sequence();
+  ~Sequence();
+
+  String operator()();
+
+ private:
+  String _Cache;
+};
+
 String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);
 UInt Pagesize();

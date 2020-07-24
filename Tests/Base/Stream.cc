@@ -27,6 +27,16 @@ TEST(Stream, Console) {
   EXPECT_EQ(buffer, "test");
 }
 
+TEST(Stream, Sequence) {
+  Base::Sequence seq;
+
+  seq << "abc" << Base::EOL;
+  EXPECT_EQ(seq(), "abc\n");
+
+  seq << 10;
+  EXPECT_EQ(seq().size(), sizeof(Int));
+}
+
 int main() {
   return RUN_ALL_TESTS();
 }

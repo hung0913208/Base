@@ -620,4 +620,25 @@ Tie& Tie::get<Vector<Auto>>(Vector<Auto>& output) {
   }
   return *this;
 }
+
+Sequence::Sequence(): Stream {
+    [&](Bytes&& buffer, UInt* buffer_size) -> ErrorCodeE {
+      _Cache += String((CString)buffer, *buffer_size);
+      return ENoError;
+    },
+    [&](Bytes&, UInt*) -> ErrorCodeE {
+      return NoSupport("Sequence can't produce string").code();
+    }
+  }
+{
+}
+  
+Sequence::~Sequence() { }
+
+String Sequence::operator()() {
+  auto result = _Cache;
+
+  _Cache = "";
+  return result;
+}
 }  // namespace Base
