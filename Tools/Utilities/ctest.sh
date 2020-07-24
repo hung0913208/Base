@@ -319,7 +319,7 @@ NF&&f{ print s"/"$0 }'); do
 
 					START=$(date +%s)
 
-					if ! file $FILE | grep "ACSII" &> /dev/null; then
+					if file $FILE | grep "ACSII" &> /dev/null; then
 						CURRENT=$(pwd)
 
 						cd $(dirname $FILE)
