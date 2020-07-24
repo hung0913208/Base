@@ -571,6 +571,22 @@ class Sequence : public Base::Stream {
   String _Cache;
 };
 
+class Extract {
+ public:
+  explicit Extract(String format, String input): _Template{format} {
+    if ((error = Parse(input))) {
+      throw Except(error, Format{"can\'t parse `{}`"}.Apply(input));
+    }
+  }
+
+  explicit Extract(String format): _Template{format} {}
+
+  String Access(UInt index);
+ 
+ private:
+  ErrorCodeE Parse(String input);
+};
+
 String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);
 UInt Pagesize();
