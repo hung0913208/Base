@@ -407,14 +407,20 @@ done_1:
   return Access(action, node);
 
 fail_1:
-  if (node != _Head) {
+  if (node != _Head && node != _Last) {
     for (auto retry = _Retry; retry > 0; --retry) {
       if (Release(node, EAcquired)) {
         goto fail_2;
       }
     }
-      
-    Bug(EBadAccess, "can't release node from state EAcquired");
+
+    /* @TODO: this is just the workaround to prevent unexpected behavious we
+     * should find a better solution or trick to debug which thread has free
+     * this node */
+
+    if (!CMP(&node->State, EFree)) {
+      Bug(EBadAccess, "can't release node from state EAcquired");
+    }
   }
 
 fail_2:
