@@ -15,11 +15,25 @@ Int Random(Int min, Int max);
 } // namespace Internal
 
 #if NDEBUG
-List::List(Int retry) {
+List::List(Int retry, Int limit) {
 #else
-List::List(Int retry, Bool dumpable) {
+List::List(Int retry, Int limit, Bool dumpable) {
   _Dumpable = dumpable;
 #endif
+  if (limit) {
+    _Lock = new Mutex();
+
+    if (limit < 0) {
+      _Limit = std::thread::hardware_concurrency();
+    }
+
+    MUTEX(_Lock);
+  } else {
+    _Lock = None;
+    _Limit = 0;
+  }
+
+  _Online = 0;
   _Count = 0;
   _Size = 0;
   _Head = new Node{None, &_Head, &_Last};
@@ -80,6 +94,10 @@ List::~List() {
     if (temp != _Head && temp != _Last) {
       delete temp;
     }
+  }
+
+  if (_Lock) {
+    delete _Lock;
   }
 
   delete _Head;
@@ -233,9 +251,6 @@ List::Node* List::Detach(Node* node) {
     auto pprev = node->PPrev;
     auto pnext = node->PNext;
 
-    /* @NOTE: edit the next pointer of the previous node using pnext so we 
-     * could optimize performance while keep everything safe */
-
     if (next) {
       MCOPY(pnext, &next, sizeof(next));
     }
@@ -269,7 +284,7 @@ List::Node* List::Detach(ULong index) {
   return None;
 }
 
-Bool List::Del(ULong index, Void* ptr, ErrorCodeE* code) {
+Bool List::Del(ULong index, Void* ptr, ErrorCodeE* code, Bool failable) {
   Node *node = None;
   Long nsec = 1;
 
@@ -284,10 +299,10 @@ Bool List::Del(ULong index, Void* ptr, ErrorCodeE* code) {
           }
 
           goto reattach;
+        } else {
+          DEC(&_Size);
         }
 
-        DEC(&_Size);
-        delete node;
         return True;
       } else {
         Release(node);
@@ -341,7 +356,7 @@ List::Node* List::Access(List::ActionE action, ULong& number, Bool is_index,
          * so we could gain the priviledge to manipulate this node before
          * the timeout excess */
 
-        if (Acquire(&(node->Next))) {
+        if (Acquire(&node->Next, True)) {
           goto done_1;
         } else {
           BARRIER();
@@ -360,7 +375,7 @@ List::Node* List::Access(List::ActionE action, ULong& number, Bool is_index,
      * for the next attempts */
 
     for (auto retry = _Retry; retry > 0; --retry) {
-      if (Release(node, EAcquired)) {
+      if (Release(node)) {
         goto done_2;
       }
     }
@@ -381,7 +396,7 @@ done_1:
     next = node->Next;
     touched = True;
 
-    if (Release(node, EAcquired)) {
+    if (Release(node)) {
       node = next;
     } else {
       /* @NOTE: we don't expect this block happen since we are the owner of
@@ -428,42 +443,75 @@ fail_2:
 }
 
 List::Node* List::Access(List::ActionE action, Node* node) {
-  switch(action) {
-  default:
-    node->State = action;
-
-  case EAcquired:
-    break;
+  if (CMPXCHG(&node->State, EAcquired, action)) {
+    return node;
+  } else {
+    return None;
   }
-
-  return node;
 }
 
-Bool List::Acquire(Node** node) {
-  if (node != &_Head && node != &_Last) {
-    return CMPXCHG(&(*node)->State, EFree, EAcquired);
-  } else {
-    return True;
+Bool List::Acquire(Node** node, Bool light) {
+  /* @NOTE: use _Lock to maintain how many vcore supports to acquire/release 
+   * nodes on parallel. This would help to prevent stressing to much to any node
+   * during delete/append so much on parallel */
+
+  if (_Lock && INC(&_Online) > _Limit) {
+    LOCK(_Lock);
   }
+
+  INC(&(*node)->Claim);
+
+  if (node != &_Head && node != &_Last) {
+    if (CMPXCHG(&(*node)->State, EFree, EAcquired)) {
+      return True;
+    } else if (light || CMP(&(*node)->State, EAcquired)) {
+      return True;
+    } else {
+      goto fail;
+    }
+  } 
+    
+  return True;
+
+fail:
+  if (_Lock && DEC(&_Online) > _Limit) {
+    UNLOCK(_Lock);
+  }
+      
+  return False;
 }
 
 Bool List::Release(Node* node) {
-  ActionE state{node? node->State: EFree};
-
-  if (node == _Head || node == _Last) {
-    return True;
-  } else if (state == EFree) {
-    return False;
-  } else {
-    return CMPXCHG(&node->State, state, EFree);
-  }
+  return Release(node, node? node->State: EFree);
 }
 
 Bool List::Release(Node* node, List::ActionE state) {
-  if (node != _Head && node != _Last) {
-    return CMPXCHG(&node->State, state, EFree);
-  } else {
+  /* @NOTE: use _Lock to maintain how many vcore supports to acquire/release 
+   * nodes on parallel. This would help to prevent stressing to much to any node
+   * during delete/append so much on parallel */
+
+  if (_Lock && DEC(&_Online) > _Limit) {
+    UNLOCK(_Lock);
+  }
+
+  if (!node) {
     return True;
+  } 
+
+  INC(&node->Done);
+
+  if (!CMP(&node->Claim, node->Done)) {
+    return True;
+  } else if (node == _Head || node == _Last) {
+    return True;
+  } else if (CMPXCHG(&node->State, state, EFree)) {
+    if (state == EDelete) {
+      delete node;
+    }
+
+    return True;
+  } else {
+    return False;
   }
 }
 } // namespace Base

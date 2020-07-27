@@ -1693,7 +1693,11 @@ Bool Lock::Decrease() {
 
   if (!Watcher->Stucks.Del(ticket, this)) {
     if (Watcher->Stucks.Size()) {
+#if NDEBUG
       Notice(EBadAccess, Format{"Can\'t delete ticket {}"} << ticket);
+#else
+      Bug(EBadAccess, Format{"Can\'t delete ticket {}"} << ticket);
+#endif
     }
   }
 
@@ -1923,7 +1927,8 @@ void DumpWatch(String parameter) {
             << EOL;
 
     for (UInt i = 0; i < Watcher->Stucks.Size() && curr; ++i) {
-      VERBOSE << Format{"   + {} -> {}"}.Apply(curr->Index, (ULong)curr->Ptr)
+      VERBOSE << Format{"   + {} -> {}/{}"}.Apply(curr->Index, (ULong)curr->Ptr,
+                                                  curr->State)
               << EOL;
       curr = curr->Next;
     }
