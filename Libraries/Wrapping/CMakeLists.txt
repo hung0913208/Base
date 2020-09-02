@@ -1,6 +1,5 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
 		${CMAKE_CURRENT_SOURCE_DIR}/../Base
-		${CMAKE_CURRENT_SOURCE_DIR}/../Base/Type
 		${CMAKE_CURRENT_SOURCE_DIR}/../Data
 		${CMAKE_CURRENT_SOURCE_DIR}/../Wrapping
 		${CMAKE_CURRENT_SOURCE_DIR}/../Wrapping/Implement)

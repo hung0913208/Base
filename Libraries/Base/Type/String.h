@@ -2,8 +2,9 @@
 #define BASE_TYPE_STRING_H_
 
 #if __cplusplus
-#include <Common.h>
-#include <Refcount.h>
+#include <Type/ABI.h>
+#include <Type/Common.h>
+#include <Type/Refcount.h>
 
 #ifndef KERNEL
 #if defined(BASE_TYPE_H_)

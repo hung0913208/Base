@@ -1,6 +1,6 @@
-#include <ABI.h>
+#include <Type/ABI.h>
+#include <Type/String.h>
 #include <Atomic.h>
-#include <String.h>
 #include <Logcat.h>
 #include <Utils.h>
 

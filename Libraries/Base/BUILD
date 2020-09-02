@@ -30,7 +30,6 @@ cc_library(
     "//visibility:public"
   ],
   includes = [
-    "Type",
     ""
   ],
   copts = [

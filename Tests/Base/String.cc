@@ -10,7 +10,7 @@
 #include <Utils.h>
 
 #if defined(BASE_TYPE_H_) && !defined(BASE_TYPE_STRING_H_)
-#include <String.h>
+#include <Type/String.h>
 
 #ifdef BASE_TYPE_STRING_H_
 namespace Base{

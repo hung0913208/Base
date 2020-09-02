@@ -6,22 +6,22 @@
 #include <Base/Type/ABI.h>
 #include <Base/Type/Common.h>
 #else
-#include <ABI.h>
-#include <Common.h>
+#include <Type/ABI.h>
+#include <Type/Common.h>
 #endif
 
 #if __cplusplus
 #if USE_BASE_WITH_FULL_PATH_HEADER
 #include <Base/Type/String.h>
 #else
-#include <String.h>
+#include <Type/String.h>
 #endif
 
 #ifndef BASE_TYPE_STRING_H_
 #if USE_BASE_WITH_FULL_PATH_HEADER
 #include <Base/Type/Refcount.h>
 #else
-#include <Refcount.h>
+#include <Type/Refcount.h>
 #endif
 
 using String = std::string;
@@ -34,7 +34,7 @@ using String = Base::String;
 #if USE_BASE_WITH_FULL_PATH_HEADER
 #include <Base/Type/Refcount.h>
 #else
-#include <Refcount.h>
+#include <Type/Refcount.h>
 #endif
 
 #define String char*

@@ -1,7 +1,6 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/Implement
-		    ${CMAKE_CURRENT_SOURCE_DIR}/../Base
-		    ${CMAKE_CURRENT_SOURCE_DIR}/../Base/Type)
+		    ${CMAKE_CURRENT_SOURCE_DIR}/../Base)
 
 file(GLOB HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
                   "${CMAKE_CURRENT_SOURCE_DIR}/Implement/*.h")

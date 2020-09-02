@@ -1,6 +1,6 @@
 #if !defined(BASE_REFCOUNT_H_)
 #define BASE_REFCOUNT_H_
-#include <Common.h>
+#include <Type/ABI.h>
 
 #if __cplusplus
 namespace Base {
