@@ -159,4 +159,21 @@ void Lock::Safe(Function<void()> callback) {
 }
 
 ULong Lock::Identity() { return ULong(_Lock); }
+
+namespace Locker {
+Bool IsLocked(Mutex* mutex) {
+#if USE_SPINLOCK
+  Bool is_locked = (Bool)(ISLOCKED(mutex));
+#else
+  Bool is_locked = (Bool)pthread_mutex_trylock(mutex);
+
+  if (!is_locked) pthread_mutex_unlock(mutex);
+#endif
+  return is_locked;
+}
+
+Bool IsLocked(Mutex& mutex) {
+  return IsLocked(&mutex);
+}
+} // namespace Locker
 }  // namespace Base

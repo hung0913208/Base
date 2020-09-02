@@ -112,20 +112,8 @@ static Bool IsLocked(Mutex* mutex) {
 #if __cplusplus
 namespace Base {
 namespace Locker {
-static Bool IsLocked(Mutex* mutex) {
-#if USE_SPINLOCK
-  Bool is_locked = (Bool)(ISLOCKED(mutex));
-#else
-  Bool is_locked = (Bool)pthread_mutex_trylock(mutex);
-
-  if (!is_locked) pthread_mutex_unlock(mutex);
-#endif
-  return is_locked;
-}
-
-static Bool IsLocked(Mutex& mutex) {
-  return IsLocked(&mutex);
-}
+Bool IsLocked(Mutex* mutex);
+Bool IsLocked(Mutex& mutex);
 } // namespace Locker
 } // namespace Base
 #endif
