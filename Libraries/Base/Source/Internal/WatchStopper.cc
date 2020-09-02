@@ -1882,46 +1882,44 @@ again:
 #if DEBUGING
 namespace Internal {
 namespace Debug {
-void DumpLock(Base::Internal::Implement::Lock& lock, String parameter) {
+void DumpLock(Base::Internal::Implement::Lock &lock, String parameter) {
   if (parameter == "Count") {
-    VERBOSE << Format{"Lock {}'s Count is {}"}
-                  .Apply(ULong(lock._Lock), lock._Count)
+    VERBOSE << Format{"Lock {}'s Count is {}"}.Apply(ULong(lock._Lock),
+                                                     lock._Count)
             << EOL;
   } else if (parameter == "Ticket") {
-    VERBOSE << Format{"Lock {}'s Ticket is {}"}
-                  .Apply(ULong(lock._Lock), lock._Ticket)
+    VERBOSE << Format{"Lock {}'s Ticket is {}"}.Apply(ULong(lock._Lock),
+                                                      lock._Ticket)
             << EOL;
   } else if (parameter == "Status") {
-    VERBOSE << Format{"Lock {}'s Status is {}"}
-                  .Apply(ULong(lock._Lock), ISLOCKED(lock._Mutex))
+    VERBOSE << Format{"Lock {}'s Status is {}"}.Apply(ULong(lock._Lock),
+                                                      ISLOCKED(lock._Mutex))
             << EOL;
   }
 }
 
-void DumpLock(Base::Internal::Implement::Thread& UNUSED(thread),
-              String UNUSED(parameter)) {
-}
+void DumpLock(Base::Internal::Implement::Thread &UNUSED(thread),
+              String UNUSED(parameter)) {}
 } // namespace Debug
 } // namespace Internal
 
 namespace Debug {
-void DumpThread(Base::Thread& UNUSED(thread), String UNUSED(parameter)) {
-}
+void DumpThread(Base::Thread &UNUSED(thread), String UNUSED(parameter)) {}
 
-void DumpLock(Base::Lock& UNUSED(lock), String UNUSED(parameter)) {
-}
+void DumpLock(Base::Lock &UNUSED(lock), String UNUSED(parameter)) {}
 
 void DumpWatch(String parameter) {
   using namespace Internal;
   using namespace Internal::Debug;
 
   if (parameter == "Stucks") {
-    auto curr = Watcher->Stucks._Head;
+    auto curr = Watcher->Stucks._Head[0];
 
     VERBOSE << "Dump information of list Watcher->Stucks:" << EOL;
     VERBOSE << (Format{" - List's count is {}"} << Watcher->Stucks._Count)
             << EOL;
-    VERBOSE << (Format{" - List's head is {}"} << ULong(Watcher->Stucks._Head))
+    VERBOSE << (Format{" - List's head is {}"}
+                << ULong(Watcher->Stucks._Head[0]))
             << EOL;
     VERBOSE << (Format{" - List has {} node(s):"} << Watcher->Stucks.Size())
             << EOL;
@@ -1930,14 +1928,16 @@ void DumpWatch(String parameter) {
       VERBOSE << Format{"   + {} -> {}/{}"}.Apply(curr->Index, (ULong)curr->Ptr,
                                                   curr->State)
               << EOL;
-      curr = curr->Next;
+      WRITE_ONCE(curr, curr->Next);
     }
   } else if (parameter == "Counters") {
     VERBOSE << "Dump Watcher's counters:" << EOL;
-    VERBOSE << Format{" - Count<Implement::Thread>() = {}"}
-                  .Apply(Watcher->Count<Implement::Thread>()) << EOL;
-    VERBOSE << Format{" - Count<Implement::Lock>() = {}"}
-                  .Apply(Watcher->Count<Implement::Lock>()) << EOL; 
+    VERBOSE << Format{" - Count<Implement::Thread>() = {}"}.Apply(
+                   Watcher->Count<Implement::Thread>())
+            << EOL;
+    VERBOSE << Format{" - Count<Implement::Lock>() = {}"}.Apply(
+                   Watcher->Count<Implement::Lock>())
+            << EOL;
   } else if (parameter == "Stucks.Unlock") {
     VERBOSE << Format{" - Spawn() = {}"}.Apply(Watcher->Spawn()) << EOL;
     VERBOSE << Format{" - Size() = {}"}.Apply(Watcher->Size()) << EOL;
