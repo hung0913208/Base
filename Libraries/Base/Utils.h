@@ -491,20 +491,20 @@ class Tie {
   }
 
   template<typename Output>
-  Tie& operator>>(Output& output) {
+  Tie& operator>>(Output& UNUSED(output)) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
 
  protected:
   template<typename Input>
-  Tie& put(Input& input) {
+  Tie& put(Input& UNUSED(input)) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Input>()));
   }
 
   template<typename Output>
-  Tie& get(Output& output) {
+  Tie& get(Output& UNUSED(output)) {
     throw Except(ENoSupport, 
                  Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
