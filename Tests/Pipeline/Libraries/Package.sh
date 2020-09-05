@@ -54,7 +54,7 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 		CLEAR="echo 'Do nothing'"
 	elif which pkg >& /dev/null; then
 		SYS="freebsd"
-		INSTALL="pkg"
+		INSTALL="pkg install"
 		REMOVE="pkg delete -y"
 		CLEAR="pkg autoremove -y"
 	else

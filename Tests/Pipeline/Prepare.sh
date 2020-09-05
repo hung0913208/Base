@@ -58,7 +58,7 @@ if [ "$machine" == "Linux" ] || [ "$machine" == "FreeBSD" ]; then
 		info "It seems your distribute is Opensuse"
 		info "Kernel info $(uname -a)"
 	elif [ $(which pkg) ]; then
-		REQUIRED=("ssh" "python" "git" "lftp" "ncftp" "expect")
+		REQUIRED=("git")
 		$SU pkg update
 
 		# @NOTE: print infomation of this device
