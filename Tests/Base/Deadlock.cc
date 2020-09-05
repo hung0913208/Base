@@ -204,6 +204,187 @@ TEST(DeadLock, ReuseStopper4) {
   Base::Lock locks[NUM_OF_THREAD];
   Int counter{0};
 
+  auto perform = [&]() {
+    /* @NOTE:  be carefull with lock since we are working on parallel so
+     * it may take race condition if we use lambda recklessly */
+    Base::Thread threads[NUM_OF_THREAD];
+
+    /* @NOTE: random choice to make a stopper or not */
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      locks[i]();
+    }
+
+    /* @NOTE: check if the locks are locked */
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      EXPECT_TRUE(locks[i]);
+    }
+
+    /* @NOTE: the problem is very simple, we use a locked lock without checking
+     * its status and the UI-Thread is stuck when these threads join */
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      auto done = threads[i].Start([i, locks, &counter]() {
+        usleep(rand()%100 + 1);
+        (locks[i])();
+        INC(&counter);
+      });
+
+      if (done) {
+        EXPECT_NEQ(threads[i].Status(), Base::Thread::Unknown);
+      }
+
+      if (threads[i].Status() != Base::Thread::Initing) {
+        EXPECT_NEQ(threads[i].Identity(), ULong(0));
+      }
+    }
+  };
+
+#if DEBUGING
+  CRASHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+  });
+
+  FINISHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+    Base::Debug::DumpWatch("Stucs.Unlock");
+  });
+#endif
+
+  TIMEOUT(10, { perform(); });
+
+  /* @NOTE: check if the locks are locked */
+  for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+    EXPECT_FALSE(locks[i]);
+  }
+
+  EXPECT_EQ(counter, NUM_OF_THREAD);
+}
+
+TEST(DeadLock, ReuseStopper5) {
+  Base::Lock locks[NUM_OF_THREAD];
+  Int counter{0};
+
+#if DEBUGING
+  CRASHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+  });
+
+  FINISHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+    Base::Debug::DumpWatch("Stucs.Unlock");
+  });
+#endif
+
+  TIMEOUT(10, {
+    /* @NOTE:  be carefull with lock since we are working on parallel so
+     * it may take race condition if we use lambda recklessly */
+    Base::Thread threads[NUM_OF_THREAD];
+
+    /* @NOTE: random choice to make a stopper or not */
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      locks[i]();
+    }
+
+    /* @NOTE: the problem is very simple, we use a locked lock without checking
+     * its status and the UI-Thread is stuck when these threads join */
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      threads[i].Start([i, locks, &counter]() {
+        usleep(rand()%100 + 1);
+        locks[i](True);
+        INC(&counter);
+      });
+    }
+  });
+
+  EXPECT_EQ(counter, NUM_OF_THREAD);
+}
+
+TEST(DeadLock, ReuseStopper6) {
+  Base::Lock lock{};
+  Int counter{0};
+
+#if DEBUGING
+  CRASHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+    Base::Debug::DumpWatch( "Stucs.Unlock");
+  });
+
+  FINISHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+    Base::Debug::DumpWatch("Stucs.Unlock");
+  });
+#endif
+
+  TIMEOUT(10, {
+    /* @NOTE:  be carefull with lock since we are working on parallel so
+     * it may take race condition if we use lambda recklessly */
+    Base::Thread threads[NUM_OF_THREAD];
+
+    /* @NOTE: the problem is very simple, we use a locked lock without checking
+     * its status and the UI-Thread is stuck when these threads join */
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      threads[i].Start([&counter, lock]() {
+        usleep(rand()%100 + 1);
+        lock();
+        INC(&counter);
+      });
+    }
+  });
+
+  EXPECT_EQ(counter, NUM_OF_THREAD);
+}
+
+TEST(DeadLock, ReuseStopper7) {
+  Base::Lock lock{True};
+  Int counter{0};
+
+#if DEBUGING
+  CRASHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+  });
+
+  FINISHDUMP({
+    Base::Debug::DumpWatch("Stucks");
+    Base::Debug::DumpWatch("Counters");
+    Base::Debug::DumpWatch("Stucs.Unlock");
+  });
+#endif
+
+  TIMEOUT(60, {
+    /* @NOTE:  be carefull with lock since we are working on parallel so
+     * it may take race condition if we use lambda recklessly */
+    Base::Thread threads[NUM_OF_THREAD];
+
+    /* @NOTE: the problem is very simple, we use a locked lock without checking
+     * its status and the UI-Thread is stuck when these threads join */
+    EXPECT_TRUE(lock);
+
+    for (auto i = 0; i < NUM_OF_THREAD; ++i) {
+      threads[i].Start([lock, &counter]() {
+        usleep(rand()%100 + 1);
+        lock(True);
+        INC(&counter);
+      });
+    }
+
+    IGNORE({
+      EXPECT_FALSE(lock);
+    });
+  });
+
+  EXPECT_EQ(counter, NUM_OF_THREAD);
+}
+
+TEST(DeadLock, ReuseStopper8) {
+  Base::Lock locks[NUM_OF_THREAD];
+  Int counter{0};
+
 #if DEBUGING
   CRASHDUMP({
     Base::Debug::DumpWatch("Stucks");
