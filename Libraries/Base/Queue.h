@@ -50,7 +50,6 @@ class Queue {
   }
 
   virtual ~Queue() {
-    DEBUG(ToString(_Cache.Size()));
   }
 
   /* @NOTE: This method is used to reject a task the the rejected task will put
@@ -279,9 +278,9 @@ fail:
   Node* At(ULong index) {
     Node* result{None};
 
-    _Locks[2].Safe([&]() {
+    //_Locks[2].Safe([&]() {
         result = _Cache.At<Node>(index, True);
-      });
+    //  });
 
     return result;
   }
@@ -289,9 +288,9 @@ fail:
   Bool Del(ULong index, Node* node) {
     Bool result{False};
 
-    _Locks[2].Safe([&]() {
+    //_Locks[2].Safe([&]() {
         result = _Cache.Del(index, node);
-      });
+    // });
 
     return result;
   }
