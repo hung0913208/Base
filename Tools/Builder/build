@@ -208,9 +208,13 @@ if [ $(which git) ]; then
 		set -m
 		PIDs=()
 
-		if [[ $MODE -eq 0 ]]; then
+		if [[ $MODE -eq 0 ]] || [[ $MODE -eq 5 ]]; then
 			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Release $ROOT >& ./Release.txt" &
 			RELEASE_PID=$!
+		fi
+		if [[ $MODE -eq 0 ]] || [[ $MODE -eq 6 ]]; then
+			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Profiling $ROOT >& ./Profiling.txt" &
+			PROFILING_PID=$!
 		fi
 
 		if [[ $MODE -eq 3 ]] || [[ $MODE -eq 1 ]] || [[ $MODE -eq 0 ]]; then
@@ -218,7 +222,7 @@ if [ $(which git) ]; then
 			SANITIZE_PID=$!
 		fi
 
-		if [[ $MODE -eq 1 ]] || [[ $MODE -eq 0 ]]; then
+		if [[ $MODE -eq 1 ]] || [[ $MODE -eq 0 ]] || [[ $MODE -eq 4 ]]; then
 			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Debug $ROOT >& ./Debug.txt" &
 			DEBUG_PID=$!
 		fi
@@ -227,6 +231,24 @@ if [ $(which git) ]; then
 			bash -c "CONFIGURE=\"$BUILD\" $BASE/Tools/Utilities/$CMAKE Coverage $ROOT >& ./Coverage.txt" &
 			COVERAGE_PID=$!
 		fi
+
+		function show_output_of_building_on_profiling() {
+			if cat ./Profiling.txt | grep "CMakeError.log" &> /dev/null; then
+				warning "fail configure CMakeLists.txt on Debug mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				cat ./Profiling.txt
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			elif cat ./Profiling.txt | grep "make\: \*\*\* \[all\] Error" &> /dev/null; then
+				warning "fail build on Debug mode, please check console log bellow"
+				echo "================================================================================="
+				echo ""
+				cat ./Profiling.txt
+				echo "---------------------------------------------------------------------------------"
+				exit -1
+			fi
+		}
 
 		function show_output_of_building_on_debug() {
 			if cat ./Debug.txt | grep "CMakeError.log" &> /dev/null; then
@@ -314,6 +336,8 @@ if [ $(which git) ]; then
 				     show_output_of_building_on_sanitize
 			     elif [[ $JOB -eq $COVERAGE_PID ]]; then
 				     show_output_of_building_on_coverage
+			     elif [[ $JOB -eq $PROFILING_PID ]]; then
+				     show_output_of_building_on_coverage
 			     fi
 		     done
 	    	}
@@ -337,6 +361,15 @@ if [ $(which git) ]; then
 				fi
 			elif [[ $MODE -eq 3 ]]; then
 				$BASE/Tools/Utilities/ctest.sh Sanitize
+				CODE=$?
+			elif [[ $MODE -eq 4 ]]; then
+				$BASE/Tools/Utilities/ctest.sh Debug
+				CODE=$?
+			elif [[ $MODE -eq 5 ]]; then
+				$BASE/Tools/Utilities/ctest.sh Release
+				CODE=$?
+			elif [[ $MODE -eq 6 ]]; then
+				$BASE/Tools/Utilities/ctest.sh Profiling
 				CODE=$?
 			fi
 		fi
