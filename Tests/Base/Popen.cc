@@ -1,76 +1,56 @@
-#include <Auto.h>
 #include <Atomic.h>
+#include <Auto.h>
 #include <Monitor.h>
 #include <Thread.h>
 #include <Unittest.h>
 #include <Utils.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <stdio.h>
 
 #define NUM_OF_THREAD 10
 #include <stdio.h>
 #include <stdlib.h>
 
-/* Paste this on the file you want to debug. */
-#include <stdio.h>
-#include <execinfo.h>
-
-void print_trace(void) {
-  char **strings;
-  size_t i, size;
-  enum Constexpr { MAX_SIZE = 1024 };
-  void *array[MAX_SIZE];
-
-  size = backtrace(array, MAX_SIZE);
-  strings = backtrace_symbols(array, size);
-  
-  for (i = 0; i < size; i++)
-    printf("%s\n", strings[i]);
-
-  puts("");
-  free(strings);
-}
-
 using namespace Base;
 
-TEST(Popen, Simple0){
+TEST(Popen, Simple0) {
   auto perform = []() {
     Bool is_read_from_err{False};
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
     Fork fork{[]() -> Int {
       const CString args[] = {"/bin/cat", "/tmp", None};
 
-      execv(args[0], (CString const*)args);
+      execv(args[0], (CString const *)args);
       return -1;
     }};
 
-    monitor->Trigger(Auto::As(fork),
-      [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
-        while (True) {
-          Char buf[512];
-          UInt len = read(fd.Get<Int>(), buf, 512);
+    monitor->Trigger(
+        Auto::As(fork), [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
+          while (True) {
+            Char buf[512];
+            UInt len = read(fd.Get<Int>(), buf, 512);
 
-          DEBUG(Format{"receive {} bytes"}.Apply(len));
-          if(len <= 0) {
-            break;
+            DEBUG(Format{"receive {} bytes"}.Apply(len));
+            if (len <= 0) {
+              break;
+            }
+
+            buf[len] = '\0';
+            if (fork.Error() == fd.Get<Int>()) {
+              DEBUG(Format{"result from child's stderr: {}"} << buf);
+              is_read_from_err = True;
+            } else {
+              DEBUG(Format{"result from child's stdout: {}"} << buf);
+            }
           }
 
-          buf[len] = '\0';
-          if (fork.Error() == fd.Get<Int>()) {
-            DEBUG(Format{"result from child's stderr: {}"} << buf);
-            is_read_from_err = True;
-          } else {
-            DEBUG(Format{"result from child's stdout: {}"} << buf);
-          }
-        }
+          return ENoError;
+        });
 
-        return ENoError;
-      });
-
-    EXPECT_EQ(monitor->Loop(
-      [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
-      ENoError);
+    EXPECT_EQ(
+        monitor->Loop([&](Monitor &) -> Bool { return fork.Status() >= 0; }),
+        ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
     EXPECT_NEQ(fork.ECode(), 0);
     EXPECT_TRUE(is_read_from_err);
@@ -79,91 +59,43 @@ TEST(Popen, Simple0){
   TIMEOUT(5, { perform(); });
 }
 
-TEST(Popen, Simple1){
+TEST(Popen, Simple1) {
   auto perform = []() {
     Bool is_read_from_out{False};
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
     Fork fork{[]() -> Int {
       const CString args[] = {"/bin/uname", "-a", None};
 
-      execv(args[0], (CString const*)args);
+      execv(args[0], (CString const *)args);
       return -1;
     }};
 
-    monitor->Trigger(Auto::As(fork),
-      [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
-        while (True) {
-          Char buf[512];
-          UInt len = read(fd.Get<Int>(), buf, 512);
+    monitor->Trigger(
+        Auto::As(fork), [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
+          while (True) {
+            Char buf[512];
+            UInt len = read(fd.Get<Int>(), buf, 512);
 
-          DEBUG(Format{"receive {} bytes"}.Apply(len));
-          if(len <= 0) {
-            break;
-          }
+            DEBUG(Format{"receive {} bytes"}.Apply(len));
+            if (len <= 0) {
+              break;
+            }
 
-          buf[len] = '\0';
-          if (fork.Error() == fd.Get<Int>()) {
-            DEBUG(Format{"result from child's stderr: {}"} << buf);
-          } else {
-            DEBUG(Format{"result from child's stdout: {}"} << buf);
-            is_read_from_out = True;
-          }
-        }
-
-        return ENoError;
-      });
-
-    EXPECT_EQ(monitor->Loop(
-      [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
-      ENoError);
-    EXPECT_NEQ(fork.ECode(), -1);
-    EXPECT_EQ(fork.ECode(), 0);
-    EXPECT_TRUE(is_read_from_out);
-  };
-
-  TIMEOUT(5, { perform(); });
-}
-
-TEST(Popen, Simple2){
-  auto perform = []() {
-    Bool is_read_from_out{False};
-    Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
-    Fork fork{[]() -> Int {
-      const CString args[] = {"/bin/uname", "-a", None};
-      const Int code = execv(args[0], (CString const*)args);
-
-      FATAL << "Can\'t use execv to perform /bin/uname -a" << Base::EOL;
-      return code;
-    }};
-
-    monitor->Trigger(Auto::As(fork),
-      [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
-
-        while (True) {
-          Char buf[512];
-          UInt len = read(fd.Get<Int>(), buf, 512);
-
-          DEBUG(Format{"receive {} bytes"}.Apply(len));
-          if (len > 0) {
             buf[len] = '\0';
-
             if (fork.Error() == fd.Get<Int>()) {
               DEBUG(Format{"result from child's stderr: {}"} << buf);
             } else {
               DEBUG(Format{"result from child's stdout: {}"} << buf);
               is_read_from_out = True;
             }
-          } else {
-            break;
           }
-        }
 
-        return ENoError;
-      });
+          return ENoError;
+        });
 
-    EXPECT_EQ(monitor->Loop(
-      [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
-      ENoError);
+    EXPECT_EQ(
+        monitor->Loop([&](Monitor &) -> Bool { return fork.Status() >= 0; }),
+        ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
     EXPECT_EQ(fork.ECode(), 0);
     EXPECT_TRUE(is_read_from_out);
@@ -172,9 +104,56 @@ TEST(Popen, Simple2){
   TIMEOUT(5, { perform(); });
 }
 
-TEST(Popen, Stacked0){
-  /* @NOTE: this test only check if we can't catch error code as the chain from target
-   * to watching process and redirect it to master */
+TEST(Popen, Simple2) {
+  auto perform = []() {
+    Bool is_read_from_out{False};
+    Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
+    Fork fork{[]() -> Int {
+      const CString args[] = {"/bin/uname", "-a", None};
+      const Int code = execv(args[0], (CString const *)args);
+
+      FATAL << "Can\'t use execv to perform /bin/uname -a" << Base::EOL;
+      return code;
+    }};
+
+    monitor->Trigger(
+        Auto::As(fork), [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
+          while (True) {
+            Char buf[512];
+            UInt len = read(fd.Get<Int>(), buf, 512);
+
+            DEBUG(Format{"receive {} bytes"}.Apply(len));
+            if (len > 0) {
+              buf[len] = '\0';
+
+              if (fork.Error() == fd.Get<Int>()) {
+                DEBUG(Format{"result from child's stderr: {}"} << buf);
+              } else {
+                DEBUG(Format{"result from child's stdout: {}"} << buf);
+                is_read_from_out = True;
+              }
+            } else {
+              break;
+            }
+          }
+
+          return ENoError;
+        });
+
+    EXPECT_EQ(
+        monitor->Loop([&](Monitor &) -> Bool { return fork.Status() >= 0; }),
+        ENoError);
+    EXPECT_NEQ(fork.ECode(), -1);
+    EXPECT_EQ(fork.ECode(), 0);
+    EXPECT_TRUE(is_read_from_out);
+  };
+
+  TIMEOUT(5, { perform(); });
+}
+
+TEST(Popen, Stacked0) {
+  /* @NOTE: this test only check if we can't catch error code as the chain from
+   * target to watching process and redirect it to master */
 
   auto perform = []() {
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
@@ -182,7 +161,7 @@ TEST(Popen, Stacked0){
       Int status;
       Fork fork{[]() -> Int {
         const CString args[] = {"/bin/cat", "/tmp", None};
-        return execv(args[0], (CString const*)args);
+        return execv(args[0], (CString const *)args);
       }};
 
       do {
@@ -198,22 +177,22 @@ TEST(Popen, Stacked0){
     }};
 
     monitor->Trigger(Auto::As(fork),
-      [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
-        while (True) {
-          Char buf[512];
-          UInt len = read(fd.Get<Int>(), buf, 512);
+                     [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
+                       while (True) {
+                         Char buf[512];
+                         UInt len = read(fd.Get<Int>(), buf, 512);
 
-          if(len <= 0) {
-            break;
-          }
-        }
+                         if (len <= 0) {
+                           break;
+                         }
+                       }
 
-        return ENoError;
-      });
+                       return ENoError;
+                     });
 
-    EXPECT_EQ(monitor->Loop(
-      [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
-      ENoError);
+    EXPECT_EQ(
+        monitor->Loop([&](Monitor &) -> Bool { return fork.Status() >= 0; }),
+        ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
     EXPECT_NEQ(fork.ECode(), 0);
   };
@@ -221,18 +200,19 @@ TEST(Popen, Stacked0){
   TIMEOUT(5, { perform(); });
 }
 
-TEST(Popen, Stacked1){
-  /* @NOTE: this test only check if we can't catch error code as the chain from target
-   * to watching process and redirect it to master */
+TEST(Popen, Stacked1) {
+  /* @NOTE: this test only check if we can't catch error code as the chain from
+   * target to watching process and redirect it to master */
 
   auto perform = []() {
     Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
     Fork fork{[]() -> Int {
       Int status;
       Fork fork{[]() -> Int {
-        const CString args[] = {"/bin/uname", "-a", None};
-        return execv(args[0], (CString const*)args);
-      }, False};
+                  const CString args[] = {"/bin/uname", "-a", None};
+                  return execv(args[0], (CString const *)args);
+                },
+                False};
 
       do {
         if (waitpid(fork.PID(), &status, WUNTRACED | WCONTINUED) < 0) {
@@ -247,22 +227,22 @@ TEST(Popen, Stacked1){
     }};
 
     monitor->Trigger(Auto::As(fork),
-      [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
-        while (True) {
-          Char buf[512];
-          UInt len = read(fd.Get<Int>(), buf, 512);
+                     [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
+                       while (True) {
+                         Char buf[512];
+                         UInt len = read(fd.Get<Int>(), buf, 512);
 
-          if (len <= 0) {
-            break;
-          }
-        }
+                         if (len <= 0) {
+                           break;
+                         }
+                       }
 
-        return ENoError;
-      });
+                       return ENoError;
+                     });
 
-    EXPECT_EQ(monitor->Loop(
-      [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
-      ENoError);
+    EXPECT_EQ(
+        monitor->Loop([&](Monitor &) -> Bool { return fork.Status() >= 0; }),
+        ENoError);
     EXPECT_NEQ(fork.ECode(), -1);
     EXPECT_EQ(fork.ECode(), 0);
   };
@@ -272,10 +252,10 @@ TEST(Popen, Stacked1){
 
 TEST(Popen, Exec) {
   Int status;
-  Fork fork{[]() -> Int{
+  Fork fork{[]() -> Int {
     const CString args[] = {"/bin/cat", "/tmp"};
 
-    execv(args[0], (CString const*)args);
+    execv(args[0], (CString const *)args);
     return -1;
   }};
 
@@ -299,8 +279,8 @@ TEST(Popen, Exec) {
 TEST(Popen, Threads) {
   auto count_of_reading_fork = 0;
   auto perform = [&]() {
-    Base::Vertex<void> escaping{[](){ Base::Log::Disable(EError, -1); },
-                                [](){ Base::Log::Enable(EError, -1); }};
+    Base::Vertex<void> escaping{[]() { Base::Log::Disable(EError, -1); },
+                                []() { Base::Log::Enable(EError, -1); }};
     Base::Thread threads[NUM_OF_THREAD];
 
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
@@ -309,34 +289,32 @@ TEST(Popen, Threads) {
         Fork fork{[]() -> Int {
           const CString args[] = {"/bin/cat", "/tmp", None};
 
-          execv(args[0], (CString const*)args);
+          execv(args[0], (CString const *)args);
           return -1;
         }};
 
         monitor->Trigger(Auto::As(fork),
-          [&](Auto fd, Auto& UNUSED(content)) -> ErrorCodeE {
-        
-          while (True) {
-            Char buf[512];
-            UInt len = read(fd.Get<Int>(), buf, 512);
+                         [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
+                           while (True) {
+                             Char buf[512];
+                             UInt len = read(fd.Get<Int>(), buf, 512);
 
-            DEBUG(Format{"receive {} bytes"}.Apply(len));
-          
-            if(len <= 0) {
-              break;
-            }
+                             DEBUG(Format{"receive {} bytes"}.Apply(len));
 
-            buf[len] = '\0';
+                             if (len <= 0) {
+                               break;
+                             }
 
-          }
+                             buf[len] = '\0';
+                           }
 
-          return ENoError;
-        });
+                           return ENoError;
+                         });
 
         EXPECT_EQ(monitor->Loop(
-          [&](Monitor&) -> Bool { return fork.Status() >= 0; }),
-          ENoError);
-              
+                      [&](Monitor &) -> Bool { return fork.Status() >= 0; }),
+                  ENoError);
+
         INC(&count_of_reading_fork);
       });
     }
@@ -346,7 +324,6 @@ TEST(Popen, Threads) {
     Base::Debug::DumpWatch("Stucks");
     Base::Debug::DumpWatch("Counters");
     Base::Debug::DumpWatch("Stucks.Unlock");
-    print_trace();
   });
 
   FINISHDUMP({
@@ -357,11 +334,9 @@ TEST(Popen, Threads) {
 
   TIMEOUT(100, { perform(); });
   // EXPECT_EQ(count_of_reading_fork, NUM_OF_THREAD);
-
 }
 
-int main(){
-  //Base::Log::Level() = EDebug;
+int main() {
+  // Base::Log::Level() = EDebug;
   return RUN_ALL_TESTS();
 }
-

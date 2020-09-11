@@ -7,21 +7,20 @@
 #include <iomanip>
 #include <iostream>
 
-#include <execinfo.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #if UNIX
-#include <sys/types.h>
 #include <errno.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 namespace Base {
 namespace Internal {
-Mutex* CreateMutex();
-Void RemoveMutex(Mutex* locker);
+Mutex *CreateMutex();
+Void RemoveMutex(Mutex *locker);
 } // namespace Internal
 } // namespace Base
 
@@ -33,51 +32,51 @@ extern "C" Int BSReadFromFileDescription(Int fd, Bytes buffer, UInt size) {
 
     if (read_size > 0) {
       total_size += read_size;
-      if (total_size == size) return total_size;
+      if (total_size == size)
+        return total_size;
     } else {
       switch (errno) {
-        case EAGAIN:
-          if (total_size >= size) {
-            return -(Int)(
-                (BadLogic << "there some bugs inside your system" << Base::EOL)
-                    .code());
-          }
-          break;
-
-        case EBADF:
-          return -(Int)((BadLogic
-                         << "fd is not a valid file descriptor or is not"
-                         << "open for writing" << Base::EOL)
-                            .code());
-
-        case EFAULT:
-          return -(Int)((BadAccess << "buffer is outside your accessible"
-                                   << "address space" << Base::EOL)
-                            .code());
-
-        case EINTR:
-          return -(Int)((Interrupted
-                         << "The call was interrupted by a signal before"
-                         << "any data was written" << Base::EOL)
-                            .code());
-
-        case EINVAL:
-          return -(Int)((BadLogic
-                         << "fd is attached to an object which is unsuitable"
-                         << "for writing; or the file was opened with the"
-                         << "O_DIRECT flag, and either the address specified"
-                         << "in buf, the value specified in count, or the"
-                         << "file offset is not suitably aligned" << Base::EOL)
-                            .code());
-
-        case EIO:
-          return -(Int)((WatchErrno << "A low-level I/O error occurred while"
-                                    << "modifying the inode" << Base::EOL)
-                            .code());
-
-        case EISDIR:
+      case EAGAIN:
+        if (total_size >= size) {
           return -(Int)(
-              (BadLogic << "fd refers to a directory" << Base::EOL).code());
+              (BadLogic << "there some bugs inside your system" << Base::EOL)
+                  .code());
+        }
+        break;
+
+      case EBADF:
+        return -(Int)((BadLogic << "fd is not a valid file descriptor or is not"
+                                << "open for writing" << Base::EOL)
+                          .code());
+
+      case EFAULT:
+        return -(Int)((BadAccess << "buffer is outside your accessible"
+                                 << "address space" << Base::EOL)
+                          .code());
+
+      case EINTR:
+        return -(Int)((Interrupted
+                       << "The call was interrupted by a signal before"
+                       << "any data was written" << Base::EOL)
+                          .code());
+
+      case EINVAL:
+        return -(Int)((BadLogic
+                       << "fd is attached to an object which is unsuitable"
+                       << "for writing; or the file was opened with the"
+                       << "O_DIRECT flag, and either the address specified"
+                       << "in buf, the value specified in count, or the"
+                       << "file offset is not suitably aligned" << Base::EOL)
+                          .code());
+
+      case EIO:
+        return -(Int)((WatchErrno << "A low-level I/O error occurred while"
+                                  << "modifying the inode" << Base::EOL)
+                          .code());
+
+      case EISDIR:
+        return -(Int)(
+            (BadLogic << "fd refers to a directory" << Base::EOL).code());
       }
     }
   }
@@ -93,92 +92,91 @@ extern "C" Int BSWriteToFileDescription(Int fd, Bytes buffer, UInt size) {
 
     if (written_size > 0) {
       total_size += written_size;
-      if (total_size == size) return total_size;
+      if (total_size == size)
+        return total_size;
     } else {
       switch (errno) {
-        case EAGAIN:
-          if (total_size >= size) {
-            return -(Int)(
-                (BadLogic << "there some bugs inside your system" << Base::EOL)
-                    .code());
-          }
-          break;
+      case EAGAIN:
+        if (total_size >= size) {
+          return -(Int)(
+              (BadLogic << "there some bugs inside your system" << Base::EOL)
+                  .code());
+        }
+        break;
 
-        case EBADF:
-          return -(Int)((BadLogic
-                         << "fd is not a valid file descriptor or is not"
-                         << "open for writing" << Base::EOL)
-                            .code());
+      case EBADF:
+        return -(Int)((BadLogic << "fd is not a valid file descriptor or is not"
+                                << "open for writing" << Base::EOL)
+                          .code());
 
-        case EDESTADDRREQ:
-          return -(Int)((BadAccess
-                         << "fd refers to a datagram socket for which a "
-                            "peer address has not been set using connect(2)"
-                         << Base::EOL)
-                            .code());
+      case EDESTADDRREQ:
+        return -(Int)((BadAccess
+                       << "fd refers to a datagram socket for which a "
+                          "peer address has not been set using connect(2)"
+                       << Base::EOL)
+                          .code());
 
-        case EDQUOT:
-          return -(Int)((BadAccess
-                         << "The user's quota of disk blocks on the"
-                         << "filesystem containing the file referred to by"
-                         << "fd has been exhausted" << Base::EOL)
-                            .code());
+      case EDQUOT:
+        return -(Int)((BadAccess
+                       << "The user's quota of disk blocks on the"
+                       << "filesystem containing the file referred to by"
+                       << "fd has been exhausted" << Base::EOL)
+                          .code());
 
-        case EFAULT:
-          return -(Int)((BadAccess << "buffer is outside your accessible"
-                                   << "address space" << Base::EOL)
-                            .code());
-        case EFBIG:
-          return -(Int)((OutOfRange
-                         << "An attempt was made to write a file that"
-                         << "exceeds the implementation-defined maximum"
-                         << "file size or the process's file size limit,"
-                         << "or to write at a position past the maximum"
-                         << "allowed offset." << Base::EOL)
-                            .code());
+      case EFAULT:
+        return -(Int)((BadAccess << "buffer is outside your accessible"
+                                 << "address space" << Base::EOL)
+                          .code());
+      case EFBIG:
+        return -(Int)((OutOfRange
+                       << "An attempt was made to write a file that"
+                       << "exceeds the implementation-defined maximum"
+                       << "file size or the process's file size limit,"
+                       << "or to write at a position past the maximum"
+                       << "allowed offset." << Base::EOL)
+                          .code());
 
-        case EINTR:
-          return -(Int)((Interrupted
-                         << "The call was interrupted by a signal before"
-                         << "any data was written" << Base::EOL)
-                            .code());
+      case EINTR:
+        return -(Int)((Interrupted
+                       << "The call was interrupted by a signal before"
+                       << "any data was written" << Base::EOL)
+                          .code());
 
-        case EINVAL:
-          return -(Int)((BadLogic
-                         << "fd is attached to an object which is unsuitable"
-                         << "for writing; or the file was opened with the"
-                         << "O_DIRECT flag, and either the address specified"
-                         << "in buf, the value specified in count, or the"
-                         << "file offset is not suitably aligned." << Base::EOL)
-                            .code());
+      case EINVAL:
+        return -(Int)((BadLogic
+                       << "fd is attached to an object which is unsuitable"
+                       << "for writing; or the file was opened with the"
+                       << "O_DIRECT flag, and either the address specified"
+                       << "in buf, the value specified in count, or the"
+                       << "file offset is not suitably aligned." << Base::EOL)
+                          .code());
 
-        case EIO:
-          return -(Int)((WatchErrno << "A low-level I/O error occurred while"
-                                    << "modifying the inode" << Base::EOL)
-                            .code());
+      case EIO:
+        return -(Int)((WatchErrno << "A low-level I/O error occurred while"
+                                  << "modifying the inode" << Base::EOL)
+                          .code());
 
-        case ENOSPC:
-          return -(Int)((DrainMem
-                         << "The device containing the file referred to by"
-                         << "fd has no room for the data" << Base::EOL)
-                            .code());
+      case ENOSPC:
+        return -(Int)((DrainMem
+                       << "The device containing the file referred to by"
+                       << "fd has no room for the data" << Base::EOL)
+                          .code());
 
-        case EPERM:
-          return -(Int)((BadAccess
-                         << "The operation was prevented by a file seal"
-                         << Base::EOL)
-                            .code());
+      case EPERM:
+        return -(Int)((BadAccess << "The operation was prevented by a file seal"
+                                 << Base::EOL)
+                          .code());
 
-        case EPIPE:
-          return -(Int)((BadAccess
-                         << "fd is connected to a pipe or socket whose"
-                         << "reading end is closed.  When this happens the"
-                         << "writing process will also receive a SIGPIPE"
-                         << Base::EOL)
-                            .code());
+      case EPIPE:
+        return -(Int)((BadAccess
+                       << "fd is connected to a pipe or socket whose"
+                       << "reading end is closed.  When this happens the"
+                       << "writing process will also receive a SIGPIPE"
+                       << Base::EOL)
+                          .code());
 
-        default:
-          return -(Int)(WatchErrno.code());
+      default:
+        return -(Int)(WatchErrno.code());
       }
     }
   }
@@ -189,31 +187,31 @@ extern "C" Int BSWriteToFileDescription(Int fd, Bytes buffer, UInt size) {
 extern "C" ErrorCodeE BSCloseFileDescription(Int fd) {
   if (close(fd)) {
     switch (errno) {
-      case EBADF:
-        return (BadLogic << "fd is not an open file descriptor" << Base::EOL)
-            .code();
+    case EBADF:
+      return (BadLogic << "fd is not an open file descriptor" << Base::EOL)
+          .code();
 
-      case EINTR:
-        return (WatchErrno << "The close() call was interrupted by a signal; "
-                              "see signal(7)."
-                           << Base::EOL)
-            .code();
+    case EINTR:
+      return (WatchErrno << "The close() call was interrupted by a signal; "
+                            "see signal(7)."
+                         << Base::EOL)
+          .code();
 
-      case EIO:
-        return (WatchErrno << "A low-level I/O error occurred while"
-                           << "modifying the inode" << Base::EOL)
-            .code();
-      case ENOSPC:
-      case EDQUOT:
-        return (BadAccess << "On NFS, these errors are not normally reported "
-                             "against the first write which exceeds the "
-                             "available storage space, but instead against a "
-                             "subsequent write(2), fsync(2), or close(2)."
-                          << Base::EOL)
-            .code();
+    case EIO:
+      return (WatchErrno << "A low-level I/O error occurred while"
+                         << "modifying the inode" << Base::EOL)
+          .code();
+    case ENOSPC:
+    case EDQUOT:
+      return (BadAccess << "On NFS, these errors are not normally reported "
+                           "against the first write which exceeds the "
+                           "available storage space, but instead against a "
+                           "subsequent write(2), fsync(2), or close(2)."
+                        << Base::EOL)
+          .code();
 
-      default:
-        return WatchErrno.code();
+    default:
+      return WatchErrno.code();
     }
   } else {
     return ENoError;
@@ -230,134 +228,124 @@ extern "C" void BSError(UInt code, String message) {
 
 extern "C" void BSLog(String message) { Base::Error{message}; }
 
-extern "C" CString BSCut(CString sample, Char sep, Int position){
+extern "C" CString BSCut(CString sample, Char sep, Int position) {
   return strdup(Base::Cut(String{sample}, sep, position).data());
 }
 
-extern "C" Bool BSIsMutexLocked(Mutex* locker) {
+extern "C" Bool BSIsMutexLocked(Mutex *locker) {
   return Base::Locker::IsLocked(*locker);
 }
 
-extern "C" Bool BSLockMutex(Mutex* locker) {
+extern "C" Bool BSLockMutex(Mutex *locker) {
   return Base::Locker::Lock(*locker);
 }
 
-extern "C" Bool BSUnlockMutex(Mutex* locker) {
+extern "C" Bool BSUnlockMutex(Mutex *locker) {
   return Base::Locker::Unlock(*locker);
 }
 
-extern "C" Mutex* BSCreateMutex() {
-  return Base::Internal::CreateMutex();
-}
+extern "C" Mutex *BSCreateMutex() { return Base::Internal::CreateMutex(); }
 
-extern "C" Void BSDestroyMutex(Mutex* locker) {
+extern "C" Void BSDestroyMutex(Mutex *locker) {
   Base::Internal::RemoveMutex(locker);
 }
 
 namespace Base {
-template <>
-String ToString<Auto>(Auto value) {
-  if (value.Type() == typeid(String)){
+template <> String ToString<Auto>(Auto value) {
+  if (value.Type() == typeid(String)) {
     return value.Get<String>();
   }
 
   return "";
 }
 
-template <>
-String ToString<ErrorCodeE>(ErrorCodeE value) {
+template <> String ToString<ErrorCodeE>(ErrorCodeE value) {
   switch (value) {
-    case ENoError:
-      return "NoError";
+  case ENoError:
+    return "NoError";
 
-    case EKeepContinue:
-      return "KeepContinue";
+  case EKeepContinue:
+    return "KeepContinue";
 
-    case ENoSupport:
-      return "NoSupport";
+  case ENoSupport:
+    return "NoSupport";
 
-    case EBadLogic:
-      return "BadLogic";
+  case EBadLogic:
+    return "BadLogic";
 
-    case EBadAccess:
-      return "BadAccess";
+  case EBadAccess:
+    return "BadAccess";
 
-    case EOutOfRange:
-      return "OutOfRange";
+  case EOutOfRange:
+    return "OutOfRange";
 
-    case ENotFound:
-      return "NotFound";
+  case ENotFound:
+    return "NotFound";
 
-    case EDrainMem:
-      return "DrainMem";
+  case EDrainMem:
+    return "DrainMem";
 
-    case EWatchErrno:
-      return "WatchErrno";
+  case EWatchErrno:
+    return "WatchErrno";
 
-    case EInterrupted:
-      return "Interrupted";
+  case EInterrupted:
+    return "Interrupted";
 
-    case EDoNothing:
-      return "DoNothing";
+  case EDoNothing:
+    return "DoNothing";
 
-    case EDoAgain:
-      return "DoAgain";
+  case EDoAgain:
+    return "DoAgain";
 
-    default:
-      return "";
+  default:
+    return "";
   }
 }
 
-template <>
-String ToString<ErrorLevelE>(ErrorLevelE value) {
+template <> String ToString<ErrorLevelE>(ErrorLevelE value) {
   switch (value) {
-    case EError:
-      return "[    ERROR ]";
+  case EError:
+    return "[    ERROR ]";
 
-    case EWarning:
-      return "[  WARNING ]";
+  case EWarning:
+    return "[  WARNING ]";
 
-    case EInfo:
-      return "[    INFOR ]";
+  case EInfo:
+    return "[    INFOR ]";
 
-    case EDebug:
-      return "[    DEBUG ]";
+  case EDebug:
+    return "[    DEBUG ]";
 
-    default:
-      return "";
+  default:
+    return "";
   }
 }
 
-template <>
-String ToString<String>(String value) {
-  return value;
-}
+template <> String ToString<String>(String value) { return value; }
 
-template <>
-String ToString<char*>(char* value) {
+template <> String ToString<char *>(char *value) {
   UInt len = 0;
 
   /* @NOTE: strlen causes issues on Release mode */
-  for (; value[len] != '\0'; ++len) {}
+  for (; value[len] != '\0'; ++len) {
+  }
 
   if (len > 0) {
     String result{};
 
     result.resize(len);
-    memcpy((void*)result.c_str(), value, len);
+    memcpy((void *)result.c_str(), value, len);
     return result;
   } else {
     return String("");
   }
 }
 
-template <>
-String ToString<const char*>(const char* value) {
-  return ToString<char*>(const_cast<char*>(value));
+template <> String ToString<const char *>(const char *value) {
+  return ToString<char *>(const_cast<char *>(value));
 }
 
-template <>
-Int ToInt<Auto>(Auto value) {
+template <> Int ToInt<Auto>(Auto value) {
   if (value.Type() == typeid(UInt)) {
     return value.Get<UInt>();
   } else if (value.Type() == typeid(Int)) {
@@ -368,14 +356,11 @@ Int ToInt<Auto>(Auto value) {
   }
 }
 
-template <>
-Int ToInt<UInt>(UInt value) { return value; }
+template <> Int ToInt<UInt>(UInt value) { return value; }
 
-template <>
-Int ToInt<Int>(Int value) { return value; }
+template <> Int ToInt<Int>(Int value) { return value; }
 
-template <>
-Int ToInt<String>(String value) {
+template <> Int ToInt<String>(String value) {
 #if defined(BASE_TYPE_STRING_H_)
   return atoi(value.data());
 #else
@@ -383,19 +368,13 @@ Int ToInt<String>(String value) {
 #endif
 }
 
-template <>
-Int ToInt<CString>(CString value) {
-  return atoi(value);
-}
+template <> Int ToInt<CString>(CString value) { return atoi(value); }
 
-template <>
-Float ToFloat<UInt>(UInt value) { return value; }
+template <> Float ToFloat<UInt>(UInt value) { return value; }
 
-template <>
-Float ToFloat<Int>(Int value) { return value; }
+template <> Float ToFloat<Int>(Int value) { return value; }
 
-template <>
-Float ToFloat<String>(String value) {
+template <> Float ToFloat<String>(String value) {
 #if defined(BASE_TYPE_STRING_H_)
   return atof(value.data());
 #else
@@ -403,15 +382,12 @@ Float ToFloat<String>(String value) {
 #endif
 }
 
-template <>
-Float ToFloat<CString>(CString value) {
-  return atof(value);
-}
-namespace Locker {
-}  // namespace Locker
+template <> Float ToFloat<CString>(CString value) { return atof(value); }
+namespace Locker {} // namespace Locker
 
-void Wait(Mutex& locker) {
-  if (Locker::IsLocked(locker)) Locker::Lock(locker);
+void Wait(Mutex &locker) {
+  if (Locker::IsLocked(locker))
+    Locker::Lock(locker);
 }
 
 String Datetime() {
@@ -428,10 +404,12 @@ String Cut(String sample, Char sep, Int position) {
   Vector<String> result = Split(sample, sep);
   Int i = 0;
 
-  if (position < 0){
-    for (i = position; i >= 0; i += result.size()) { }
+  if (position < 0) {
+    for (i = position; i >= 0; i += result.size()) {
+    }
   } else {
-    for (i = 0; i < position; i += result.size()) { }
+    for (i = 0; i < position; i += result.size()) {
+    }
   }
 
   return result[i];
@@ -470,104 +448,98 @@ Int PID() {
 }
 
 #if defined(BASE_TYPE_STRING_H_)
-template <>
-String ToString<Char>(Char value) {
-  return String{1, value};
+template <> String ToString<Char>(Char value) { return String{1, value}; }
+
+template <> String ToString<Bool>(Bool value) {
+  return String{value ? "True" : "False"};
 }
 
-template <>
-String ToString<Bool>(Bool value) {
-  return String{value? "True": "False"};
-}
+#define BUILD_USIGN_ToString(Type)                                             \
+  template <> String ToString<Type>(Type value) {                              \
+    String result{};                                                           \
+                                                                               \
+    while (value != 0) {                                                       \
+      Type i = (value % 10);                                                   \
+                                                                               \
+      result += Char(i + '0');                                                 \
+      value /= 10;                                                             \
+    }                                                                          \
+                                                                               \
+    result.reverse();                                                          \
+    if (result.size() == 0) {                                                  \
+      result += '0';                                                           \
+    }                                                                          \
+    return result;                                                             \
+  }
 
-#define BUILD_USIGN_ToString(Type)           \
-template <>                                  \
-String ToString<Type>(Type value) {          \
-  String result{};                           \
-                                             \
-  while (value != 0) {                       \
-    Type i = (value % 10);                   \
-                                             \
-    result += Char(i + '0');                 \
-    value /= 10;                             \
-  }                                          \
-                                             \
-  result.reverse();                          \
-  if (result.size() == 0) {                  \
-    result += '0';                           \
-  }                                          \
-  return result;                             \
-}
+#define BUILD_SIGN_ToString(Type)                                              \
+  template <> String ToString<Type>(Type value) {                              \
+    String result{};                                                           \
+    Bool sign = value > 0;                                                     \
+                                                                               \
+    while (value != 0) {                                                       \
+      Type i = (value % 10);                                                   \
+                                                                               \
+      result += Char((i < 0 ? -i : i) + '0');                                  \
+      value /= 10;                                                             \
+    }                                                                          \
+                                                                               \
+    result.reverse();                                                          \
+    if (result.size() == 0) {                                                  \
+      result += '0';                                                           \
+    } else if (!sign)                                                          \
+      result = '-' + result;                                                   \
+    return result;                                                             \
+  }
 
-#define BUILD_SIGN_ToString(Type)            \
-template <>                                  \
-String ToString<Type>(Type value) {          \
-  String result{};                           \
-  Bool sign = value > 0;                     \
-                                             \
-  while (value != 0) {                       \
-    Type i = (value % 10);                   \
-                                             \
-    result += Char((i < 0? -i: i) + '0');    \
-    value /= 10;                             \
-  }                                          \
-                                             \
-  result.reverse();                          \
-  if (result.size() == 0) {                  \
-    result += '0';                           \
-  } else if (!sign) result = '-' + result;   \
-  return result;                             \
-}
-
-#define BUILD_REAL_ToString(Type)                                \
-template <>                                                      \
-String ToString<Type>(Type value) {                              \
-  String result{};                                               \
-  Bool sign = value > 0;                                         \
-  Int ivalue = Int(value);                                       \
-  Type rvalue = value - ivalue;                                  \
-  UInt size = 0;                                                 \
-                                                                 \
-  while (ivalue != 0) {                                          \
-    ivalue /= 10;                                                \
-    size++;                                                      \
-  }                                                              \
-                                                                 \
-  ivalue = Int(value);                                           \
-  if (rvalue != 0) {                                             \
-    result.resize((size? size: 1) + 6 + !sign);                  \
-  } else {                                                       \
-    result.resize((size? size: 1) + !sign);                      \
-  }                                                              \
-                                                                 \
-  if (!sign) {                                                   \
-    result[0] = '-';                                             \
-  }                                                              \
-                                                                 \
-  if (size > 0) {                                                \
-    for (UInt idx =  size; idx > 0; --idx) {                     \
-      Int i = (ivalue % 10);                                     \
-                                                                 \
-      result[idx - 1 + !sign] = Char((i < 0? -i: i) + '0');      \
-      ivalue /= 10;                                              \
-    }                                                            \
-  } else {                                                       \
-    result[!sign] = '0';                                         \
-    size = 1;                                                    \
-  }                                                              \
-                                                                 \
-  if (rvalue != 0) {                                             \
-    result[size + !sign] = '.';                                  \
-                                                                 \
-    for (auto i = 0; i < 5; ++i) {                               \
-      Int r = Int(rvalue * 10);                                  \
-                                                                 \
-      result[size + 1 + i + !sign] = Char((r < 0? -r: r) + '0'); \
-      rvalue = rvalue * 10 - Int(rvalue * 10);                   \
-    }                                                            \
-  }                                                              \
-  return result;                                                 \
-}
+#define BUILD_REAL_ToString(Type)                                              \
+  template <> String ToString<Type>(Type value) {                              \
+    String result{};                                                           \
+    Bool sign = value > 0;                                                     \
+    Int ivalue = Int(value);                                                   \
+    Type rvalue = value - ivalue;                                              \
+    UInt size = 0;                                                             \
+                                                                               \
+    while (ivalue != 0) {                                                      \
+      ivalue /= 10;                                                            \
+      size++;                                                                  \
+    }                                                                          \
+                                                                               \
+    ivalue = Int(value);                                                       \
+    if (rvalue != 0) {                                                         \
+      result.resize((size ? size : 1) + 6 + !sign);                            \
+    } else {                                                                   \
+      result.resize((size ? size : 1) + !sign);                                \
+    }                                                                          \
+                                                                               \
+    if (!sign) {                                                               \
+      result[0] = '-';                                                         \
+    }                                                                          \
+                                                                               \
+    if (size > 0) {                                                            \
+      for (UInt idx = size; idx > 0; --idx) {                                  \
+        Int i = (ivalue % 10);                                                 \
+                                                                               \
+        result[idx - 1 + !sign] = Char((i < 0 ? -i : i) + '0');                \
+        ivalue /= 10;                                                          \
+      }                                                                        \
+    } else {                                                                   \
+      result[!sign] = '0';                                                     \
+      size = 1;                                                                \
+    }                                                                          \
+                                                                               \
+    if (rvalue != 0) {                                                         \
+      result[size + !sign] = '.';                                              \
+                                                                               \
+      for (auto i = 0; i < 5; ++i) {                                           \
+        Int r = Int(rvalue * 10);                                              \
+                                                                               \
+        result[size + 1 + i + !sign] = Char((r < 0 ? -r : r) + '0');           \
+        rvalue = rvalue * 10 - Int(rvalue * 10);                               \
+      }                                                                        \
+    }                                                                          \
+    return result;                                                             \
+  }
 
 BUILD_SIGN_ToString(Byte);
 BUILD_SIGN_ToString(Int);
@@ -579,17 +551,16 @@ BUILD_REAL_ToString(Float);
 BUILD_REAL_ToString(Double);
 #endif
 
-Tie::Tie() { }
+Tie::Tie() {}
 
-Tie::~Tie() { }
+Tie::~Tie() {}
 
-Bool Tie::Mem2Cache(Void* context, const std::type_info& type, UInt size) {
+Bool Tie::Mem2Cache(Void *context, const std::type_info &type, UInt size) {
   try {
     Any temp;
 
-    _Cache.push_back(Auto::FromAny(*BSAssign2Any(&temp, context, 
-                                                 (Void*)&type,
-                                                 None)));
+    _Cache.push_back(
+        Auto::FromAny(*BSAssign2Any(&temp, context, (Void *)&type, None)));
     _Sizes.push_back(size);
     return True;
   } catch (...) {
@@ -597,43 +568,38 @@ Bool Tie::Mem2Cache(Void* context, const std::type_info& type, UInt size) {
   }
 }
 
-template<>
-Tie& Tie::put<Vector<Auto>>(Vector<Auto>& input) {
+template <> Tie &Tie::put<Vector<Auto>>(Vector<Auto> &input) {
   for (UInt i = 0; i < input.size(); ++i) {
     if (i >= _Cache.size()) {
       break;
     } else if (input[i].Type() == _Cache[i].Type()) {
-      ABI::Memcpy((Void*)_Cache[i].Raw(), (Void*)input[i].Raw(), _Sizes[i]);
+      ABI::Memcpy((Void *)_Cache[i].Raw(), (Void *)input[i].Raw(), _Sizes[i]);
     }
   }
   return *this;
 }
 
-template<>
-Tie& Tie::get<Vector<Auto>>(Vector<Auto>& output) {
+template <> Tie &Tie::get<Vector<Auto>>(Vector<Auto> &output) {
   for (UInt i = 0; i < output.size(); ++i) {
     if (i >= _Cache.size()) {
       break;
     } else if (output[i].Type() == _Cache[i].Type()) {
-      ABI::Memcpy((Void*)output[i].Raw(), (Void*)_Cache[i].Raw(), _Sizes[i]);
+      ABI::Memcpy((Void *)output[i].Raw(), (Void *)_Cache[i].Raw(), _Sizes[i]);
     }
   }
   return *this;
 }
 
-Sequence::Sequence(): Stream {
-    [&](Bytes&& buffer, UInt* buffer_size) -> ErrorCodeE {
-      _Cache += String((CString)buffer, *buffer_size);
-      return ENoError;
-    },
-    [&](Bytes&, UInt*) -> ErrorCodeE {
-      return NoSupport("Sequence can't produce string").code();
-    }
-  }
-{
-}
-  
-Sequence::~Sequence() { }
+Sequence::Sequence()
+    : Stream{[&](Bytes &&buffer, UInt *buffer_size) -> ErrorCodeE {
+               _Cache += String((CString)buffer, *buffer_size);
+               return ENoError;
+             },
+             [&](Bytes &, UInt *) -> ErrorCodeE {
+               return NoSupport("Sequence can't produce string").code();
+             }} {}
+
+Sequence::~Sequence() {}
 
 String Sequence::operator()() {
   auto result = _Cache;
@@ -641,4 +607,4 @@ String Sequence::operator()() {
   _Cache = "";
   return result;
 }
-}  // namespace Base
+} // namespace Base

@@ -1,7 +1,6 @@
-#include <Monitor.h>
-#include <Vertex.h>
-#include <Lock.h>
 #include <Atomic.h>
+#include <Lock.h>
+#include <Monitor.h>
 #include <Utils.h>
 #include <Vertex.h>
 
@@ -11,37 +10,37 @@ using TimeSpec = struct timespec;
 
 namespace Base {
 namespace Internal {
-Mutex* CreateMutex();
+Mutex *CreateMutex();
 
 static Map<UInt, Lock> MLocks;
-static Map<UInt, Pair<Monitor*, Monitor*>> Monitors;
-static Map<UInt, Bool (*)(String, UInt, Monitor**)> Builders;
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
-                                   [](Mutex* mutex) { Locker::Unlock(*mutex); },
-                                   CreateMutex());
+static Map<UInt, Pair<Monitor *, Monitor *>> Monitors;
+static Map<UInt, Bool (*)(String, UInt, Monitor **)> Builders;
+static Vertex<Mutex, True> Secure([](Mutex *mutex) { Locker::Lock(*mutex); },
+                                  [](Mutex *mutex) { Locker::Unlock(*mutex); },
+                                  CreateMutex());
 
 void CreateIfNeeded(UInt type) {
   Secure.Circle([&]() {
     if (Monitors.find(type) == Monitors.end()) {
-      Monitors[type] = Pair<Monitor*, Monitor*>(None, None);
+      Monitors[type] = Pair<Monitor *, Monitor *>(None, None);
       MLocks[type] = Lock();
     }
   });
 }
 
-void Idle(TimeSpec* spec);
+void Idle(TimeSpec *spec);
 
 namespace Fildes {
-Bool Create(String name, UInt type, Int system, Monitor** result);
+Bool Create(String name, UInt type, Int system, Monitor **result);
 } // namespace Fildes
 } // namespace Internal
 
-Monitor::Monitor(String name, UInt type): _Name{name}, _Type{type}, 
-    _Shared{None}, _PNext{None}, _PLast{None}, _Head{None}, _Last{None}, 
-    _Next{None}, _Prev{None},  _State{0}, _Using{0} {
+Monitor::Monitor(String name, UInt type)
+    : _Name{name}, _Type{type}, _Shared{None}, _PNext{None}, _PLast{None},
+      _Head{None}, _Last{None}, _Next{None}, _Prev{None}, _State{0}, _Using{0} {
 }
 
-Monitor::~Monitor() { }
+Monitor::~Monitor() {}
 
 ErrorCodeE Monitor::Append(Auto fd, Int mode) {
   using namespace Internal;
@@ -65,9 +64,7 @@ ErrorCodeE Monitor::Modify(Auto fd, Int mode) {
   }
 }
 
-ErrorCodeE Monitor::Find(Auto fd) {
-  return _Find(fd);
-}
+ErrorCodeE Monitor::Find(Auto fd) { return _Find(fd); }
 
 ErrorCodeE Monitor::Remove(Auto fd) {
   using namespace Internal;
@@ -96,9 +93,7 @@ void Monitor::Registry(Check check, Indicate indicate) {
   _Indicators[GetAddress(check)] = indicate;
 }
 
-void Monitor::Heartbeat(Fallback fallback) {
-  _Fallbacks.push_back(fallback);
-}
+void Monitor::Heartbeat(Fallback fallback) { _Fallbacks.push_back(fallback); }
 
 ErrorCodeE Monitor::Status(String name) {
   using namespace Internal;
@@ -106,23 +101,23 @@ ErrorCodeE Monitor::Status(String name) {
   if (name == "active") {
     auto UNUSED(guranteer) = Secure.generate();
 
-    return Monitors[_Type].Left == this? ENoError: EInterrupted;
+    return Monitors[_Type].Left == this ? ENoError : EInterrupted;
   } else {
     return Head()->_Status(name, Auto::As<Int>(-1));
   }
 }
 
 ErrorCodeE Monitor::Scan(Auto fd, Int mode,
-                         Vector<Pair<Monitor*, Perform*>>& callbacks) {
+                         Vector<Pair<Monitor *, Perform *>> &callbacks) {
   return ScanImpl(fd, mode, True, callbacks);
 }
 
 ErrorCodeE Monitor::ScanImpl(Auto fd, Int mode, Bool heading,
-                         Vector<Pair<Monitor*, Perform*>>& callbacks) {
+                             Vector<Pair<Monitor *, Perform *>> &callbacks) {
   using namespace Internal;
 
   ErrorCodeE error = ENoError;
-  Monitor* next = None;
+  Monitor *next = None;
   Bool passed = False;
 
   /* @NOTE: scan throught events and collect callbacks, i assume that scan
@@ -148,16 +143,16 @@ ErrorCodeE Monitor::ScanImpl(Auto fd, Int mode, Bool heading,
           passed = True;
         }
       }
-    } catch (Base::Exception& except) {
+    } catch (Base::Exception &except) {
       error = except.code();
     }
   });
 
-  return passed? error: ENotFound;
+  return passed ? error : ENotFound;
 }
 
-ErrorCodeE Monitor::ScanIter(Auto fd, Int mode, Monitor** next,
-                             Vector<Pair<Monitor*, Perform*>>& callbacks) {
+ErrorCodeE Monitor::ScanIter(Auto fd, Int mode, Monitor **next,
+                             Vector<Pair<Monitor *, Perform *>> &callbacks) {
   Bool passed = False;
 
   /* @NOTE: i assume we are in safe zone, or we might face core dump somewhere
@@ -167,7 +162,7 @@ ErrorCodeE Monitor::ScanIter(Auto fd, Int mode, Monitor** next,
     return EBadAccess;
   }
 
-  for (auto& check: _Checks) {
+  for (auto &check : _Checks) {
     if (!check(fd, _Access(fd), mode)) {
       auto callback = _Indicators[GetAddress(check)](fd, mode);
 
@@ -176,7 +171,7 @@ ErrorCodeE Monitor::ScanIter(Auto fd, Int mode, Monitor** next,
           Bug(EBadLogic, "can\'t claim a new job as expected");
         }
 
-        callbacks.push_back(Pair<Monitor*, Perform*>(this, callback));
+        callbacks.push_back(Pair<Monitor *, Perform *>(this, callback));
         passed = True;
 
         Done();
@@ -188,16 +183,16 @@ ErrorCodeE Monitor::ScanIter(Auto fd, Int mode, Monitor** next,
     *next = _Next;
   }
 
-  return passed? ENoError: ENotFound;
+  return passed ? ENoError : ENotFound;
 }
 
 ErrorCodeE Monitor::Heartbeat(Auto fd) {
   ErrorCodeE result{ENoError};
 
   if (_Find(fd)) {
-    ForEach([&](Monitor* next) -> ErrorCodeE {
+    ForEach([&](Monitor *next) -> ErrorCodeE {
       if ((next)->_Find(fd)) {
-        for (auto fallback: next->_Fallbacks) {
+        for (auto fallback : next->_Fallbacks) {
           result = fallback(fd);
         }
       }
@@ -207,7 +202,7 @@ ErrorCodeE Monitor::Heartbeat(Auto fd) {
 
     return result;
   } else {
-    for (auto fallback: _Fallbacks) {
+    for (auto fallback : _Fallbacks) {
       if ((result = fallback(fd))) {
         return result;
       }
@@ -217,7 +212,7 @@ ErrorCodeE Monitor::Heartbeat(Auto fd) {
   return ENoError;
 }
 
-ErrorCodeE Monitor::Reroute(Monitor* child, Auto fd, Perform& callback) {
+ErrorCodeE Monitor::Reroute(Monitor *child, Auto fd, Perform &callback) {
   auto error = child->_Route(fd, callback);
 
   if (error) {
@@ -235,10 +230,10 @@ ErrorCodeE Monitor::Reroute(Monitor* child, Auto fd, Perform& callback) {
 ErrorCodeE Monitor::Claim(UInt retry) {
   ErrorCodeE result{EDoAgain};
 
-  do {  
+  do {
     BARRIER();
 
-    if (CMP(&_State, EStarting)) { 
+    if (CMP(&_State, EStarting)) {
       retry--;
     } else if (!CMP(&_State, EStarted)) {
       result = EBadAccess;
@@ -270,17 +265,11 @@ ErrorCodeE Monitor::Done() {
   return result;
 }
 
-UInt Monitor::State() {
-  return _State;
-}
+UInt Monitor::State() { return _State; }
 
-Void* Monitor::Context() {
-  return _Shared;
-}
+Void *Monitor::Context() { return _Shared; }
 
-Monitor* &Monitor::Head() {
-  return Internal::Monitors[_Type].Right;
-}
+Monitor *&Monitor::Head() { return Internal::Monitors[_Type].Right; }
 
 Bool Monitor::Attach(UInt retry) {
   using namespace Internal;
@@ -293,7 +282,7 @@ Bool Monitor::Attach(UInt retry) {
   if (!CMP(&_State, EOffline)) {
     return True;
   }
-  
+
   CreateIfNeeded(_Type);
 
   do {
@@ -303,7 +292,7 @@ Bool Monitor::Attach(UInt retry) {
       if (CMPXCHG(plock, None, this)) {
         _PLast = &_Last;
 
-        MCOPY(&(Monitors[_Type].Right), &thiz, sizeof(this)); 
+        MCOPY(&(Monitors[_Type].Right), &thiz, sizeof(this));
         MCOPY(&_Head, &thiz, sizeof(this));
         MCOPY(&_Last, &thiz, sizeof(this));
 
@@ -316,22 +305,22 @@ Bool Monitor::Attach(UInt retry) {
       }
 
       if (!CMP(Head()->_PLast, None)) {
-        /* @NOTE: always add to the end of the list, with that, we can trace which
-         * one should be the next */
+        /* @NOTE: always add to the end of the list, with that, we can trace
+         * which one should be the next */
 
         _PNext = &((*Head()->_PLast)->_Next);
         _PLast = Head()->_PLast;
 
         MCOPY(_PLast, &thiz, sizeof(this));
         MCOPY(_PNext, &thiz, sizeof(this));
-  
-        /* @NOTE: this parameter is use to revert to the previous in the case the 
-         * latest is released */
 
-         MCOPY(&_Prev, _PLast, sizeof(this));
+        /* @NOTE: this parameter is use to revert to the previous in the case
+         * the latest is released */
+
+        MCOPY(&_Prev, _PLast, sizeof(this));
 
         /* @NOTE: this should be used only when the child became the head so we
-         * should configure it as soon as we can so we can use it quick when 
+         * should configure it as soon as we can so we can use it quick when
          * the head is switched */
 
         MCOPY(&_Head, &thiz, sizeof(this));
@@ -342,11 +331,11 @@ Bool Monitor::Attach(UInt retry) {
 
       if ((*phead)->Done()) {
         Bug(EBadAccess, "can\'t finish a job");
-      } else if (touched) { 
+      } else if (touched) {
         break;
       }
 
-unlock: 
+    unlock:
       CMPXCHG(plock, this, None);
     }
 
@@ -375,12 +364,12 @@ Bool Monitor::Detach(UInt retry) {
   auto is_detached = False;
   auto plock = &(Monitors[_Type].Left);
   auto phead = &(Monitors[_Type].Right);
- 
+
   if (!!CMP(&_State, EDetached)) {
     return True;
   } else if (!!CMP(&_State, EStarted)) {
     if (SwitchTo(EStopping)) {
-      Bug(EBadLogic, "can\'t switch to EStopped"); 
+      Bug(EBadLogic, "can\'t switch to EStopped");
     }
   }
 
@@ -393,9 +382,9 @@ Bool Monitor::Detach(UInt retry) {
   if (!CMP(phead, _Head)) {
     is_child = True;
 
-detach:
+  detach:
     _Flush();
-  
+
     if (is_detached) {
       goto finish;
     }
@@ -420,7 +409,7 @@ detach:
       auto next = _Next;
       auto pnext = _PNext;
 
-      /* @NOTE: edit the next pointer of the previous node using pnext so we 
+      /* @NOTE: edit the next pointer of the previous node using pnext so we
        * could optimize performance while keep everything safe */
 
       if (pnext && next) {
@@ -433,11 +422,11 @@ detach:
       if (next) {
         next->_PNext = pnext;
         next->_Prev = _Prev;
-      } 
-     
-      /* @NOTE: check if we also the latest one so we should change head's 
+      }
+
+      /* @NOTE: check if we also the latest one so we should change head's
        * parameter _Last with this pointer to make sure the later ones don't
-       * touch the wrong pointer */ 
+       * touch the wrong pointer */
 
       if (CMP(_PLast, this)) {
         MCOPY(_PLast, &_Prev, sizeof(_Prev));
@@ -449,7 +438,7 @@ detach:
 
       if (CMP(&_Head, this)) {
         MCOPY(phead, &_Next, sizeof(_Next));
-        
+
         if (_Next == None) {
           is_latest = True;
         }
@@ -470,7 +459,7 @@ detach:
   if (is_child) {
     goto finish;
   }
-    
+
   is_detached = True;
   goto detach;
 
@@ -480,7 +469,7 @@ finish:
   }
 
   if (SwitchTo(EDetached)) {
-    Bug(EBadLogic, "can\'t switch to EDetached");  
+    Bug(EBadLogic, "can\'t switch to EDetached");
   }
 
   return True;
@@ -523,14 +512,14 @@ Bool Monitor::Devote(UInt retry) {
 
         MCOPY(_PLast, &thiz, sizeof(this));
         MCOPY(_PNext, &thiz, sizeof(this));
-  
-        /* @NOTE: this parameter is use to revert to the previous in the case the 
-         * latest is released */
 
-         MCOPY(&_Prev, _PLast, sizeof(this));
+        /* @NOTE: this parameter is use to revert to the previous in the case
+         * the latest is released */
+
+        MCOPY(&_Prev, _PLast, sizeof(this));
 
         /* @NOTE: this should be used only when the child became the head so we
-         * should configure it as soon as we can so we can use it quick when 
+         * should configure it as soon as we can so we can use it quick when
          * the head is switched */
 
         MCOPY(&_Head, &thiz, sizeof(this));
@@ -551,7 +540,8 @@ Bool Monitor::Devote(UInt retry) {
   return touched;
 }
 
-ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback, UInt retry) {
+ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor *)> callback,
+                            UInt retry) {
   Monitor **pnext{&Next()}, **pcurr{None}, *claiming{None};
   ErrorCodeE result{ENoError};
   UInt timeout{0};
@@ -563,9 +553,9 @@ ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback, UInt retry)
 
   do {
     Bool ceased{False};
-    TimeSpec spec{.tv_sec=0, .tv_nsec=1};
+    TimeSpec spec{.tv_sec = 0, .tv_nsec = 1};
     ErrorCodeE error{EBadAccess};
-    
+
     if (pcurr && !claiming) {
       /* @NOTE: this case only happens when we finish claiming a new job so
        * we can close the old job here */
@@ -574,7 +564,7 @@ ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback, UInt retry)
         Bug(error, "can\'t close an unfinished job");
       } else {
         pcurr = None;
-        error = pnext? ENoError: EBadAccess;
+        error = pnext ? ENoError : EBadAccess;
       }
     } else if (first) {
       goto init;
@@ -589,14 +579,14 @@ ErrorCodeE Monitor::ForEach(Function<ErrorCodeE(Monitor*)> callback, UInt retry)
       for (timeout = 0; timeout < retry && CMP(pnext, claiming); ++timeout) {
         BARRIER();
 
-        spec.tv_nsec = (spec.tv_nsec * 2) % ulong(1e9);
+        spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
         Internal::Idle(&spec);
-      } 
-   
+      }
+
       if (timeout == retry) {
         ceased = True;
-      } 
-init:
+      }
+    init:
       error = EBadAccess;
 
       BARRIER();
@@ -611,13 +601,13 @@ init:
 
         BARRIER();
 
-        spec.tv_nsec = (spec.tv_nsec * 2) % ulong(1e9);
+        spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
         Internal::Idle(&spec);
       }
 
       if (timeout == retry) {
         ceased = True;
-      } 
+      }
 
       /* @NOTE: at the begining, we should claim the next Monitor first, so we
        * can init the flow */
@@ -636,10 +626,10 @@ init:
         pcurr = None;
       }
     }
-  
+
     if (!ceased && !error) {
       /* @NOTE: we only enter here if we have claimed successfully a new job
-       * so we will perform it on parallel while make sure that the node 
+       * so we will perform it on parallel while make sure that the node
        * can't be detached */
 
       try {
@@ -669,7 +659,7 @@ init:
       if (*pnext) {
         error = EBadAccess;
 
-        /* @NOTE: claim a new job so we could make sure that the loop can't 
+        /* @NOTE: claim a new job so we could make sure that the loop can't
          * be jump into unexpected states */
 
         for (timeout = 0; timeout < retry && (*pnext); ++timeout) {
@@ -684,7 +674,7 @@ init:
         }
 
         /* @NOTE; if we claim successfully the next job, we are in good flow
-         * where we have threads lining on the right direction. If not, we 
+         * where we have threads lining on the right direction. If not, we
          * should report that we can't claim a new job. This only happen
          * when we access the node too late and we should wait until the next
          * child emerges */
@@ -709,17 +699,17 @@ ErrorCodeE Monitor::SwitchTo(UInt state) {
     return DoNothing("switch to the same state").code();
   } else {
     return BadLogic(Format{"can\'t switch {} -> {}"}.Apply(_State, state))
-            .code();
+        .code();
   }
 
   return ENoError;
 }
 
-ErrorCodeE Monitor::Loop(Function<Bool(Monitor&)> status, Int timeout) {
+ErrorCodeE Monitor::Loop(Function<Bool(Monitor &)> status, Int timeout) {
   ErrorCodeE error = EBadAccess;
 
   do {
-    if (IsHead(_Type, dynamic_cast<Monitor*>(this))) {
+    if (IsHead(_Type, dynamic_cast<Monitor *>(this))) {
       error = _Interact(this, timeout);
     } else {
       error = _Handle(this, timeout);
@@ -730,13 +720,13 @@ ErrorCodeE Monitor::Loop(Function<Bool(Monitor&)> status, Int timeout) {
 }
 
 ErrorCodeE Monitor::Loop(UInt steps, Int timeout) {
-  return Loop([&](Monitor&) -> Bool { return (--steps) > 0; }, timeout);
+  return Loop([&](Monitor &) -> Bool { return (--steps) > 0; }, timeout);
 }
 
 Shared<Monitor> Monitor::Make(String name, UInt type) {
-  Monitor* result{None};
+  Monitor *result{None};
 
-  switch(type) {
+  switch (type) {
   case EIOSync:
     if (Internal::Fildes::Create(name, type, 0, &result)) {
       return Shared<Monitor>(result);
@@ -762,7 +752,7 @@ Shared<Monitor> Monitor::Make(String name, UInt type) {
   }
 }
 
-Bool Monitor::Sign(UInt type, Bool (*builder)(String, UInt, Monitor**)) {
+Bool Monitor::Sign(UInt type, Bool (*builder)(String, UInt, Monitor **)) {
   using namespace Base::Internal;
 
   if (type == EIOSync || type == EPipe || type == ETimer) {
@@ -770,13 +760,13 @@ Bool Monitor::Sign(UInt type, Bool (*builder)(String, UInt, Monitor**)) {
   } else if (Builders.find(type) != Builders.end()) {
     return False;
   }
-    
+
   Builders[type] = builder;
   return True;
 }
 
 Bool Monitor::IsSupport(UInt type) {
-  switch(type) {
+  switch (type) {
   case EIOSync:
   case EPipe:
     return True;
@@ -789,7 +779,7 @@ Bool Monitor::IsSupport(UInt type) {
   }
 }
 
-Bool Monitor::IsHead(UInt type, Monitor* sample) {
+Bool Monitor::IsHead(UInt type, Monitor *sample) {
   if (Internal::Monitors.find(type) == Internal::Monitors.end()) {
     return False;
   } else {
@@ -797,13 +787,12 @@ Bool Monitor::IsHead(UInt type, Monitor* sample) {
   }
 }
 
-Monitor* Monitor::Head(UInt type) {
-  Monitor* result{None};
+Monitor *Monitor::Head(UInt type) {
+  Monitor *result{None};
 
   if (Internal::Monitors.find(type) != Internal::Monitors.end()) {
-    Internal::MLocks[type].Safe([&]() {
-      result = Internal::Monitors[type].Right;
-    });
+    Internal::MLocks[type].Safe(
+        [&]() { result = Internal::Monitors[type].Right; });
   }
 
   return result;
