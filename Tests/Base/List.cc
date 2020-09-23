@@ -16,6 +16,7 @@ TEST(List, Simple) {
     EXPECT_NEQ(token0, ULong(0));
     EXPECT_NEQ(token1, ULong(0));
 
+    list.Dump();
     EXPECT_EQ(Int(list.Size()), 2);
 
     EXPECT_EQ(list.Exist(token0), 1);

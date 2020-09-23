@@ -33,9 +33,9 @@ List::List
   _Count = 0;
   _Size[0] = 0;
   _Size[1] = 0;
-  _Head[1] = Allocate(None);
-  _Head[0] = Allocate(None);
-  _Last = Allocate(None);
+  _Head[1] = Allocate(None, True);
+  _Head[0] = Allocate(None, True);
+  _Last = Allocate(None, True);
 
   /* @NOTE: since these nodes are immutable so it should be best to set their
    * index as zero to avoid accessing */
@@ -123,12 +123,12 @@ List::~List() {
    * before this method is called. Everything is handled easily by WatchStopper
    * but i can't control daemon threads since they are out of my scope */
 
-  Node *node = _Head[1]->Prev[0];
+  Node *node = _Head[1]->Prev[1];
 
   while (node != _Head[1]) {
     Node *temp{node};
 
-    node = node->Prev[0];
+    node = node->Prev[1];
     delete temp;
   }
 
@@ -187,7 +187,7 @@ Long List::Add(Void *pointer, Int retry) {
   ULong result{0};
   Long nsec{1};
 
-  node = Allocate(pointer);
+  node = Allocate(pointer, True);
 
 #if !DEV
   do {
@@ -228,7 +228,7 @@ ErrorCodeE List::Add(ULong index, Void *pointer, Int retry) {
   Node *node{None};
   Long nsec{1};
 
-  node = Allocate(pointer);
+  node = Allocate(pointer, True);
   node->Index = index;
 
 #if !DEV
@@ -376,6 +376,7 @@ Long List::Attach(Node *node, ErrorCodeE *error) {
       *error = ENoError;
     }
 
+    WRITE_ONCE(node->State, True);
     return result;
 
 #if !DEV
@@ -404,6 +405,7 @@ List::Node *List::Detach(Node *node) {
 
     WRITE_ONCE(next->PNext, pnext);
     WRITE_ONCE(prev->PPrev, pprev);
+    WRITE_ONCE(node->State, False);
   }
 
   return node;
@@ -566,7 +568,7 @@ fail:
   return None;
 }
 
-List::Node *List::Allocate(Void *pointer) {
+List::Node *List::Allocate(Void *pointer, Bool immutable) {
   Node *result = _Head[1] ? _Head[1]->Prev[1] : None;
 
   if (result) {
@@ -618,16 +620,18 @@ List::Node *List::Allocate(Void *pointer) {
    * -------------------------------------------------------------------- */
 
   if (_Head[1]) {
+    Node *last{_Head[1]->Next}, **pprev{&last->Prev[1]},
+        **pnext{_Head[1]->PNext};
+
     result->Prev[1] = _Head[1];
 
-    WRITE_ONCE(*_Head[1]->PNext, result);
+    WRITE_ONCE(_Head[1]->PNext, &result->Next);
+    WRITE_ONCE(*pnext, result);
+    WRITE_ONCE(*pprev, result);
   }
 
 finish:
-  result->Ptr = pointer;
-  result->PHead = &_Head[0];
-  result->PLast = &_Last;
-  result->Index = 0;
+  result->Reset(pointer, _Head[1] != None && !immutable);
 
   if (!_Head[1]) {
     _Head[1] = result;
@@ -639,10 +643,10 @@ finish:
     /* @NOTE: do this would make a circular queue so we can prevent from
      * touching undefined addresses */
 
-    _Head[1]->Prev[0] = _Head[1];
+    _Head[1]->Prev[1] = _Head[1];
     _Head[1]->Next = _Head[1];
 
-    _Head[1]->PPrev = &_Head[1]->Prev[0];
+    _Head[1]->PPrev = &_Head[1]->Prev[1];
     _Head[1]->PNext = &_Head[1]->Next;
   }
 

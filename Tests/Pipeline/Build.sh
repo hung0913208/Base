@@ -44,6 +44,13 @@ $(cat ./${TYPE}.txt)
 """
 		fi
 
+		if [ $TYPE = 'Debug' ]; then
+			cat > $ROOT/build/Debug/Tests/Base/gdb.cfg << EOF
+begin(body)
+thread apply all bt
+end(body)
+EOF
+		fi
 		info "Congratulation, you have passed ${SCRIPT}"
 		exit 0
 	fi
@@ -156,36 +163,26 @@ $(cat ./${TYPE}.txt)
 
 	CODE=0
 
-	# @NOTE: build with bazel
-	if which bazel &> /dev/null; then
-		if [ -f $ROOT/WORKSPACE ]; then
-			if ! bazel build ...; then
-				CODE=-1
-			elif ! bazel test --test_output=errors ...; then
-				CODE=-1
-			fi
-		fi
-	fi
+#	# @NOTE: build with bazel
+#	if which bazel &> /dev/null; then
+#		if [ -f $ROOT/WORKSPACE ]; then
+#			if ! bazel build ...; then
+#				CODE=-1
+#			elif ! bazel test --test_output=errors ...; then
+#				CODE=-1
+#			fi
+#		fi
+#	fi
+#
+#	rm -fr $ROOT/{.workspace, WORKSPACE}
 
-	if [[ ${CODE} -ne 0 ]]; then
-		# @NOTE: do this action to prevent using Builder
+	# @NOTE: build and test everything with single command only
 
-		rm -fr $ROOT/{.workspace, WORKSPACE}
-
-		# @NOTE: build and test everything with single command only
-
-		if ! $BUILDER --root $ROOT --debug 1 --rebuild 0 --mode $MODE; then
-			exit -1
-		fi
-
+	if ! $BUILDER --root $ROOT --debug 1 --rebuild 0 --mode $MODE; then
 		exit -1
-	else
-		# @NOTE: build and test everything with single command only
-
-		if ! $BUILDER --root $ROOT --debug 1 --rebuild 0 --mode 2; then
-			exit -1
-		fi
 	fi
+
+	exit $CODE
 else
 	error "Please install git first"
 fi

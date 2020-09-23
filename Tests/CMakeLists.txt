@@ -24,10 +24,9 @@ if (PYTHONLIBS_FOUND)
 endif()
 
 add_subdirectory(Base)
-add_subdirectory(Data)
-add_subdirectory(Unittest)
-
-if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT CMAKE_BUILD_TYPE STREQUAL "Profiling")
-	add_subdirectory(Wrapping)
-endif()
-
+#add_subdirectory(Data)
+#add_subdirectory(Unittest)
+#
+#if (NOT BUILD_STATIC_EXEC AND NOT CMAKE_BUILD_TYPE STREQUAL "Coverage" AND NOT CMAKE_BUILD_TYPE STREQUAL "Profiling")
+#	add_subdirectory(Wrapping)
+#endif()

@@ -50,6 +50,25 @@ public:
 #endif
   virtual ~List();
 
+  inline void Dump() {
+    Node *node = _Head[0]->Prev[0];
+    ULong t = _Size[1];
+
+    while (node && (--t > 0)) {
+      if (node == _Head[0])
+        printf("%p -> (%lu : [%p:%p]) [head]\n", node, node->Index,
+               node->Prev[0], node->Next);
+      else if (node == _Last)
+        printf("%p -> (%lu : [%p:%p]) [last]\n", node, node->Index,
+               node->Prev[0], node->Next);
+      else
+        printf("%p -> (%lu : [%p:%p) \n", node, node->Index, node->Prev[0],
+               node->Next);
+
+      node = node->Prev[0];
+    }
+  }
+
   /* @NOTE: this method is used to get the pointer of a node, base on index or
    * its position number */
   template <typename T> T *At(ULong number, Bool is_index = False) {
@@ -110,6 +129,17 @@ protected:
       State = True;
       Index = 0;
     }
+
+    void Reset(Void *pointer = None, Bool state = True) {
+      Ptr = pointer;
+      Next = None;
+      Prev[0] = None;
+      Prev[1] = None;
+      PPrev = None;
+      PNext = None;
+      State = state;
+      Index = 0;
+    }
   };
 
   /* @NOTE: this method is used to attach a node into our list, the node could
@@ -128,7 +158,7 @@ protected:
 
   /* @NOTE: this method is used to allocate a new node. By default, it should
    * use allocated nodes which are stored inside preserved queue */
-  Node *Allocate(Void *pointer);
+  Node *Allocate(Void *pointer, Bool immutable = False);
 
 private:
   static void Idle(Long nanosec);
