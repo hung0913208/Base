@@ -272,7 +272,7 @@ if [ -d "./$1" ]; then
 
 	if [ "$1" == "Debug" ] || [ "$1" == "Release" ] || [ "$1" == "Coverage" ] || [ "$1" == "Sanitize" ] || [ "$1" == "Profiling" ]; then
 		export ASAN_SYMBOLIZER_PATH=$LLVM_SYMBOLIZER
-		export LSAN_OPTIONS=verbosity=1:log_threads=1
+		#export LSAN_OPTIONS=verbosity=1:log_threads=1
 		export TSAN_OPTIONS=second_deadlock_stack=1
 
 		echo "Run directly on this environment"
@@ -351,15 +351,15 @@ NF&&f{ print s"/"$0 }'); do
 							SAVE=$IFS
 							IFS=$'\n'
 							for LINE in $(awk '/^begin\(head\)$/{flag=1;next}/^end\(head\)$/{flag=0}flag' $CONFIG); do
-								echo "-ex='${LINE//[$'\t\r\n']}' \\" >> $RUNNER	
+								echo "-ex='${LINE//[$'\t\r\n']}' \\" >> $RUNNER
 							done
 
 							echo '-ex=run \' >> $RUNNER
 
 							for LINE in $(awk '/^begin\(body\)$/{flag=1;next}/^end\(body\)$/{flag=0}flag' $CONFIG); do
-								echo "-ex='${LINE//[$'\t\r\n']}' \\" >> $RUNNER	
+								echo "-ex='${LINE//[$'\t\r\n']}' \\" >> $RUNNER
 							done
-						
+
 							IFS=$SAVE
 
 							# @NOTE: at the end, we must call quit to close our gdb session
@@ -380,7 +380,7 @@ NF&&f{ print s"/"$0 }'); do
 
 							echo "$IDX/ Test  #$IDX:  .............................   Failed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
 							echo ""
-							FAIL=1		
+							FAIL=1
 						else
 							echo "$IDX/ Test  #$IDX:  .............................   Passed ($(secs_to_human "$(($(date +%s) - ${START}))"))"
 							echo ""
@@ -405,7 +405,7 @@ NF&&f{ print s"/"$0 }'); do
 			if [[ $FAIL -ne 0 ]]; then
 				echo "------------------------------------------------------------------------------"
 				info "you suite has failed at:"
-	
+
 				for NAME in ${FAILLIST[@]}; do
 					echo "  - $NAME"
 				done
@@ -512,7 +512,7 @@ NF&&f{ print s"/"$0 }'); do
 			if ! echo "$($SU cat /proc/sys/kernel/core_pattern)" | grep "false" >& /dev/null; then
 				echo "Check coredump"
 				echo "=============================================================================="
-	
+
 				for FILE in ./$TEST/*; do
 					if [ -x "$FILE" ]; then
 						coredump $FILE

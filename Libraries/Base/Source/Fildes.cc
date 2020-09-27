@@ -1,9 +1,9 @@
-#include <Atomic.h>
 #include <Exception.h>
+#include <Lock.h>
+#include <Logcat.h>
 #include <Macro.h>
 #include <Monitor.h>
-#include <Logcat.h>
-#include <Lock.h>
+#include <Queue.h>
 #include <Vertex.h>
 
 #include <unistd.h>
@@ -19,87 +19,85 @@ using TimeSpec = struct timespec;
 
 extern "C" {
 typedef struct Pool {
-  Void* Pool;
+  Void *Pool;
   Int Status, *Referral;
 
   struct {
-    Void* Poll;
+    Void *Poll;
 
-    Int(*Append)(Void* ptr, Int socket, Int mode);
-    Int(*Modify)(Void* ptr, Int socket, Int mode);
-    Int(*Probe)(Void* ptr, Int socket, Int mode);
-    Int(*Release)(Void* ptr, Int socket);
+    Int (*Append)(Void *ptr, Int socket, Int mode);
+    Int (*Modify)(Void *ptr, Int socket, Int mode);
+    Int (*Probe)(Void *ptr, Int socket, Int mode);
+    Int (*Release)(Void *ptr, Int socket);
   } ll;
 
-  Int (*Trigger)(Void* ptr, Int socket, Bool waiting);
-  Int (*Heartbeat)(Void* ptr, Int* socket);
-  Int (*Remove)(Void* ptr, Int socket);
-  Int (*Flush)(Void* ptr, Int socket);
-  Int (*Run)(struct Pool*, Int, Int);
-  Void* (*Build)(struct Pool* pool); 
+  Int (*Trigger)(Void *ptr, Int socket, Bool waiting);
+  Int (*Heartbeat)(Void *ptr, Int *socket);
+  Int (*Remove)(Void *ptr, Int socket);
+  Int (*Flush)(Void *ptr, Int socket);
+  Int (*Run)(struct Pool *, Int, Int);
+  Void *(*Build)(struct Pool *pool);
 } Pool;
 
-enum Mode {
-  EWaiting = 0,
-  ELooping = 1,
-  ERelease = 2
-};
+enum Mode { EWaiting = 0, ELooping = 1, ERelease = 2 };
 
-typedef Int (*Handler)(Pool*, Int, Int);
+typedef Int (*Handler)(Pool *, Int, Int);
+
+Handler Select(Pool *pool);
 
 #if LINUX
-Handler EPoll(Pool* pool, Int backlog);
-Handler Poll(Pool* pool);
-Handler Select(Pool* pool);
-#elif MACOS || BSD
-Handler KQueue(Pool* pool);
-Handler Poll(Pool* pool);
-Handler Select(Pool* pool);
+Handler EPoll(Pool *pool, Int backlog);
+Handler Poll(Pool *pool);
+#elif MACOS
+Handler KQueue(Pool *pool);
+Handler Poll(Pool *pool);
 #elif WINDOW
-Handler IOStat(Pool* pool);
-Handler Select(Pool* pool);
+Handler IOStat(Pool *pool);
 #endif
 }
 
 namespace Base {
 namespace Internal {
-Mutex* CreateMutex();
+Mutex *CreateMutex();
 
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { Locker::Lock(*mutex); },
-                                  [](Mutex* mutex) { Locker::Unlock(*mutex); },
+static Vertex<Mutex, True> Secure([](Mutex *mutex) { Locker::Lock(*mutex); },
+                                  [](Mutex *mutex) { Locker::Unlock(*mutex); },
                                   CreateMutex());
-void Idle(TimeSpec* spec);
+void Idle(TimeSpec *spec);
 Bool IsPipeAlive(Int pipe);
 Bool IsPipeWaiting(Int pipe);
 ULong GetUniqueId();
 
 namespace Fildes {
-Int Trigger(Void* ptr, Int fd, Bool reading);
-Int Heartbeat(Void* ptr, Int* fd);
-Int Remove(Void* ptr, Int fd);
-Int Flush(Void* ptr, Int fd);
+Int Trigger(Void *ptr, Int fd, Bool reading);
+Int Heartbeat(Void *ptr, Int *fd);
+Int Remove(Void *ptr, Int fd);
+Int Flush(Void *ptr, Int fd);
 } // namespace Fildes
 } // namespace Internal
 
-class Fildes: public Monitor {
- public:
+class Fildes : public Monitor {
+public:
 #if LINUX
-  explicit Fildes(String name, UInt type, Int system, Int backlog = 100) :
+  explicit Fildes(String name, UInt type, Int system, Int backlog = 100)
+      :
 #else
-  explicit Fildes(String name, UInt type, Int system) :
+  explicit Fildes(String name, UInt type, Int system)
+      :
 #endif
-      Monitor(name, type), _Tid{-1} {
-    using namespace std::placeholders;  // for _1, _2, _3...
+        Monitor(name, type), _Tid{-1} {
+    using namespace std::placeholders; // for _1, _2, _3...
 
-    TimeSpec spec{.tv_sec=0, .tv_nsec=0};
+    TimeSpec spec{.tv_sec = 0, .tv_nsec = 0};
     Int max_step_to_do_devoting{1};
     Bool need_retry{True};
 
-    Vertex<void> escaping{[&]() { }, [&]() { 
-      if (SwitchTo(EStarted)) {
-        Bug(EBadLogic, "can\'t switch to EStarted"); 
-      } 
-    }};
+    Vertex<void> escaping{[&]() {},
+                          [&]() {
+                            if (SwitchTo(EStarted)) {
+                              Bug(EBadLogic, "can\'t switch to EStarted");
+                            }
+                          }};
 
     while (!Attach()) {
       spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
@@ -131,7 +129,7 @@ class Fildes: public Monitor {
       }
 
       Internal::Secure.Circle([&]() {
-        if (Head() == dynamic_cast<Monitor*>(this)) {
+        if (Head() == dynamic_cast<Monitor *>(this)) {
           switch (system) {
           case 0:
 #if LINUX
@@ -170,17 +168,17 @@ class Fildes: public Monitor {
             throw Except(EDrainMem, "can\'t allocate memory to polling system");
           }
 
-          DEBUG(Format("Register lowlevel APIs pointer={}").Apply(
-              ULong(_Pool.ll.Poll)));
-      
+          DEBUG(Format("Register lowlevel APIs pointer={}")
+                    .Apply(ULong(_Pool.ll.Poll)));
+
           if (!_Pool.Referral) {
-            _Pool.Referral = (Int*)ABI::Calloc(1, sizeof(Int));
+            _Pool.Referral = (Int *)ABI::Calloc(1, sizeof(Int));
           }
         } else {
-          Monitor* head{Head()};
+          Monitor *head{Head()};
 
           if (head && head->Context() && head->State() == EStarted) {
-            Pool* pool = (Pool*)head->Context();
+            Pool *pool = (Pool *)head->Context();
 
             _Pool.Referral = pool->Referral;
             _Pool.ll = pool->ll;
@@ -190,28 +188,27 @@ class Fildes: public Monitor {
             if (!_Pool.ll.Append || !_Pool.ll.Modify || !_Pool.ll.Probe) {
               need_retry = True;
             } else {
-              DEBUG(Format("Mitigate lowlevel with referral {}").Apply(
-                      ULong(dynamic_cast<Fildes*>(Head()))));
+              DEBUG(Format("Mitigate lowlevel with referral {}")
+                        .Apply(ULong(dynamic_cast<Fildes *>(Head()))));
             }
           } else {
-           need_retry = True;
+            need_retry = True;
           }
         }
-      
+
         if (!need_retry) {
           _Shared = &_Pool;
-          
+
           /* @NOTE: increase referral counter to prevent removing our pool
            * to soon */
           INC(_Pool.Referral);
         }
-
       });
 
       if (need_retry) {
         spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
 
-        /* @NOTE: wait the head to be activated so we can access Head's 
+        /* @NOTE: wait the head to be activated so we can access Head's
          * _Pool without locking. This is the good choice since Monitors
          * can't communicate each-other so they can't know if the head is
          * switched or not to prevent accessing None in dynamic_cast */
@@ -241,7 +238,7 @@ class Fildes: public Monitor {
   }
 
   ~Fildes() {
-    TimeSpec spec{.tv_sec=0, .tv_nsec=0};
+    TimeSpec spec{.tv_sec = 0, .tv_nsec = 0};
 
     while (!Detach()) {
       spec.tv_nsec = (spec.tv_nsec * 2) % ULong(1e9);
@@ -250,14 +247,19 @@ class Fildes: public Monitor {
     }
   }
 
- protected:
-  friend Int Internal::Fildes::Trigger(Void* ptr, Int fd, Bool reading);
-  friend Int Internal::Fildes::Heartbeat(Void* ptr, Int* fd);
-  friend Int Internal::Fildes::Remove(Void* ptr, Int fd);
-  friend Int Internal::Fildes::Flush(Void* ptr, Int fd);
+protected:
+  friend Int Internal::Fildes::Trigger(Void *ptr, Int fd, Bool reading);
+  friend Int Internal::Fildes::Heartbeat(Void *ptr, Int *fd);
+  friend Int Internal::Fildes::Remove(Void *ptr, Int fd);
+  friend Int Internal::Fildes::Flush(Void *ptr, Int fd);
 
   /* @NOTE: this function is used to register a triggering base on the event */
   ErrorCodeE _Trigger(Auto event, Monitor::Perform perform) {
+    return _Trigger(event, Allocate<Monitor::Perform>(perform));
+  }
+
+  /* @NOTE: this function is used to register a triggering base on the event */
+  ErrorCodeE _Trigger(Auto event, Monitor::Perform *perform) {
     ErrorCodeE error;
 
     if (_Type == Monitor::EPipe) {
@@ -320,15 +322,23 @@ class Fildes: public Monitor {
       } else {
         return OnLooping(socket);
       }
-    } catch(Exception& except) {
+    } catch (Exception &except) {
       return except.code();
     }
   }
 
   /* @NOTE: this function is used to enqueue callback into our pipeline, waiting
    * to be handled asynchronously */
-  ErrorCodeE _Route(Auto UNUSED(fd), Perform& UNUSED(callback)) {
-    return ENoSupport;
+  ErrorCodeE _Route(Auto UNUSED(fd), Perform &UNUSED(callback)) {
+    try {
+      if (_Pipeline.Put(Pair<Int, Perform *>(fd.Get<Int>(), &callback))) {
+        return ENoError;
+      }
+
+      return ENoSupport;
+    } catch (Exception &error) {
+      return error.code();
+    }
   }
 
   /* @NOTE: this function is used to append a new fd to polling system */
@@ -348,13 +358,13 @@ class Fildes: public Monitor {
         auto error = _Pool.ll.Append(_Pool.ll.Poll, fd.Get<Int>(), mode);
 
         if (error) {
-          return (ErrorCodeE) error;
+          return (ErrorCodeE)error;
         }
 
         _Entries[fd.Get<Int>()] = Auto{};
         return ENoError;
       }
-    } catch(Base::Exception& except) {
+    } catch (Base::Exception &except) {
       return except.code();
     }
   }
@@ -373,7 +383,7 @@ class Fildes: public Monitor {
         Int error = _Pool.ll.Modify(_Pool.ll.Poll, fd.Get<Int>(), mode);
 
         if (error) {
-          return (ErrorCodeE) error;
+          return (ErrorCodeE)error;
         }
 
         if (mode == ELooping && _Read.find(fd.Get<Int>()) != _Read.end()) {
@@ -386,11 +396,11 @@ class Fildes: public Monitor {
           _Write.erase(fd.Get<Int>());
         }
 
-        return (ErrorCodeE) error;
+        return (ErrorCodeE)error;
       } else {
         return ENoSupport;
       }
-    } catch(Base::Exception& except) {
+    } catch (Base::Exception &except) {
       return except.code();
     }
   }
@@ -403,7 +413,7 @@ class Fildes: public Monitor {
       }
 
       return ENoError;
-    } catch(Base::Exception& except) {
+    } catch (Base::Exception &except) {
       return except.code();
     }
   }
@@ -418,7 +428,7 @@ class Fildes: public Monitor {
       _Write.erase(fd.Get<Int>());
 
       return ENoError;
-    } catch(Base::Exception& except) {
+    } catch (Base::Exception &except) {
       return except.code();
     }
   }
@@ -445,7 +455,7 @@ class Fildes: public Monitor {
        * in a short pan and catch an event to process we found it. Using
        * it with timeout will help you to avoid hanging issues. */
 
-      return _Tid >= 0? EInterrupted: ENoError;
+      return _Tid >= 0 ? EInterrupted : ENoError;
     } else if (name == "running") {
       /* @NOTE: state running would mean that we must has run on different
        * thread and we don't request this status inside triggered callbacks.
@@ -453,8 +463,8 @@ class Fildes: public Monitor {
        * it must stuck to wait events from another fd thue, if you're able
        * to call this method, it would mean HEAD are running recently */
 
-      if ((Long)Internal::GetUniqueId() !=_Tid) {
-        return _Tid >= 0? ENoError: EInterrupted;
+      if ((Long)Internal::GetUniqueId() != _Tid) {
+        return _Tid >= 0 ? ENoError : EInterrupted;
       } else {
         /* @NOTE: there are 2 way to run to this situation:
          * - You're running on Interrupted mode
@@ -472,14 +482,14 @@ class Fildes: public Monitor {
       } else {
         ErrorCodeE result{ENoError};
 
-        ForEach([&](Monitor* next) -> ErrorCodeE {
-          if (dynamic_cast<Fildes*>(next)->_Entries.size() > 0) {
+        ForEach([&](Monitor *next) -> ErrorCodeE {
+          if (dynamic_cast<Fildes *>(next)->_Entries.size() > 0) {
             result = EInterrupted;
           }
 
           return result;
         });
- 
+
         return result;
       }
     }
@@ -488,7 +498,7 @@ class Fildes: public Monitor {
   }
 
   /* @NOTE: access context of each fd */
-  Auto& _Access(Auto fd) {
+  Auto &_Access(Auto fd) {
     if (_Find(fd)) {
       throw Except(ENotFound, ToString(fd.Get<Int>()));
     }
@@ -497,23 +507,23 @@ class Fildes: public Monitor {
   }
 
   /* @NOTE: this method is used to interact with lowlevel */
-  ErrorCodeE _Interact(Monitor* child, Int timeout, Int backlog = 100) final {
-    Fildes* fildes = dynamic_cast<Fildes*>(child);
+  ErrorCodeE _Interact(Monitor *child, Int timeout, Int backlog = 100) final {
+    Fildes *fildes = dynamic_cast<Fildes *>(child);
 
     if (!fildes) {
       return BadLogic("child should be Fildes").code();
     }
 
     if (fildes->_Tid < 0) {
-      Vertex<void> escaping{[&](){ fildes->_Tid = Internal::GetUniqueId(); },
-                            [&](){ fildes->_Tid = -1; }};
+      Vertex<void> escaping{[&]() { fildes->_Tid = Internal::GetUniqueId(); },
+                            [&]() { fildes->_Tid = -1; }};
 
       if (fildes->_Pool.Status == PANICING) {
         if ((fildes->_Pool.ll.Poll = fildes->_Pool.Build(&fildes->_Pool))) {
           fildes->_Pool.Status = IDLE;
         }
       }
-      
+
       if (fildes->_Pool.Status == RELEASING) {
         return EDoNothing;
       } else if (timeout < 0) {
@@ -528,21 +538,33 @@ class Fildes: public Monitor {
         }
       }
 
-      return (ErrorCodeE) fildes->_Pool.Run(&fildes->_Pool, timeout, backlog);
+      return (ErrorCodeE)fildes->_Pool.Run(&fildes->_Pool, timeout, backlog);
     } else {
       return BadAccess("Monitor is still on  initing").code();
     }
   }
 
-  ErrorCodeE _Handle(Monitor* UNUSED(child), Int UNUSED(timeout),
+  ErrorCodeE _Handle(Monitor *UNUSED(child), Int timeout,
                      Int UNUSED(backlog) = 100) final {
-    return ENoSupport;
+    Pair<Int, Perform *> job{};
+    ULong token{_Pipeline.Get(job, timeout)};
+    ErrorCodeE result{EDoAgain};
+
+    if (token > 0) {
+      result = (*job.Right)(Auto::As(job.Left), _Entries[job.Left]);
+
+      if (!_Pipeline.Done(token)) {
+        return EBadLogic;
+      }
+    }
+
+    return result;
   }
 
- private:
-  Bool IsIdle(Monitor** next) {
+private:
+  Bool IsIdle(Monitor **next) {
     if (next) {
-      *next = Next();    
+      *next = Next();
     }
 
     if (_Entries.size() > 0) {
@@ -552,19 +574,17 @@ class Fildes: public Monitor {
     }
   }
 
-  Int IsWaiting(Int socket) {
-    return _Read.find(socket) != _Read.end();
-  }
+  Int IsWaiting(Int socket) { return _Read.find(socket) != _Read.end(); }
 
   /* @NOTE: this method is called automatically to check if the event should be
    * going on or not. By default, i think we should accept everything since the
    * flow has been handle very good to prevent */
-  ErrorCodeE OnChecking(Auto fd, Auto& UNUSED(context), Int mode) {
+  ErrorCodeE OnChecking(Auto fd, Auto &UNUSED(context), Int mode) {
     auto sk = fd.Get<Int>();
 
     DEBUG(Format{"checking event {} of fd {}"}.Apply(mode, fd.Get<Int>()));
 
-    switch(mode) {
+    switch (mode) {
     case EWaiting:
       if (_Read.find(sk) != _Read.end()) {
         return ENoError;
@@ -585,15 +605,16 @@ class Fildes: public Monitor {
   }
 
   /* @NOTE: this method is called automatically after passing the checking step,
-   * it would use to pick handling callback which help to solve the specific events
+   * it would use to pick handling callback which help to solve the specific
+   * events
    */
-  Perform* OnSelecting(Auto& fd, Int mode) {
-    return &(mode == EWaiting? _Read[fd.Get<Int>()]: _Write[fd.Get<Int>()]);
+  Perform *OnSelecting(Auto &fd, Int mode) {
+    return mode == EWaiting ? _Read[fd.Get<Int>()] : _Write[fd.Get<Int>()];
   }
 
   /* @NOTE: this method is used to collect jobs appear at mode waiting */
   ErrorCodeE OnWaiting(Int socket) {
-    Vector<Pair<Monitor*, Monitor::Perform*>> jobs{};
+    Vector<Pair<Monitor *, Monitor::Perform *>> jobs{};
     Bool passed{False};
     Auto fd{Auto::As<Int>(socket)};
 
@@ -601,13 +622,16 @@ class Fildes: public Monitor {
     if (!_Find(fd)) {
       ErrorCodeE error;
 
-      if ((error = Scan(fd, EWaiting, jobs)) &&
-           error != ENotFound) {
+      if ((error = Scan(fd, EWaiting, jobs)) && error != ENotFound) {
         return error;
       }
 
-      for (auto& job: jobs) {
-        if ((error = Reroute(job.Left, fd, *job.Right))) {
+      for (auto &job : jobs) {
+        Fildes *picked = Pick();
+
+        if (!picked) {
+          return (*job.Right)(Auto::As(socket), _Entries[socket]);
+        } else if ((error = picked->Reroute(job.Left, fd, *job.Right))) {
           if (error == ENoSupport) {
             return (*job.Right)(Auto::As(socket), _Entries[socket]);
           } else {
@@ -619,13 +643,13 @@ class Fildes: public Monitor {
       return ENoError;
     }
 
-    return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
+    return passed ? ENoError : NotFound(Format{"fd {}"} << socket).code();
   }
 
   /* @NOTE: this function is called by callback Trigger when the fd is on the
    * Looping events */
   ErrorCodeE OnLooping(Int socket) {
-    Vector<Pair<Monitor*, Monitor::Perform*>> jobs{};
+    Vector<Pair<Monitor *, Monitor::Perform *>> jobs{};
     Bool passed{False};
     Auto fd{Auto::As<Int>(socket)};
 
@@ -639,31 +663,40 @@ class Fildes: public Monitor {
         passed = True;
       }
 
-      for (auto& job: jobs) {
-        if ((error = Reroute(this, fd, *job.Right))) {
-          return error;
+      for (auto &job : jobs) {
+        Fildes *picked = Pick();
+
+        if (!picked) {
+          return (*job.Right)(Auto::As(socket), _Entries[socket]);
+        } else if ((error = picked->Reroute(this, fd, *job.Right))) {
+          if (error == ENoSupport) {
+            return (*job.Right)(Auto::As(socket), _Entries[socket]);
+          } else {
+            return error;
+          }
         }
       }
     }
 
-    return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
+    return passed ? ENoError : NotFound(Format{"fd {}"} << socket).code();
   }
 
-  Void _Flush() final { }
+  Void _Flush() final {}
 
   Bool _Clean() final {
     if (!DEC(_Pool.Referral)) {
       ABI::Free(_Pool.Referral);
-      DEBUG(Format("Release lowlevel APIs pointer={}").Apply(ULong(_Pool.ll.Poll)));
+      DEBUG(Format("Release lowlevel APIs pointer={}")
+                .Apply(ULong(_Pool.ll.Poll)));
 
       if (_Pool.ll.Poll) {
         if (_Pool.ll.Release) {
           if (_Pool.ll.Release(&_Pool, -1)) {
             WARNING << "It seems the lowlevel poll can't release itself. "
-                        "It may cause memory leak it some point and we can't "
-                        "control it propertly"
+                       "It may cause memory leak it some point and we can't "
+                       "control it propertly"
                     << Base::EOL;
-            }
+          }
         }
 
         if (_Pool.ll.Poll) {
@@ -675,6 +708,15 @@ class Fildes: public Monitor {
     return True;
   }
 
+  Fildes *Pick() {
+    /* @TODO: consider about how to implement a fair scheduling algorthim
+     * so we could detect exactly which child should be apointed to handle
+     * this job. With that we could at least build a balanced system to deal
+     * with multi-core systems */
+
+    return None;
+  }
+
   ErrorCodeE OnRemoving(Int socket) {
     Auto fd{Auto::As<Int>(socket)};
     Bool passed{False};
@@ -683,9 +725,9 @@ class Fildes: public Monitor {
       _Entries.erase(socket);
     }
 
-    ForEach([&](Monitor* next) -> ErrorCodeE {
+    ForEach([&](Monitor *next) -> ErrorCodeE {
       /* @NOTE: we only enter here if we have claimed successfully a new job
-       * so we will perform it on parallel while make sure that the node 
+       * so we will perform it on parallel while make sure that the node
        * can't be detached */
 
       if (!next->Find(fd)) {
@@ -697,18 +739,19 @@ class Fildes: public Monitor {
       return ENoError;
     });
 
-    return passed? ENoError: NotFound(Format{"fd {}"} << socket).code();
+    return passed ? ENoError : NotFound(Format{"fd {}"} << socket).code();
   }
 
   Map<Int, Auto> _Entries;
-  Map<Int, Perform> _Read, _Write;
+  Map<Int, Perform *> _Read, _Write;
+  Queue<Pair<Int, Perform *>> _Pipeline;
   Long _Tid;
   Pool _Pool;
 };
 
 namespace Internal {
 namespace Fildes {
-Bool Create(String name, UInt type, Int system, Monitor** result){
+Bool Create(String name, UInt type, Int system, Monitor **result) {
   if (system < 2 && result) {
     (*result) = new Base::Fildes(name, type, system);
 
@@ -723,27 +766,27 @@ Bool Create(String name, UInt type, Int system, Monitor** result){
   }
 }
 
-Int Trigger(Void* ptr, Int fd, Bool waiting) {
-  Pool* pool = reinterpret_cast<Pool*>(ptr);
+Int Trigger(Void *ptr, Int fd, Bool waiting) {
+  Pool *pool = reinterpret_cast<Pool *>(ptr);
 
   if (pool) {
     if (waiting) {
-      return (Int)(reinterpret_cast<class Fildes*>(pool->Pool))->OnWaiting(fd);
+      return (Int)(reinterpret_cast<class Fildes *>(pool->Pool))->OnWaiting(fd);
     } else {
-      return (Int)(reinterpret_cast<class Fildes*>(pool->Pool))->OnLooping(fd);
+      return (Int)(reinterpret_cast<class Fildes *>(pool->Pool))->OnLooping(fd);
     }
   } else {
     return (Int)BadAccess("ptr is None").code();
   }
 }
 
-Int Heartbeat(Void* ptr, Int* socket) {
-  Pool* pool = reinterpret_cast<Pool*>(ptr);
+Int Heartbeat(Void *ptr, Int *socket) {
+  Pool *pool = reinterpret_cast<Pool *>(ptr);
 
   if (pool) {
     if (*socket > 0) {
-      return (Int)(reinterpret_cast<class Fildes*>(pool->Pool))
-        ->Heartbeat(Auto::As<Int>(*socket));
+      return (Int)(reinterpret_cast<class Fildes *>(pool->Pool))
+          ->Heartbeat(Auto::As<Int>(*socket));
     } else {
       return ENoError;
     }
@@ -752,21 +795,21 @@ Int Heartbeat(Void* ptr, Int* socket) {
   }
 }
 
-Int Remove(Void* ptr, Int fd) {
-  Pool* pool = reinterpret_cast<Pool*>(ptr);
+Int Remove(Void *ptr, Int fd) {
+  Pool *pool = reinterpret_cast<Pool *>(ptr);
 
   if (pool) {
-    return (reinterpret_cast<class Fildes*>(pool->Pool))->OnRemoving(fd);
+    return (reinterpret_cast<class Fildes *>(pool->Pool))->OnRemoving(fd);
   } else {
     return (Int)BadAccess("ptr is None").code();
   }
 }
 
-Int Flush(Void* ptr, Int fd) {
-  Pool* pool = reinterpret_cast<Pool*>(ptr);
+Int Flush(Void *ptr, Int fd) {
+  Pool *pool = reinterpret_cast<Pool *>(ptr);
 
   if (pool) {
-    auto fildes = (reinterpret_cast<class Fildes*>(pool->Pool));
+    auto fildes = (reinterpret_cast<class Fildes *>(pool->Pool));
 
     if (pool->ll.Probe) {
       if (pool->ll.Probe(pool->ll.Poll, fd, EWaiting) > 0) {

@@ -1,13 +1,14 @@
 #include <Graph.h>
+#include <Queue.h>
 #include <Vertex.h>
 
-namespace Base{
-Graph::~Graph() { }
+namespace Base {
+Graph::~Graph() {}
 
-Vector<Weak<Rule>>& Graph::Ready() { return _Ready; }
+Vector<Weak<Rule>> &Graph::Ready() { return _Ready; }
 
-Bool Graph::IsExist(Shared<Rule>&& rule) {
-  for (auto& item: _Rules) {
+Bool Graph::IsExist(Shared<Rule> &&rule) {
+  for (auto &item : _Rules) {
     if (std::get<1>(item) == rule) {
       return True;
     }
@@ -16,12 +17,10 @@ Bool Graph::IsExist(Shared<Rule>&& rule) {
   return False;
 }
 
-Bool Graph::IsExist(Shared<Rule>& rule) {
-  return IsExist(std::move(rule));
-}
+Bool Graph::IsExist(Shared<Rule> &rule) { return IsExist(std::move(rule)); }
 
-Bool Graph::Assign(Shared<Rule>&& rule, Vector<String>&& dependencies) {
-  Vertex<void> escaping{[&](){ Lock(); }, [&](){ Unlock(); }};
+Bool Graph::Assign(Shared<Rule> &&rule, Vector<String> &&dependencies) {
+  Vertex<void> escaping{[&]() { Lock(); }, [&]() { Unlock(); }};
   UInt count_on_planing{0};
 
   if (_Rules.find(rule->Name()) != _Rules.end()) {
@@ -31,7 +30,7 @@ Bool Graph::Assign(Shared<Rule>&& rule, Vector<String>&& dependencies) {
   }
 
   /* @NOTE: check status of rule's dependencies */
-  for (auto& depend_by: dependencies) {
+  for (auto &depend_by : dependencies) {
     /* @NOTE: sometime, dependency will be apply before its definition
      * so we build an anonymous rule */
 
@@ -56,24 +55,23 @@ Bool Graph::Assign(Shared<Rule>&& rule, Vector<String>&& dependencies) {
   return True;
 }
 
-Bool Graph::Assign(Shared<Rule>&& rule) {
+Bool Graph::Assign(Shared<Rule> &&rule) {
   return Assign(RValue(rule), Vector<String>{});
 }
 
-Bool Graph::Assign(Shared<Rule>& rule, Vector<String>&& dependencies){
+Bool Graph::Assign(Shared<Rule> &rule, Vector<String> &&dependencies) {
   return Assign(std::move(rule), RValue(dependencies));
 }
 
-Bool Graph::Assign(Shared<Rule>& rule){
-  return Assign(std::move(rule));
-}
+Bool Graph::Assign(Shared<Rule> &rule) { return Assign(std::move(rule)); }
 
 Bool Graph::Done(Weak<Rule> pointer) {
-  Vertex<void> escaping{[&](){ Lock(); }, [&](){ Unlock(); }};
+  Vertex<void> escaping{[&]() { Lock(); }, [&]() { Unlock(); }};
   Shared<Rule> rule = pointer.lock();
 
   /* @NOTE: check if the rule has been removed by another threads or not */
-  if (!rule) return False;
+  if (!rule)
+    return False;
 
   /* @NOTE: remove this rule now, at the time when rule has been decline out
    * of Graph, it will update automatically the graph status */
@@ -89,22 +87,22 @@ void Graph::Unlock(Bool all) {
   if (all) {
     /* @NOTE: unlock existence rules */
 
-    for (auto& item: _Rules) {
+    for (auto &item : _Rules) {
       std::get<1>(item)->Lock() = False;
     }
   }
   _Lock();
 }
 
-Int* Graph::Stage(Graph& graph, Shared<Rule> rule) {
+Int *Graph::Stage(Graph &graph, Shared<Rule> rule) {
   if (!graph.IsExist(RValue(rule))) {
     return None;
   } else {
-    return (Int*)&(rule->_Stage);
+    return (Int *)&(rule->_Stage);
   }
 }
 
-Int* Graph::PlanId(Graph& graph, Shared<Rule> rule) {
+Int *Graph::PlanId(Graph &graph, Shared<Rule> rule) {
   if (!graph.IsExist(rule)) {
     return None;
   } else {
@@ -112,7 +110,7 @@ Int* Graph::PlanId(Graph& graph, Shared<Rule> rule) {
   }
 }
 
-Vector<Shared<Rule>>* Graph::Up(Graph& graph, Shared<Rule> rule) {
+Vector<Shared<Rule>> *Graph::Up(Graph &graph, Shared<Rule> rule) {
   if (!graph.IsExist(rule)) {
     return None;
   } else {
@@ -120,7 +118,7 @@ Vector<Shared<Rule>>* Graph::Up(Graph& graph, Shared<Rule> rule) {
   }
 }
 
-Vector<Shared<Rule>>* Graph::Down(Graph& graph, Shared<Rule> rule) {
+Vector<Shared<Rule>> *Graph::Down(Graph &graph, Shared<Rule> rule) {
   if (!graph.IsExist(rule)) {
     return None;
   } else {
@@ -128,13 +126,12 @@ Vector<Shared<Rule>>* Graph::Down(Graph& graph, Shared<Rule> rule) {
   }
 }
 
-Bool Graph::IsInf(Graph& graph, Shared<Rule>& rule) {
+Bool Graph::IsInf(Graph &graph, Shared<Rule> &rule) {
 #if USE_FINITE_GRAPH_CHECK
   UInt current_possition = 0, current_margin = 1, next_margin = 1, layer = 0;
 #endif
-  Vertex<void> escaping{[&](){ graph.Lock(); },
-                        [&](){ graph.Unlock(True); }};
-  Queue<Shared<Rule>> checking{};
+  Vertex<void> escaping{[&]() { graph.Lock(); }, [&]() { graph.Unlock(True); }};
+  std::queue<Shared<Rule>> checking{};
 
   /* @NOTE: lock the first node before doing anything */
   rule->Lock = True;
@@ -153,7 +150,7 @@ Bool Graph::IsInf(Graph& graph, Shared<Rule>& rule) {
     }
 
     /* @NOTE: check and push node to queue to wait checking */
-    for (auto& node: *flow) {
+    for (auto &node : *flow) {
       if (!node->Lock()) {
         return True;
       } else {

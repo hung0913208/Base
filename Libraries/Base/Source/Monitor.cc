@@ -87,10 +87,10 @@ ErrorCodeE Monitor::Notify(Auto from, Auto to, Perform perform) {
 }
 
 ErrorCodeE Monitor::Notify(Auto from, Auto to) {
-  return Trigger(from, 
-   [&](Auto UNUSED(fd), Auto& UNUSED(context)) -> ErrorCodeE {
-      return Raise(to);
-    });
+  return Trigger(from,
+                 [&](Auto UNUSED(fd), Auto &UNUSED(context)) -> ErrorCodeE {
+                   return Raise(to);
+                 });
 }
 
 ErrorCodeE Monitor::Raise(Auto event, UInt retry) {
@@ -121,10 +121,10 @@ ErrorCodeE Monitor::Raise(Auto event, UInt retry) {
 
       touched = True;
 
-unlock:
+    unlock:
       CMPXCHG(plock, this, None);
     }
-    
+
     if (touched) {
       break;
     } else {
@@ -146,6 +146,15 @@ unlock:
 }
 
 ErrorCodeE Monitor::Trigger(Auto event, Perform perform) {
+  using namespace Internal;
+  /* @NOTE: this method should be called by user to register a new
+   * event-callback, the event will be determined by monitor itself and can
+   * be perform automatically with the load-balancing system */
+
+  return _Trigger(event, perform);
+}
+
+ErrorCodeE Monitor::Trigger(Auto event, Perform *perform) {
   using namespace Internal;
   /* @NOTE: this method should be called by user to register a new
    * event-callback, the event will be determined by monitor itself and can

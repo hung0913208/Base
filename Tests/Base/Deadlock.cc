@@ -11,7 +11,7 @@ void DumpWatch(String parameter);
 } // namespace Base
 
 #define NUM_OF_THREAD 1000
-TEST(DeadLock, TestLocker){
+TEST(DeadLock, TestLocker) {
   auto perform = [&]() {
     Mutex mutex;
     EXPECT_FALSE(MUTEX(&mutex));
@@ -131,7 +131,7 @@ TEST(DeadLock, ReuseStopper2) {
   CRASHDUMP({
     Base::Debug::DumpWatch("Stucks");
     Base::Debug::DumpWatch("Counters");
-    Base::Debug::DumpWatch( "Stucs.Unlock");
+    Base::Debug::DumpWatch("Stucs.Unlock");
   });
 
   FINISHDUMP({
@@ -192,9 +192,7 @@ TEST(DeadLock, ReuseStopper3) {
       });
     }
 
-    IGNORE({
-      EXPECT_FALSE(lock);
-    });
+    IGNORE({ EXPECT_FALSE(lock); });
   });
 
   EXPECT_EQ(counter, NUM_OF_THREAD);
@@ -223,7 +221,7 @@ TEST(DeadLock, ReuseStopper4) {
      * its status and the UI-Thread is stuck when these threads join */
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       auto done = threads[i].Start([i, locks, &counter]() {
-        usleep(rand()%100 + 1);
+        usleep(rand() % 100 + 1);
         (locks[i])();
         INC(&counter);
       });
@@ -292,7 +290,7 @@ TEST(DeadLock, ReuseStopper5) {
      * its status and the UI-Thread is stuck when these threads join */
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([i, locks, &counter]() {
-        usleep(rand()%100 + 1);
+        usleep(rand() % 100 + 1);
         locks[i](True);
         INC(&counter);
       });
@@ -310,7 +308,7 @@ TEST(DeadLock, ReuseStopper6) {
   CRASHDUMP({
     Base::Debug::DumpWatch("Stucks");
     Base::Debug::DumpWatch("Counters");
-    Base::Debug::DumpWatch( "Stucs.Unlock");
+    Base::Debug::DumpWatch("Stucs.Unlock");
   });
 
   FINISHDUMP({
@@ -329,7 +327,7 @@ TEST(DeadLock, ReuseStopper6) {
      * its status and the UI-Thread is stuck when these threads join */
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([&counter, lock]() {
-        usleep(rand()%100 + 1);
+        usleep(rand() % 100 + 1);
         lock();
         INC(&counter);
       });
@@ -367,15 +365,13 @@ TEST(DeadLock, ReuseStopper7) {
 
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([lock, &counter]() {
-        usleep(rand()%100 + 1);
+        usleep(rand() % 100 + 1);
         lock(True);
         INC(&counter);
       });
     }
 
-    IGNORE({
-      EXPECT_FALSE(lock);
-    });
+    IGNORE({ EXPECT_FALSE(lock); });
   });
 
   EXPECT_EQ(counter, NUM_OF_THREAD);
@@ -416,10 +412,12 @@ TEST(DeadLock, ReuseStopper8) {
     /* @NOTE: the problem is very simple, we use a locked lock without checking
      * its status and the UI-Thread is stuck when these threads join */
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start<Base::Lock*>([&counter](Base::Lock* lock) {
-        (*lock)(True);
-        INC(&counter);
-      }, &locks[i]);
+      threads[i].Start<Base::Lock *>(
+          [&counter](Base::Lock *lock) {
+            (*lock)(True);
+            INC(&counter);
+          },
+          &locks[i]);
     }
   });
 
@@ -448,45 +446,45 @@ TEST(DeadLock, WaitUntilEnd) {
     Vector<String> requests{};
 
     /* @NOTE: these parameters are used as features of a class */
-    Queue<String> queue{};
+    std::queue<String> queue{};
     Bool abandon{False};
 
     /* @NOTE: the problem happens when we have many threads run on parallel and
      * a queue will work as a load balancing. On UI-Thread we set */
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
-      threads[i].Start([&queue, &wait_colaboratory, &wait_new_job, &fetching, &abandon]() {
+      threads[i].Start(
+          [&queue, &wait_colaboratory, &wait_new_job, &fetching, &abandon]() {
+            /* @NOTE: wait until their colaboraters show up */
+            wait_colaboratory.Wait([]() -> Bool { return True; });
 
-        /* @NOTE: wait until their colaboraters show up */
-        wait_colaboratory.Wait([]() -> Bool { return True; });
+            /* @TODO: receive jobs and perform them from top to down
+             * respectively */
+            while (!abandon && queue.size() > 0) {
+              String job;
 
-        /* @TODO: receive jobs and perform them from top to down respectively */
-        while (!abandon && queue.size() > 0) {
-          String job;
+              /* @NOTE: wait if we are jobless to save resource */
+              wait_new_job.Wait([&]() -> Bool { return queue.size() == 0; });
 
-          /* @NOTE: wait if we are jobless to save resource */
-          wait_new_job.Wait([&]() -> Bool { return queue.size() == 0; });
+              /* @NOTE: receive a new job */
+              fetching.Safe([&]() {
+                if (queue.size()) {
+                  job = queue.back();
+                  queue.pop();
+                }
+              });
 
-          /* @NOTE: receive a new job */
-          fetching.Safe([&]() {
-            if (queue.size()) {
-              job = queue.back();
-              queue.pop();
+              /* @TODO: do it right now */
             }
           });
-
-          /* @TODO: do it right now */
-        }
-      });
     }
 
     /* @TODO: push several task from UI-Thread to Co-Workers */
-    for (auto job : requests){}
+    for (auto job : requests) {
+    }
 
     /* @TODO: send a request abandone to the whole system */
     abandon = True;
   });
 }
 
-int main() {
-  return RUN_ALL_TESTS();
-}
+int main() { return RUN_ALL_TESTS(); }

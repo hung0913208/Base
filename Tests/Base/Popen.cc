@@ -283,6 +283,25 @@ TEST(Popen, Threads) {
                                 []() { Base::Log::Enable(EError, -1); }};
     Base::Thread threads[NUM_OF_THREAD];
 
+    Function<ErrorCodeE(Auto, Auto &)> proc{
+        [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
+          while (True) {
+            Char buf[512];
+            UInt len = read(fd.Get<Int>(), buf, 512);
+
+            DEBUG(Format{"receive {} bytes"}.Apply(len));
+
+            if (len <= 0) {
+              INC(&count_of_reading_fork);
+              break;
+            }
+
+            buf[len] = '\0';
+          }
+
+          return ENoError;
+        }};
+
     for (auto i = 0; i < NUM_OF_THREAD; ++i) {
       threads[i].Start([&]() {
         Shared<Monitor> monitor{Monitor::Make("simple", Monitor::EPipe)};
@@ -293,29 +312,11 @@ TEST(Popen, Threads) {
           return -1;
         }};
 
-        monitor->Trigger(Auto::As(fork),
-                         [&](Auto fd, Auto &UNUSED(content)) -> ErrorCodeE {
-                           while (True) {
-                             Char buf[512];
-                             UInt len = read(fd.Get<Int>(), buf, 512);
-
-                             DEBUG(Format{"receive {} bytes"}.Apply(len));
-
-                             if (len <= 0) {
-                               break;
-                             }
-
-                             buf[len] = '\0';
-                           }
-
-                           return ENoError;
-                         });
+        monitor->Trigger(Auto::As(fork), &proc);
 
         EXPECT_EQ(monitor->Loop(
                       [&](Monitor &) -> Bool { return fork.Status() >= 0; }),
                   ENoError);
-
-        INC(&count_of_reading_fork);
       });
     }
   };
@@ -333,7 +334,7 @@ TEST(Popen, Threads) {
   });
 
   TIMEOUT(100, { perform(); });
-  // EXPECT_EQ(count_of_reading_fork, NUM_OF_THREAD);
+  IGNORE({ EXPECT_EQ(count_of_reading_fork, NUM_OF_THREAD); });
 }
 
 int main() {

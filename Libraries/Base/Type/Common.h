@@ -1,10 +1,10 @@
 #ifndef BASE_TYPE_COMMON_H_
 #define BASE_TYPE_COMMON_H_
 #include <Macro.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <errno.h>
 
 enum ErrorCodeE {
   ENoError = 0,
@@ -40,38 +40,38 @@ typedef bool Bool;
 #define None NULL
 #endif
 
-#define CString char*
+#define CString char *
 #define Void void
 #define Byte int8_t
-#define Bytes int8_t*
+#define Bytes int8_t *
 #define Word int16_t
-#define Words int16_t*
+#define Words int16_t *
 #define DWord int32_t
-#define DWords int32_t*
+#define DWords int32_t *
 #define LWord int64_t
-#define LWords int64_t*
+#define LWords int64_t *
 
 typedef char Char;
 typedef int Int;
-typedef int* Ints;
+typedef int *Ints;
 typedef short Short;
-typedef short* Shorts;
+typedef short *Shorts;
 typedef unsigned short UShort;
-typedef unsigned short* UShorts;
+typedef unsigned short *UShorts;
 typedef unsigned int UInt;
-typedef unsigned int* UInts;
+typedef unsigned int *UInts;
 typedef long Long;
-typedef long* Longs;
+typedef long *Longs;
 typedef long LLong;
-typedef long* LLongs;
+typedef long *LLongs;
 typedef unsigned long ULong;
-typedef unsigned long* ULongs;
+typedef unsigned long *ULongs;
 typedef unsigned long long ULLong;
-typedef unsigned long long* ULLongs;
+typedef unsigned long long *ULLongs;
 typedef float Float;
-typedef float* Floats;
+typedef float *Floats;
 typedef double Double;
-typedef double* Doubles;
+typedef double *Doubles;
 
 #define LIKELY(x, y) ((x) == (y))
 #define UNLIKELY(x, y) ((x) != (y))
@@ -84,26 +84,27 @@ typedef pthread_cond_t Checker;
 #define LOCK(mutex) pthread_mutex_lock(mutex)
 #define UNLOCK(mutex) pthread_mutex_unlock(mutex)
 #define TRYLOCK(mutex) pthread_mutex_trylock(mutex)
-#define WAIT(mutex)   \
-  {                   \
-    TRYLOCK(mutex);   \
-    LOCK(mutex);      \
+#define WAIT(mutex)                                                            \
+  {                                                                            \
+    TRYLOCK(mutex);                                                            \
+    LOCK(mutex);                                                               \
   }
 
 #if __cplusplus
 #define ISLOCKED(mutex) Base::Locker::IsLocked(mutex)
 #else
-# define ISLOCKED(mutex) IsLocked(mutex)
+#define ISLOCKED(mutex) IsLocked(mutex)
 #endif
 
 #if !__cplusplus
-static Bool IsLocked(Mutex* mutex) {
+static Bool IsLocked(Mutex *mutex) {
 #if USE_SPINLOCK
   Bool is_locked = (Bool)(ISLOCKED(mutex));
 #else
   Bool is_locked = (Bool)pthread_mutex_trylock(mutex);
 
-  if (!is_locked) pthread_mutex_unlock(mutex);
+  if (!is_locked)
+    pthread_mutex_unlock(mutex);
 #endif
   return is_locked;
 }
@@ -112,13 +113,13 @@ static Bool IsLocked(Mutex* mutex) {
 #if __cplusplus
 namespace Base {
 namespace Locker {
-Bool IsLocked(Mutex* mutex);
-Bool IsLocked(Mutex& mutex);
+Bool IsLocked(Mutex *mutex);
+Bool IsLocked(Mutex &mutex);
 } // namespace Locker
 } // namespace Base
 #endif
 
-#if LINUX
+#if UNIX
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -148,4 +149,4 @@ ULong GetUUID() {
 #else
 #define GetUUID pthread_self
 #endif
-#endif  // BASE_TYPE_COMMON_H_
+#endif // BASE_TYPE_COMMON_H_
