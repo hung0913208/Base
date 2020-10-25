@@ -360,13 +360,7 @@ template <> Int ToInt<UInt>(UInt value) { return value; }
 
 template <> Int ToInt<Int>(Int value) { return value; }
 
-template <> Int ToInt<String>(String value) {
-#if defined(BASE_TYPE_STRING_H_)
-  return atoi(value.data());
-#else
-  return std::stoi(value);
-#endif
-}
+template <> Int ToInt<String>(String value) { return std::stoi(value); }
 
 template <> Int ToInt<CString>(CString value) { return atoi(value); }
 
@@ -374,13 +368,7 @@ template <> Float ToFloat<UInt>(UInt value) { return value; }
 
 template <> Float ToFloat<Int>(Int value) { return value; }
 
-template <> Float ToFloat<String>(String value) {
-#if defined(BASE_TYPE_STRING_H_)
-  return atof(value.data());
-#else
-  return std::stof(value);
-#endif
-}
+template <> Float ToFloat<String>(String value) { return std::stof(value); }
 
 template <> Float ToFloat<CString>(CString value) { return atof(value); }
 namespace Locker {} // namespace Locker
@@ -446,110 +434,6 @@ Int PID() {
   return -1;
 #endif
 }
-
-#if defined(BASE_TYPE_STRING_H_)
-template <> String ToString<Char>(Char value) { return String{1, value}; }
-
-template <> String ToString<Bool>(Bool value) {
-  return String{value ? "True" : "False"};
-}
-
-#define BUILD_USIGN_ToString(Type)                                             \
-  template <> String ToString<Type>(Type value) {                              \
-    String result{};                                                           \
-                                                                               \
-    while (value != 0) {                                                       \
-      Type i = (value % 10);                                                   \
-                                                                               \
-      result += Char(i + '0');                                                 \
-      value /= 10;                                                             \
-    }                                                                          \
-                                                                               \
-    result.reverse();                                                          \
-    if (result.size() == 0) {                                                  \
-      result += '0';                                                           \
-    }                                                                          \
-    return result;                                                             \
-  }
-
-#define BUILD_SIGN_ToString(Type)                                              \
-  template <> String ToString<Type>(Type value) {                              \
-    String result{};                                                           \
-    Bool sign = value > 0;                                                     \
-                                                                               \
-    while (value != 0) {                                                       \
-      Type i = (value % 10);                                                   \
-                                                                               \
-      result += Char((i < 0 ? -i : i) + '0');                                  \
-      value /= 10;                                                             \
-    }                                                                          \
-                                                                               \
-    result.reverse();                                                          \
-    if (result.size() == 0) {                                                  \
-      result += '0';                                                           \
-    } else if (!sign)                                                          \
-      result = '-' + result;                                                   \
-    return result;                                                             \
-  }
-
-#define BUILD_REAL_ToString(Type)                                              \
-  template <> String ToString<Type>(Type value) {                              \
-    String result{};                                                           \
-    Bool sign = value > 0;                                                     \
-    Int ivalue = Int(value);                                                   \
-    Type rvalue = value - ivalue;                                              \
-    UInt size = 0;                                                             \
-                                                                               \
-    while (ivalue != 0) {                                                      \
-      ivalue /= 10;                                                            \
-      size++;                                                                  \
-    }                                                                          \
-                                                                               \
-    ivalue = Int(value);                                                       \
-    if (rvalue != 0) {                                                         \
-      result.resize((size ? size : 1) + 6 + !sign);                            \
-    } else {                                                                   \
-      result.resize((size ? size : 1) + !sign);                                \
-    }                                                                          \
-                                                                               \
-    if (!sign) {                                                               \
-      result[0] = '-';                                                         \
-    }                                                                          \
-                                                                               \
-    if (size > 0) {                                                            \
-      for (UInt idx = size; idx > 0; --idx) {                                  \
-        Int i = (ivalue % 10);                                                 \
-                                                                               \
-        result[idx - 1 + !sign] = Char((i < 0 ? -i : i) + '0');                \
-        ivalue /= 10;                                                          \
-      }                                                                        \
-    } else {                                                                   \
-      result[!sign] = '0';                                                     \
-      size = 1;                                                                \
-    }                                                                          \
-                                                                               \
-    if (rvalue != 0) {                                                         \
-      result[size + !sign] = '.';                                              \
-                                                                               \
-      for (auto i = 0; i < 5; ++i) {                                           \
-        Int r = Int(rvalue * 10);                                              \
-                                                                               \
-        result[size + 1 + i + !sign] = Char((r < 0 ? -r : r) + '0');           \
-        rvalue = rvalue * 10 - Int(rvalue * 10);                               \
-      }                                                                        \
-    }                                                                          \
-    return result;                                                             \
-  }
-
-BUILD_SIGN_ToString(Byte);
-BUILD_SIGN_ToString(Int);
-BUILD_USIGN_ToString(UInt);
-BUILD_SIGN_ToString(Long);
-BUILD_USIGN_ToString(ULong);
-
-BUILD_REAL_ToString(Float);
-BUILD_REAL_ToString(Double);
-#endif
 
 Tie::Tie() {}
 

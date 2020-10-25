@@ -3,21 +3,22 @@
 #include <Lock.h>
 #include <Logcat.h>
 #include <Type.h>
+#include <Utils.h>
 #include <Vertex.h>
 
 namespace Base {
 namespace Internal {
-Mutex* CreateMutex();
+Mutex *CreateMutex();
 
-static Vector<ULong>* RefMasters{None};
-static Vertex<Mutex, True> Secure([](Mutex* mutex) { LOCK(mutex); },
-                                  [](Mutex* mutex) { UNLOCK(mutex); },
+static Vector<ULong> *RefMasters{None};
+static Vertex<Mutex, True> Secure([](Mutex *mutex) { LOCK(mutex); },
+                                  [](Mutex *mutex) { UNLOCK(mutex); },
                                   CreateMutex());
 } // namespace Internal
 
 Refcount::~Refcount() { Release(); }
 
-Refcount::Refcount(const Refcount& src): _Status{False} {
+Refcount::Refcount(const Refcount &src) : _Status{False} {
   Bool pass = True;
 
   if (this == &src) {
@@ -46,14 +47,13 @@ Refcount::Refcount(const Refcount& src): _Status{False} {
   if (!pass) {
     _Count = new Int{0};
 
-    Internal::Secure.Circle([&]() {
-      Internal::RefMasters->push_back((ULong)_Count);
-    });
+    Internal::Secure.Circle(
+        [&]() { Internal::RefMasters->push_back((ULong)_Count); });
     Init();
   }
 }
 
-Refcount::Refcount(Refcount&& src): _Status{False} {
+Refcount::Refcount(Refcount &&src) : _Status{False} {
   Bool pass = True;
 
   if (this == &src) {
@@ -82,16 +82,16 @@ Refcount::Refcount(Refcount&& src): _Status{False} {
   if (!pass) {
     _Count = new Int{0};
 
-    Internal::Secure.Circle([&]() {
-      Internal::RefMasters->push_back((ULong)_Count);
-    });
+    Internal::Secure.Circle(
+        [&]() { Internal::RefMasters->push_back((ULong)_Count); });
 
     Init();
   }
 }
 
-Refcount::Refcount(void (*init)(Refcount* thiz),
-                   void (*release)(Refcount* thiz)): _Status{False} {
+Refcount::Refcount(void (*init)(Refcount *thiz),
+                   void (*release)(Refcount *thiz))
+    : _Status{False} {
   _Count = new Int{0};
   _Init = init;
   _Release = release;
@@ -105,7 +105,7 @@ Refcount::Refcount(void (*init)(Refcount* thiz),
   });
 }
 
-Refcount::Refcount(void (*release)(Refcount* thiz)): _Status{False} {
+Refcount::Refcount(void (*release)(Refcount *thiz)) : _Status{False} {
   _Count = new Int{0};
   _Release = release;
 
@@ -118,7 +118,7 @@ Refcount::Refcount(void (*release)(Refcount* thiz)): _Status{False} {
   });
 }
 
-Refcount::Refcount(): _Status{False} {
+Refcount::Refcount() : _Status{False} {
   _Count = new Int{0};
   _Init = None;
   _Release = None;
@@ -175,7 +175,7 @@ Int Refcount::Count() {
   return result;
 }
 
-Refcount& Refcount::operator=(const Refcount& src) {
+Refcount &Refcount::operator=(const Refcount &src) {
   /* @NOTE: this is very tricky since i can't gurantee that the src's counter
    * itself is existing during releasing current counter so secure then inside
    * a block would help to solve this problem */
@@ -214,17 +214,16 @@ void Refcount::Init() {
     });
   }
 
-  if (pass && _Init) _Init(this);
+  if (pass && _Init)
+    _Init(this);
 }
 
-Void Refcount::Secure(Int index, Void* address) {
-  Internal::Secure.Circle([&]() {
-    _Secure[index] = address;
-  });
+Void Refcount::Secure(Int index, Void *address) {
+  Internal::Secure.Circle([&]() { _Secure[index] = address; });
 }
 
-Void* Refcount::Access(Int index){
-  Void* result = None;
+Void *Refcount::Access(Int index) {
+  Void *result = None;
 
   if (_Status) {
     if (_Secure.find(index) == _Secure.end()) {
@@ -259,7 +258,7 @@ void Refcount::Release(Bool safed) {
         if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >= 0) {
           if (*_Count == 0) {
             pass = True;
-          } else if (*_Count < 0){
+          } else if (*_Count < 0) {
             Bug(EBadLogic, "Counter below zero");
           }
 
@@ -276,8 +275,8 @@ void Refcount::Release(Bool safed) {
         /* @NOTE: check the exitence of this counter and reduce counting */
 
         if (RefMasters) {
-          if (Find(RefMasters->begin(), RefMasters->end(),
-                   (ULong)_Count) >= 0) {
+          if (Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count) >=
+              0) {
             if (*_Count == 0) {
               pass = True;
             } else if (*_Count < 0) {
@@ -311,8 +310,8 @@ void Refcount::Release(Bool safed) {
 
       Internal::Secure.Circle([&]() {
         if (RefMasters) {
-          auto idx = Find(RefMasters->begin(), RefMasters->end(),
-                          (ULong)_Count);
+          auto idx =
+              Find(RefMasters->begin(), RefMasters->end(), (ULong)_Count);
 
           /* @NOTE: release this counter since we are reaching the last one */
           RefMasters->erase(RefMasters->begin() + idx);
@@ -339,7 +338,7 @@ void Refcount::Release(Bool safed) {
       Internal::Secure.Circle([&]() {
         if (RefMasters->size() == 0) {
           delete RefMasters;
-            RefMasters = None;
+          RefMasters = None;
         }
       });
     }
@@ -349,12 +348,10 @@ void Refcount::Release(Bool safed) {
 }
 
 void Refcount::Secure(Function<void()> callback) {
-  Internal::Secure.Circle([&]() {
-    callback();
-  });
+  Internal::Secure.Circle([&]() { callback(); });
 }
 
-Bool Refcount::Reference(const Refcount* src) {
+Bool Refcount::Reference(const Refcount *src) {
   Bool result = False;
 
   /* @NOTE: this function is used to make a new reference with src which is

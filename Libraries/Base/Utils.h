@@ -49,7 +49,7 @@ inline void usleep(__int64 usec) {
 
   /* @NOTE:Convert to 100 nanosecond interval, negative value indicates
    * relative time */
-  ft.QuadPart = -(10*usec);
+  ft.QuadPart = -(10 * usec);
 
   timer = CreateWaitableTimer(NULL, TRUE, NULL);
   SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
@@ -67,12 +67,12 @@ CString BSFormat(String format, ...);
 CString BSCut(CString sample, Char sep, Int position);
 CString BSFormat(CString format, ...);
 
-Mutex* BSCreateMutex();
-Void BSDestroyMutex(Mutex* locker);
+Mutex *BSCreateMutex();
+Void BSDestroyMutex(Mutex *locker);
 
-Bool BSIsMutexLocked(Mutex* locker);
-Bool BSLockMutex(Mutex* locker);
-Bool BSUnlockMutex(Mutex* locker);
+Bool BSIsMutexLocked(Mutex *locker);
+Bool BSLockMutex(Mutex *locker);
+Bool BSUnlockMutex(Mutex *locker);
 #endif
 
 #if __cplusplus
@@ -92,8 +92,8 @@ Int BSWriteToFileDescription(Int fd, Bytes buffer, UInt size);
 #endif
 
 #if __cplusplus
-#include <cxxabi.h>
 #include <cstring>
+#include <cxxabi.h>
 #include <string>
 
 /* @NOTE: these macros are used like a convenient tools to simplify my code */
@@ -106,61 +106,52 @@ class Error;
 class Tie;
 
 namespace Number {
-template <typename Type>
-Bool IsNumberic();
+template <typename Type> Bool IsNumberic();
 
-template <typename Type>
-Type Min();
+template <typename Type> Type Min();
 
-template <typename Type>
-Type Max();
-}  // namespace Number
+template <typename Type> Type Max();
+} // namespace Number
 
 namespace Locker {
-bool IsLocked(Mutex& locker);
-Bool Lock(Mutex& locker);
-Bool Unlock(Mutex& locker);
-}  // namespace Locker
+bool IsLocked(Mutex &locker);
+Bool Lock(Mutex &locker);
+Bool Unlock(Mutex &locker);
+} // namespace Locker
 
-void Wait(Mutex& locker);
+void Wait(Mutex &locker);
 String Datetime();
 
-template<typename... Args>
-Tie Bond(Args&... args);
+template <typename... Args> Tie Bond(Args &... args);
 
-template <typename LeftT, typename RightT>
-struct Pair {
+template <typename LeftT, typename RightT> struct Pair {
   LeftT Left;
   RightT Right;
 
-  explicit Pair(LeftT left, RightT right): Left{left}, Right{right} {}
+  explicit Pair(LeftT left, RightT right) : Left{left}, Right{right} {}
 
   Pair() : Left{}, Right{} {}
-  Pair(const Pair& src) : Left{src.Left}, Right{src.Right} {}
+  Pair(const Pair &src) : Left{src.Left}, Right{src.Right} {}
 };
 
-template<typename Type>
-String Nametype() {
-  auto& type = typeid(Type);
-  auto  status = 0;
+template <typename Type> String Nametype() {
+  auto &type = typeid(Type);
+  auto status = 0;
 
-  std::unique_ptr<char[], void (*)(void*)> result(
+  std::unique_ptr<char[], void (*)(void *)> result(
       abi::__cxa_demangle(type.name(), 0, 0, &status), std::free);
 
   if (result.get()) {
-#ifdef BASE_TYPE_STRING_H_
-    return String(result.get()).copy();
-#else
     return String(result.get());
-#endif
   } else {
     throw Except(EBadAccess, "it seems c++ can\'t access name of the type");
   }
 }
 
 template <typename Ret, typename... Args>
-Ret Wait(Mutex& locker, Function<Ret(Args...)> run_after_wait, Args... args) {
-  if (Locker::IsLocked(locker)) Locker::Lock(locker);
+Ret Wait(Mutex &locker, Function<Ret(Args...)> run_after_wait, Args... args) {
+  if (Locker::IsLocked(locker))
+    Locker::Lock(locker);
   return run_after_wait(args...);
 }
 
@@ -169,17 +160,10 @@ ULong GetAddress(std::function<T(U...)> f) {
   typedef T(fnType)(U...);
 
   fnType **fnPointer = f.template target<fnType *>();
-  return (fnPointer)? (size_t)*fnPointer: 0;
+  return (fnPointer) ? (size_t)*fnPointer : 0;
 }
 
-#ifdef BASE_TYPE_STRING_H_
-template <typename Type>
-String ToString(Type UNUSED(value)) {
-  throw Except(ENoSupport, Nametype<Type>());
-}
-#else
-template <typename Type>
-String ToString(Type value) {
+template <typename Type> inline String ToString(Type value) {
   return std::to_string(value);
 }
 
@@ -188,49 +172,42 @@ inline String ToString<std::nullptr_t>(std::nullptr_t UNUSED(value)) {
   return "None";
 }
 
-template<>
-inline String ToString<Void*>(Void* value) {
+template <> inline String ToString<Void *>(Void *value) {
   std::stringstream stream;
 
-  stream << std::hex << reinterpret_cast<intptr_t>(value);;
+  stream << std::hex << reinterpret_cast<intptr_t>(value);
+  ;
   return std::string(stream.str());
 }
-#endif
+
+template <typename Type> Int ToInt(Type UNUSED(value)) {
+  throw Except(ENoSupport, Nametype<Type>());
+}
+
+template <> Int ToInt<UInt>(UInt value);
+
+template <> Int ToInt<Int>(Int value);
+
+template <> Int ToInt<String>(String value);
+
+template <> Int ToInt<CString>(CString value);
+
+template <typename Type> Float ToFloat(Type UNUSED(value)) {
+  throw Except(ENoSupport, Nametype<Type>());
+}
+
+template <> Float ToFloat<UInt>(UInt value);
+
+template <> Float ToFloat<Int>(Int value);
+
+template <> Float ToFloat<String>(String value);
+
+template <> Float ToFloat<CString>(CString value);
 
 template <typename Type>
-Int ToInt(Type UNUSED(value)) { throw Except(ENoSupport, Nametype<Type>()); }
-
-template <>
-Int ToInt<UInt>(UInt value);
-
-template <>
-Int ToInt<Int>(Int value);
-
-template <>
-Int ToInt<String>(String value);
-
-template <>
-Int ToInt<CString>(CString value);
-
-template <typename Type>
-Float ToFloat(Type UNUSED(value)) { throw Except(ENoSupport, Nametype<Type>()); }
-
-template <>
-Float ToFloat<UInt>(UInt value);
-
-template <>
-Float ToFloat<Int>(Int value);
-
-template <>
-Float ToFloat<String>(String value);
-
-template <>
-Float ToFloat<CString>(CString value);
-
-template <typename Type>
-Int Find(Iterator<Type> begin, Iterator<Type> end, Type value){
-  for (UInt i = 0; i < end - begin; i += 1){
-    if (value == *(begin + i)){
+Int Find(Iterator<Type> begin, Iterator<Type> end, Type value) {
+  for (UInt i = 0; i < end - begin; i += 1) {
+    if (value == *(begin + i)) {
       return i;
     }
   }
@@ -239,9 +216,9 @@ Int Find(Iterator<Type> begin, Iterator<Type> end, Type value){
 }
 
 template <typename Type>
-Int Find(Type value, Tuple<Iterator<Type>, Iterator<Type>> range){
-  for (UInt i = 0; i < (std::get<1>(range) - std::get<0>(range)); i += 1){
-    if (value == *(std::get<0>(range) + i)){
+Int Find(Type value, Tuple<Iterator<Type>, Iterator<Type>> range) {
+  for (UInt i = 0; i < (std::get<1>(range) - std::get<0>(range)); i += 1) {
+    if (value == *(std::get<0>(range) + i)) {
       return i;
     }
   }
@@ -249,57 +226,29 @@ Int Find(Type value, Tuple<Iterator<Type>, Iterator<Type>> range){
   return -1;
 }
 
-template <>
-String ToString<String>(String value);
+template <> String ToString<String>(String value);
 
-template <>
-String ToString<char*>(char* value);
+template <> String ToString<char *>(char *value);
 
-template <>
-String ToString<const char*>(const char* value);
+template <> String ToString<const char *>(const char *value);
 
-template <>
-String ToString<ErrorCodeE>(ErrorCodeE value);
+template <> String ToString<ErrorCodeE>(ErrorCodeE value);
 
-template <>
-String ToString<ErrorLevelE>(ErrorLevelE value);
+template <> String ToString<ErrorLevelE>(ErrorLevelE value);
 
 template <typename Return>
-Return ReturnWithError(Return& ret, Error&& UNUSED(error)) {
+Return ReturnWithError(Return &ret, Error &&UNUSED(error)) {
   return ret;
 }
 
-#if !USE_STD_STRING
-template <>
-String ToString<Byte>(Byte value);
-
-template <>
-String ToString<Int>(Int value);
-
-template <>
-String ToString<UInt>(UInt value);
-
-template <>
-String ToString<Long>(Long value);
-
-template <>
-String ToString<ULong>(ULong value);
-
-template <>
-String ToString<Float>(Float value);
-
-template <>
-String ToString<Double>(Double value);
-#endif
-
 template <typename Return>
-Return ReturnWithError(Return&& ret, Error&& UNUSED(error)) {
+Return ReturnWithError(Return &&ret, Error &&UNUSED(error)) {
   return ret;
 }
 
-class Format{
- public:
-  enum SupportE{
+class Format {
+public:
+  enum SupportE {
     ERaw,
     EFloat,
     EFloat32,
@@ -310,42 +259,41 @@ class Format{
     EString
   };
 
-  explicit Format(String format): _Template{format}{}
+  explicit Format(String format) : _Template{format} {}
 
-  template<typename ...Args>
-  String Apply(Args... args){
+  template <typename... Args> String Apply(Args... args) {
     auto result = String{};
     auto next = Control(result, RValue(_Template), 0);
     auto index = std::get<0>(next);
     auto type = std::get<1>(next);
 
-    if (index >= 0){
+    if (index >= 0) {
       if (sizeof...(args) > 1) {
         return result +
-          Format::_Apply(std::make_tuple(this, _Template, index, type),
-                         args...);
+               Format::_Apply(std::make_tuple(this, _Template, index, type),
+                              args...);
       } else {
         return result +
-          Format::_Apply(std::make_tuple(this, _Template, index, type),
-                         args...) + _Template.substr(index);
+               Format::_Apply(std::make_tuple(this, _Template, index, type),
+                              args...) +
+               _Template.substr(index);
       }
     } else {
       return result;
     }
   }
 
-  template<typename Type>
-  inline String operator<<(Type value){
+  template <typename Type> inline String operator<<(Type value) {
     return Apply(value);
   }
 
- private:
-  static Tuple<Int, Format::SupportE> Control(String& result, String&& format,
+private:
+  static Tuple<Int, Format::SupportE> Control(String &result, String &&format,
                                               Int begin);
 
-  template<typename T, typename ...Args>
-  static String _Apply(Tuple<Format*, String, Int, Format::SupportE>&& config,
-                       const T &value, const Args&... args){
+  template <typename T, typename... Args>
+  static String _Apply(Tuple<Format *, String, Int, Format::SupportE> &&config,
+                       const T &value, const Args &... args) {
     auto thiz = std::get<0>(config);
     auto format = std::get<1>(config);
     auto index = std::get<2>(config);
@@ -366,11 +314,11 @@ class Format{
     if (index < 0) {
       return result;
     } else if (sizeof...(args) >= 1) {
-      result = result + 
-               Format::_Apply(std::make_tuple(thiz, format, index, type),
-                              args...);
+      result =
+          result +
+          Format::_Apply(std::make_tuple(thiz, format, index, type), args...);
     }
-    
+
     if (sizeof...(args) == 1 && index < Int(format.size())) {
       Format::Control(result, RValue(format), index);
     }
@@ -378,53 +326,53 @@ class Format{
     return result;
   }
 
-  template<typename T>
-  static String _Apply(Tuple<Format*, String, Int, Format::SupportE>&& config,
-                       const T& value){
+  template <typename T>
+  static String _Apply(Tuple<Format *, String, Int, Format::SupportE> &&config,
+                       const T &value) {
     auto type = std::get<3>(config);
 
-    switch(type){
+    switch (type) {
     case ERaw:
       break;
 
     case EFloat:
-      if (typeid(T) != typeid(Float) && typeid(T) != typeid(Double)){
+      if (typeid(T) != typeid(Float) && typeid(T) != typeid(Double)) {
         throw Except(EBadLogic, "");
       }
       break;
 
     case EFloat32:
-      if (typeid(T) != typeid(Float)){
+      if (typeid(T) != typeid(Float)) {
         throw Except(EBadLogic, "");
       }
       break;
 
     case EFloat64:
-      if (typeid(T) != typeid(Double)){
+      if (typeid(T) != typeid(Double)) {
         throw Except(EBadLogic, "");
       }
       break;
 
     case EInteger:
-      if (typeid(T) != typeid(Int)){
+      if (typeid(T) != typeid(Int)) {
         throw Except(EBadLogic, "");
       }
       break;
 
     case EUInteger:
-      if (typeid(T) != typeid(UInt)){
+      if (typeid(T) != typeid(UInt)) {
         throw Except(EBadLogic, "");
       }
       break;
 
     case ELong:
-      if (typeid(T) != typeid(Long) && typeid(T) != (typeid(ULong))){
+      if (typeid(T) != typeid(Long) && typeid(T) != (typeid(ULong))) {
         throw Except(EBadLogic, "");
       }
       break;
 
     case EString:
-      if (typeid(T) != typeid(String) && (typeid(T) == typeid(CString))){
+      if (typeid(T) != typeid(String) && (typeid(T) == typeid(CString))) {
         throw Except(EBadLogic, "");
       }
     }
@@ -434,8 +382,8 @@ class Format{
   String _Template;
 };
 
-class Fork: Refcount {
- public:
+class Fork : Refcount {
+public:
   enum StatusE {
     EBug = -1,
     ERunning = 0,
@@ -452,11 +400,11 @@ class Fork: Refcount {
   virtual ~Fork();
 
   /* @NOTE: copy constructors */
-  Fork(const Fork& src);
-  Fork(Fork&& src);
+  Fork(const Fork &src);
+  Fork(Fork &&src);
 
   /* @NOTE: the assign operator */
-  Fork& operator=(const Fork& src);
+  Fork &operator=(const Fork &src);
 
   /* @NOTE: get PID of the child processes */
   Int PID();
@@ -470,70 +418,61 @@ class Fork: Refcount {
   StatusE Status();
   Int ECode();
 
- private:
-  static void Release(Refcount* ptr);
+private:
+  static void Release(Refcount *ptr);
 
   Int _PID, _Input, _Output, _Error, *_ECode;
 };
 
 class Tie {
- public:
+public:
   virtual ~Tie();
 
-  template<typename Input>
-  Tie& operator=(Input& input) {
+  template <typename Input> Tie &operator=(Input &input) {
     return (*this) << input;
   }
 
-  template<typename Input>
-  Tie& operator<<(Input& input) {
-    return put(input);
-  }
+  template <typename Input> Tie &operator<<(Input &input) { return put(input); }
 
-  template<typename Output>
-  Tie& operator>>(Output& UNUSED(output)) {
-    throw Except(ENoSupport, 
+  template <typename Output> Tie &operator>>(Output &UNUSED(output)) {
+    throw Except(ENoSupport,
                  Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
 
- protected:
-  template<typename Input>
-  Tie& put(Input& UNUSED(input)) {
-    throw Except(ENoSupport, 
+protected:
+  template <typename Input> Tie &put(Input &UNUSED(input)) {
+    throw Except(ENoSupport,
                  Format{"No support type {}"}.Apply(Nametype<Input>()));
   }
 
-  template<typename Output>
-  Tie& get(Output& UNUSED(output)) {
-    throw Except(ENoSupport, 
+  template <typename Output> Tie &get(Output &UNUSED(output)) {
+    throw Except(ENoSupport,
                  Format{"No support type {}"}.Apply(Nametype<Output>()));
   }
 
- private:
+private:
   Tie();
 
-  Bool Mem2Cache(Void* context, const std::type_info& type, UInt size);
+  Bool Mem2Cache(Void *context, const std::type_info &type, UInt size);
 
-  template<typename T, typename ...Args>
-  Bool Prepare(const T &value, const Args&... args) {
+  template <typename T, typename... Args>
+  Bool Prepare(const T &value, const Args &... args) {
     if (sizeof...(args) >= 1) {
-      if (Mem2Cache((Void*)&value, typeid(T), sizeof(T))) {
+      if (Mem2Cache((Void *)&value, typeid(T), sizeof(T))) {
         return Prepare(args...);
       } else {
         return False;
       }
     } else {
-      return Mem2Cache((Void*)&value, typeid(T), sizeof(T));
+      return Mem2Cache((Void *)&value, typeid(T), sizeof(T));
     }
   }
 
-  template<typename T>
-  Bool Prepare(const T &value) {
-      return Mem2Cache((Void*)&value, typeid(T), sizeof(T));
+  template <typename T> Bool Prepare(const T &value) {
+    return Mem2Cache((Void *)&value, typeid(T), sizeof(T));
   }
 
-  template<typename... Args>
-  friend Base::Tie Base::Bond(Args&... args);
+  template <typename... Args> friend Base::Tie Base::Bond(Args &... args);
 
   Vector<Auto> _Cache;
   Vector<UInt> _Sizes;
@@ -543,16 +482,13 @@ class Tie {
  * the linker can't detect these function if we use dynamic link libraries
  * which are widely used with bazel to build a C/C++ project */
 
-template<>
-Tie& Tie::put<Vector<Auto>>(Vector<Auto>& input);
+template <> Tie &Tie::put<Vector<Auto>>(Vector<Auto> &input);
 
-template<>
-Tie& Tie::get<Vector<Auto>>(Vector<Auto>& output);
+template <> Tie &Tie::get<Vector<Auto>>(Vector<Auto> &output);
 
-template<typename... Args>
-Tie Bond(Args&... args) {
+template <typename... Args> Tie Bond(Args &... args) {
   Tie result{};
-  
+
   if (result.Prepare(args...)) {
     return result;
   } else {
@@ -561,13 +497,13 @@ Tie Bond(Args&... args) {
 }
 
 class Sequence : public Base::Stream {
- public:
+public:
   Sequence();
   ~Sequence();
 
   String operator()();
 
- private:
+private:
   String _Cache;
 };
 
@@ -575,7 +511,7 @@ String Cut(String sample, Char sep, Int posiiton);
 Vector<String> Split(String sample, Char sep);
 UInt Pagesize();
 Int PID();
-ErrorCodeE Protect(Void* address, UInt len, Int codes);
-}  // namespace Base
+ErrorCodeE Protect(Void *address, UInt len, Int codes);
+} // namespace Base
 #endif
-#endif  // BASE_UTILS_H_
+#endif // BASE_UTILS_H_

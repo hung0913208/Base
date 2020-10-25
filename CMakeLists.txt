@@ -123,8 +123,6 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	# using Visual Studio C++
 endif()
 
-add_definitions(-DUSE_STD_STRING=1)
-
 add_subdirectory(Libraries/Base)
 add_subdirectory(Libraries/Data)
 add_subdirectory(Libraries/Unittest)

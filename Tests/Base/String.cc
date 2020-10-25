@@ -1,32 +1,14 @@
 #include <algorithm>
 #include <cstring>
 
-#if USE_GTEST
-#include <gtest/gtest.h>
-#else
 #include <Logcat.h>
-#include <Unittest.h>
 #include <Type.h>
+#include <Unittest.h>
 #include <Utils.h>
 
-#if defined(BASE_TYPE_H_) && !defined(BASE_TYPE_STRING_H_)
-#include <Type/String.h>
-
-#ifdef BASE_TYPE_STRING_H_
-namespace Base{
-template <>
-inline std::string ToString(Base::String& value) {
-  return ToString(value.c_str());
-}
-}
-#endif
-#endif
-#endif
-
-#if !USE_STD_STRING
 TEST(String, Append) {
   {
-    Base::String sample;
+    String sample;
 
     sample += '0';
     EXPECT_TRUE(!strcmp(sample.data(), "0"));
@@ -51,7 +33,7 @@ TEST(String, Append) {
   }
 
   {
-    Base::String sample{"sample"};
+    String sample{"sample"};
     EXPECT_EQ(sample.append('s'), "samples");
     EXPECT_EQ(sample.append(5, 'a'), "samplesaaaaa");
     EXPECT_EQ(sample.append("sample"), "samplesaaaaasample");
@@ -59,12 +41,12 @@ TEST(String, Append) {
 }
 
 TEST(String, ConvertToReal) {
-  Base::String target{};
+  String target{};
   Double sample = 1234.12314414;
   Int ivalue = Int(sample);
   Double rvalue = sample - ivalue;
 
-  while(ivalue != 0) {
+  while (ivalue != 0) {
     Int i = ivalue % 10;
 
     target += Char(i + '0');
@@ -87,14 +69,14 @@ TEST(String, ConvertToReal) {
     Int r = Int(rvalue * 10);
 
     target += Char(r + '0');
-    rvalue = rvalue*10.0 - r;
+    rvalue = rvalue * 10.0 - r;
   }
   EXPECT_EQ(target, "1234.12314414");
 }
 
 TEST(String, Clone) {
-  Base::String sample = "abcxyz";
-  Base::String target{sample};
+  String sample = "abcxyz";
+  String target{sample};
 
   EXPECT_EQ(sample, target);
   EXPECT_EQ(sample.data(), target.data());
@@ -104,11 +86,11 @@ TEST(String, Clone) {
 }
 
 TEST(String, Compare) {
-  Base::String sample = "123456";
-  Base::String target1 = "123456";
-  Base::String target2 = "123456bc";
-  Base::String target3 = "12345";
-  Base::String target4 = "123457";
+  String sample = "123456";
+  String target1 = "123456";
+  String target2 = "123456bc";
+  String target3 = "12345";
+  String target4 = "123457";
 
   EXPECT_TRUE(sample == sample);
   EXPECT_TRUE(sample == target1);
@@ -119,43 +101,37 @@ TEST(String, Compare) {
 }
 
 TEST(String, Join) {
-  Base::String sample = "123";
+  String sample = "123";
 
   EXPECT_EQ(("456" + sample), "456123");
 }
 
 TEST(String, Present) {
-  Base::String sample = "Test with string";
-  Base::Vertex<void> escaping{[](){ Base::Log::Disable(10, -1); },
-                              [](){ Base::Log::Enable(10, -1); }};
+  String sample = "Test with string";
+  Base::Vertex<void> escaping{[]() { Base::Log::Disable(10, -1); },
+                              []() { Base::Log::Enable(10, -1); }};
 
   VLOG(10) << "hello world" << Base::EOL;
   VLOG(10) << sample << Base::EOL;
-  VLOG(10) << (GREEN << "turn color -> ") << Base::String{"hello world"}
-           << " mixing" << Base::EOL;
+  VLOG(10) << (GREEN << "turn color -> ") << String{"hello world"} << " mixing"
+           << Base::EOL;
 }
 
 TEST(String, Parameter) {
-  Base::Vertex<void> escaping{[](){ Base::Log::Disable(10, -1); },
-                              [](){ Base::Log::Enable(10, -1); }};
+  Base::Vertex<void> escaping{[]() { Base::Log::Disable(10, -1); },
+                              []() { Base::Log::Enable(10, -1); }};
 
-  auto normal = [](Base::String value) {
-    VLOG(10) << value << Base::EOL;
-  };
+  auto normal = [](String value) { VLOG(10) << value << Base::EOL; };
 
-  auto rvalue = [](Base::String&& value) {
-    VLOG(10) << value << Base::EOL;
-  };
+  auto rvalue = [](String &&value) { VLOG(10) << value << Base::EOL; };
 
-  auto lvalue = [](Base::String& value) {
-    VLOG(10) << value << Base::EOL;
-  };
+  auto lvalue = [](String &value) { VLOG(10) << value << Base::EOL; };
 
   auto perform = [&]() {
-    Base::String helloworld{"hello world"};
+    String helloworld{"hello world"};
 
     normal("hello world");
-    rvalue(Base::String{"hello world"});
+    rvalue(String{"hello world"});
     rvalue(RValue(helloworld));
     lvalue(helloworld);
   };
@@ -164,73 +140,75 @@ TEST(String, Parameter) {
 }
 
 class Exception {
- public:
-  Exception(Base::String message): _Message{message} {}
-  Exception(const CString message): _Message{message} {}
+public:
+  Exception(String message) : _Message{message} {}
+  Exception(const CString message) : _Message{message} {}
 
- private:
-  Base::String _Message;
+private:
+  String _Message;
 };
 
 TEST(String, Throwing) {
-  Base::Vertex<void> escaping{[](){ Base::Log::Disable(EError, -1); },
-                              [](){ Base::Log::Enable(EError, -1); }};
+  Base::Vertex<void> escaping{[]() { Base::Log::Disable(EError, -1); },
+                              []() { Base::Log::Enable(EError, -1); }};
   TIMEOUT(1, {
     try {
-      throw Base::String("hello world");
-    } catch(Base::String&) {
+      throw String("hello world");
+    } catch (String &) {
     }
   });
 
   TIMEOUT(1, {
     try {
-      throw Base::String("hello world");
-    } catch(Base::String) {
+      throw String("hello world");
+    } catch (String) {
     }
   });
 
   TIMEOUT(1, {
-    try{
+    try {
       throw Exception("hello world");
-    } catch(Exception&) {
+    } catch (Exception &) {
     }
   });
 
   TIMEOUT(1, {
-    try{
-      throw Exception(Base::String{"hello world"});
-    } catch(Exception) {
+    try {
+      throw Exception(String{"hello world"});
+    } catch (Exception) {
     }
   });
 
   TIMEOUT(1, {
-    try{
-      throw Exception(Base::String{"hello world"});
-    } catch(Exception&) {
+    try {
+      throw Exception(String{"hello world"});
+    } catch (Exception &) {
     }
   });
 
   TIMEOUT(1, {
-    try{
+    try {
       throw Exception("hello world");
-    } catch(Exception) {
+    } catch (Exception) {
     }
   });
 
   TIMEOUT(1, {
-    try{
+    try {
       throw Except(EDoNothing, "hello world");
-    } catch(Base::Exception&) {
+    } catch (Base::Exception &) {
     }
   });
 }
 
 TEST(String, Property) {
   auto perform = [&]() {
-    Base::SetProperty<Base::String> set;
-    Vector<Base::String> reversed{"10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0"};
+    Base::SetProperty<String> set;
+    Vector<String> reversed{"10", "9", "8", "7", "6", "5",
+                            "4",  "3", "2", "1", "0"};
 
-    set = Vector<Base::String>{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
+    set =
+        Vector<String>{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
 
     for (UInt i = -1; i < set.size() - 1; ++i) {
       EXPECT_EQ(set(i), Base::ToString(i + 1));
@@ -259,7 +237,7 @@ TEST(String, Convert) {
 }
 
 TEST(String, Format2String) {
-  Base::String sample(Base::Format{"{} is dir"}.Apply("/tmp/blank.map"));
+  String sample(Base::Format{"{} is dir"}.Apply("/tmp/blank.map"));
 
   EXPECT_EQ(sample, "/tmp/blank.map is dir");
   EXPECT_EQ(sample.append(" function abc"),

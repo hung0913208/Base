@@ -4,39 +4,23 @@
 
 #if USE_BASE_WITH_FULL_PATH_HEADER
 #include <Base/Type/ABI.h>
+#include <Base/Type/C++.h>
+#include <Base/Type/C.h>
 #include <Base/Type/Common.h>
 #else
 #include <Type/ABI.h>
+#include <Type/C++.h>
+#include <Type/C.h>
 #include <Type/Common.h>
 #endif
 
-#if __cplusplus
-#if USE_BASE_WITH_FULL_PATH_HEADER
-#include <Base/Type/String.h>
-#else
-#include <Type/String.h>
-#endif
-
-#ifndef BASE_TYPE_STRING_H_
 #if USE_BASE_WITH_FULL_PATH_HEADER
 #include <Base/Type/Refcount.h>
 #else
 #include <Type/Refcount.h>
 #endif
 
-using String = std::string;
-#else
-using String = Base::String;
-#endif // BASE_TYPE_STRING_H_
-#else
-#include <string.h>
-
-#if USE_BASE_WITH_FULL_PATH_HEADER
-#include <Base/Type/Refcount.h>
-#else
-#include <Type/Refcount.h>
+#if !__cplusplus
+#define String char *
 #endif
-
-#define String char*
-#endif
-#endif  // BASE_TYPE_H_
+#endif // BASE_TYPE_H_
