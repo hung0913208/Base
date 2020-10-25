@@ -41,7 +41,6 @@ using ostream = std::ostream;
 using istream = std::istream;
 
 using String = std::string;
-using str = String;
 
 using IVec = Vector<Int>;
 using FVec = Vector<Double>;

@@ -36,19 +36,19 @@ static Vector<Pair<ULong, Shared<Log>>> Loggers;
 
 namespace LogN {
 static UInt Loglevel{LOGLEVEL};
-}  // namespace LogN
-}  // namespace Internal
+} // namespace LogN
+} // namespace Internal
 
 namespace holders = std::placeholders;
 
-UInt& Log::Level(){ return Internal::LogN::Loglevel; }
+UInt &Log::Level() { return Internal::LogN::Loglevel; }
 
-Log& Log::Redirect(UInt level, Int device, Color color) {
+Log &Log::Redirect(UInt level, Int device, Color color) {
   Shared<Log> result = None;
   Bool actived = Internal::LogN::Loglevel <= level;
 
   /* @NOTE: search device group now, it bases on the level */
-  for (auto& item : Internal::Loggers) {
+  for (auto &item : Internal::Loggers) {
     if (item.Left == level) {
       result = item.Right;
     }
@@ -58,8 +58,7 @@ Log& Log::Redirect(UInt level, Int device, Color color) {
   if (!result) {
     result = std::make_shared<Log>(-1, color);
 
-    Internal::Loggers.push_back(
-        Pair<ULong, Shared<Log>>(level, result));
+    Internal::Loggers.push_back(Pair<ULong, Shared<Log>>(level, result));
   } else {
     result->Apperance() = color;
   }
@@ -71,63 +70,62 @@ Log& Log::Redirect(UInt level, Int device, Color color) {
 }
 
 Void Log::Enable(UInt level, Int device) {
-  auto& logger = Log::Redirect(level, device);
+  auto &logger = Log::Redirect(level, device);
 
   logger.Lock() = False;
   logger.ActiveDevice(device, True);
 }
 
 Void Log::Disable(UInt level, Int device) {
-  auto& logger = Log::Redirect(level, device);
+  auto &logger = Log::Redirect(level, device);
 
   logger.Lock() = True;
   logger.ActiveDevice(device, False);
 }
 
-Log::Log(Int device, Color color, Log* previous)
+Log::Log(Int device, Color color, Log *previous)
     : Stream{std::bind(&Log::WriteToDevice, this, holders::_1, holders::_2),
              None},
-      _Previous{previous},
-      _Status{True},
-      _Lock{False},
-      _Color{color},
-      _Device{device}
-{}
+      _Previous{previous}, _Status{True}, _Lock{False}, _Color{color},
+      _Device{device} {}
 
 Log::~Log() {
-  if (_Previous && _Device >= 0) _Previous->CloseDevice(_Device);
+  if (_Previous && _Device >= 0)
+    _Previous->CloseDevice(_Device);
 
   for (auto logger : _Loggers) {
     CloseDevice(std::get<0>(logger));
   }
 }
 
-Bool& Log::Lock() { return _Lock; }
+Bool &Log::Lock() { return _Lock; }
 
-Color& Log::Apperance(){ return _Color; }
+Color &Log::Apperance() { return _Color; }
 
-Log& Log::operator<<(const String& value) {
+Log &Log::operator<<(const String &value) {
   if (_Writer && _Status) {
     auto size_of_data = UInt(value.size());
     auto error = _Writer((Bytes)value.c_str(), &size_of_data);
 
-    if (error != ENoError) throw Exception(error);
+    if (error != ENoError)
+      throw Exception(error);
   }
   return *this;
 }
 
-Log& Log::operator<<(String&& value) {
+Log &Log::operator<<(String &&value) {
   if (_Writer && _Status) {
     auto size_of_data = UInt(value.size());
     auto error = _Writer((Bytes)value.c_str(), &size_of_data);
 
-    if (error != ENoError) throw Exception(error);
+    if (error != ENoError)
+      throw Exception(error);
   }
   return *this;
 }
 
-Log& Log::operator<<(Color&& value) {
-  if (_Status){
+Log &Log::operator<<(Color &&value) {
+  if (_Status) {
     if (_Device >= 0) {
       (*this) << value.Message();
     } else {
@@ -139,8 +137,8 @@ Log& Log::operator<<(Color&& value) {
   return *this;
 }
 
-Log& Log::operator<<(Color& value) {
-  if (_Status){
+Log &Log::operator<<(Color &value) {
+  if (_Status) {
 
     if (_Device >= 0) {
       (*this) << value.Message();
@@ -153,29 +151,29 @@ Log& Log::operator<<(Color& value) {
   return *this;
 }
 
-Log& Log::operator<<(Int&& value) { return (*this) << Base::ToString(value); }
+Log &Log::operator<<(Int &&value) { return (*this) << Base::ToString(value); }
 
-Log& Log::operator<<(UInt&& value) { return (*this) << Base::ToString(value); }
+Log &Log::operator<<(UInt &&value) { return (*this) << Base::ToString(value); }
 
-Log& Log::operator<<(Float&& value) { return (*this) << Base::ToString(value); }
+Log &Log::operator<<(Float &&value) { return (*this) << Base::ToString(value); }
 
-Log& Log::operator<<(Double&& value) {
+Log &Log::operator<<(Double &&value) {
   return (*this) << Base::ToString(value);
 }
 
-Log& Log::operator>>(String& UNUSED(value)) { throw Exception(ENoSupport); }
+Log &Log::operator>>(String &UNUSED(value)) { throw Exception(ENoSupport); }
 
-Log& Log::operator>>(Byte& UNUSED(value)) { throw Exception(ENoSupport); }
+Log &Log::operator>>(Byte &UNUSED(value)) { throw Exception(ENoSupport); }
 
-Log& Log::operator>>(Int& UNUSED(value)) { throw Exception(ENoSupport); }
+Log &Log::operator>>(Int &UNUSED(value)) { throw Exception(ENoSupport); }
 
-Log& Log::operator>>(UInt& UNUSED(value)) { throw Exception(ENoSupport); }
+Log &Log::operator>>(UInt &UNUSED(value)) { throw Exception(ENoSupport); }
 
-Log& Log::operator>>(Float& UNUSED(value)) { throw Exception(ENoSupport); }
+Log &Log::operator>>(Float &UNUSED(value)) { throw Exception(ENoSupport); }
 
-Log& Log::operator>>(Double& UNUSED(value)) { throw Exception(ENoSupport); }
+Log &Log::operator>>(Double &UNUSED(value)) { throw Exception(ENoSupport); }
 
-Log& Log::WithDevice(Int device) {
+Log &Log::WithDevice(Int device) {
   if (device == _Device) {
     return *this;
   } else if (_Loggers.find(device) == _Loggers.end()) {
@@ -222,13 +220,13 @@ Bool Log::AllowChangingStatus(Int UNUSED(device), Bool UNUSED(expected)) {
 
 Bool Log::AllowChangingStatus(Bool UNUSED(expected)) { return True; }
 
-ErrorCodeE Log::WriteToColorConsole(Bytes&& buffer, UInt* size) {
-  _Color << String((char*)buffer, *size);
+ErrorCodeE Log::WriteToColorConsole(Bytes &&buffer, UInt *size) {
+  _Color << String((char *)buffer, *size);
   _Color.Print();
   return ENoError;
 }
 
-ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt* size) {
+ErrorCodeE Log::WriteToDevice(Bytes &&buffer, UInt *size) {
   if (_Device < 0) {
     if (_Color.Code() == Color::White || _Color.Code() == Color::Reset) {
       return Stream::WriteToConsole(RValue(buffer), size);
@@ -240,8 +238,9 @@ ErrorCodeE Log::WriteToDevice(Bytes&& buffer, UInt* size) {
 
     /* @NOTE: result of BSWriteToFileDescription must be size or an error_code.
      * When error happens, writen == -ErrorCodeE */
-    if (writen < 0) return ErrorCodeE(-writen);
+    if (writen < 0)
+      return ErrorCodeE(-writen);
   }
   return ENoError;
 }
-}  // namespace Base
+} // namespace Base

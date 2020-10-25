@@ -6,10 +6,12 @@
 #include <Base/Property.h>
 #include <Base/Stream.h>
 #include <Base/Type.h>
+#include <Base/Utils.h>
 #else
 #include <Property.h>
 #include <Stream.h>
 #include <Type.h>
+#include <Utils.h>
 #endif
 
 #define LOGLEVEL 1
@@ -23,59 +25,59 @@
 
 #if __cplusplus
 #if READABLE
-#define NoError \
+#define NoError                                                                \
   Base::Error {}
-#define KeepContinue \
+#define KeepContinue                                                           \
   Base::Error { EKeepContinue, "", __FUNCTION__, __FILE__, __LINE__ }
-#define NoSupport \
+#define NoSupport                                                              \
   Base::Error { ENoSupport, "", __FUNCTION__, __FILE__, __LINE__ }
-#define BadLogic \
+#define BadLogic                                                               \
   Base::Error { EBadLogic, "", __FUNCTION__, __FILE__, __LINE__ }
-#define BadAccess \
+#define BadAccess                                                              \
   Base::Error { EBadAccess, "", __FUNCTION__, __FILE__, __LINE__ }
-#define OutOfRange \
+#define OutOfRange                                                             \
   Base::Error { EOutOfRange, "", __FUNCTION__, __FILE__, __LINE__ }
-#define NotFound \
+#define NotFound                                                               \
   Base::Error { ENotFound, "", __FUNCTION__, __FILE__, __LINE__ }
-#define DrainMem \
+#define DrainMem                                                               \
   Base::Error { EDrainMem, "", __FUNCTION__, __FILE__, __LINE__ }
-#define WatchErrno \
+#define WatchErrno                                                             \
   Base::Error { EWatchErrno, "", __FUNCTION__, __FILE__, __LINE__ }
-#define Interrupted \
+#define Interrupted                                                            \
   Base::Error { EInterrupted, "", __FUNCTION__, __FILE__, __LINE__ }
-#define DoNothing \
+#define DoNothing                                                              \
   Base::Error { EDoNothing, "", __FUNCTION__, __FILE__, __LINE__ }
-#define DoAgain \
+#define DoAgain                                                                \
   Base::Error { EDoAgain, "", __FUNCTION__, __FILE__, __LINE__ }
 #else
-#define NoError \
+#define NoError                                                                \
   Base::Error {}
-#define KeepContinue \
+#define KeepContinue                                                           \
   Base::Error { EKeepContinue }
-#define NoSupport \
+#define NoSupport                                                              \
   Base::Error { ENoSupport }
-#define BadLogic \
+#define BadLogic                                                               \
   Base::Error { EBadLogic }
-#define BadAccess \
+#define BadAccess                                                              \
   Base::Error { EBadAccess }
-#define OutOfRange \
+#define OutOfRange                                                             \
   Base::Error { EOutOfRange }
-#define NotFound \
+#define NotFound                                                               \
   Base::Error { ENotFound }
-#define DrainMem \
+#define DrainMem                                                               \
   Base::Error { EDrainMem }
-#define WatchErrno \
+#define WatchErrno                                                             \
   Base::Error { EWatchErrno }
-#define Interrupted \
+#define Interrupted                                                            \
   Base::Error { EInterrupted }
-#define DoNothing \
+#define DoNothing                                                              \
   Base::Error { EDoNothing }
-#define DoAgain \
+#define DoAgain                                                                \
   Base::Error { EDoAgain }
 #endif
 
 #define FUNCTION __FUNCTION__
-#define SOURCE \
+#define SOURCE                                                                 \
   Base::Format{"{}:{}"}.Apply(Base::Split(__FILE__, '/', -1), __LINE__)
 
 #define SRC SOURCE
@@ -92,29 +94,25 @@
 #define WHITE Base::Color(Base::Color::White)
 
 #if DEBUG
-#define ERROR                                                               \
-  VLOGC(EError, RED) << "[ " << Base::ToString(Base::PID()) << " ] "
-#define WARNING                                                             \
+#define ERROR VLOGC(EError, RED) << "[ " << Base::ToString(Base::PID()) << " ] "
+#define WARNING                                                                \
   VLOGC(EWarning, YELLOW) << "[ " << Base::ToString(Base::PID()) << ") ] "
 
-#define VERBOSE                                                             \
-  VLOGC(EDebug, MAGNETA) << "[ " << Base::ToString(Base::PID()) << " - "    \
+#define VERBOSE                                                                \
+  VLOGC(EDebug, MAGNETA) << "[ " << Base::ToString(Base::PID()) << " - "       \
                          << FUNCTION << " ] "
-#define INFO                                                                \
-  VLOGC(EInfo, WHITE) <<  "[ " << Base::ToString(Base::PID()) << " ] "
-#define FATAL                                                               \
-  VLOGC(EError, RED) << "[ " << Base::ToString(Base::PID()) << " ] "
+#define INFO VLOGC(EInfo, WHITE) << "[ " << Base::ToString(Base::PID()) << " ] "
+#define FATAL VLOGC(EError, RED) << "[ " << Base::ToString(Base::PID()) << " ] "
 
 /* @NOTE: this macro will help to write debug log easier while prevent
  * performance issue */
-#define DEBUG(message)                                                      \
-{                                                                           \
-  if (Base::Log::Level() == EDebug) {                                       \
-    VLOGC(EDebug, CYAN) << "[ " << Base::ToString(Base::PID())              \
-                        << " - " << FUNCTION << "] "                        \
-                        << (message) << Base::EOL;                          \
-  }                                                                         \
-}
+#define DEBUG(message)                                                         \
+  {                                                                            \
+    if (Base::Log::Level() == EDebug) {                                        \
+      VLOGC(EDebug, CYAN) << "[ " << Base::ToString(Base::PID()) << " - "      \
+                          << FUNCTION << "] " << (message) << Base::EOL;       \
+    }                                                                          \
+  }
 #else
 #define ERROR VLOGC(EError, RED)
 #define WARNING VLOGC(EWarning, YELLOW)
@@ -124,17 +122,17 @@
 
 /* @NOTE: this macro will help to write debug log easier while prevent
  * performance issue */
-#define DEBUG(message)                                                      \
-{                                                                           \
-  if (Base::Log::Level() == EDebug) {                                       \
-    VLOGC(EDebug, CYAN) << "[   DEBUG  ] "<< (message) << Base::EOL;        \
-  }                                                                         \
-}
+#define DEBUG(message)                                                         \
+  {                                                                            \
+    if (Base::Log::Level() == EDebug) {                                        \
+      VLOGC(EDebug, CYAN) << "[   DEBUG  ] " << (message) << Base::EOL;        \
+    }                                                                          \
+  }
 #endif
 
 namespace Base {
 class Color {
- public:
+public:
   enum ColorCodeE {
     Reset = 0,
     Red = 31,
@@ -150,104 +148,104 @@ class Color {
   virtual ~Color();
 
   /* @NOTE: these operators support how to wrapp a message with  color */
-  virtual Color& operator()(String& message);
-  virtual Color& operator()(String&& message);
+  virtual Color &operator()(String &message);
+  virtual Color &operator()(String &&message);
 
   /* @NOTE: these operators support how to communicate with Color object */
-  virtual Color& operator<<(String& message);
-  virtual Color& operator<<(String&& message);
-  virtual Color& operator>>(String& message);
+  virtual Color &operator<<(String &message);
+  virtual Color &operator<<(String &&message);
+  virtual Color &operator>>(String &message);
 
   Property<String> Message;
-  ColorCodeE& Code();
+  ColorCodeE &Code();
 
   /* @NOTE: control how to present message manually*/
   void Print();
   void Clear();
 
- protected:
-  void Print(String&& message);
+protected:
+  void Print(String &&message);
 
- private:
+private:
   ColorCodeE _Code;
   String _Message;
   Bool _Printed;
 };
 
 class Log : public Stream {
- public:
-  explicit Log(Int device = -1, Color color = WHITE,
-               Log* previous = None);
+public:
+  explicit Log(Int device = -1, Color color = WHITE, Log *previous = None);
   virtual ~Log();
 
-  Color& Apperance();
-  Bool& Lock();
+  Color &Apperance();
+  Bool &Lock();
 
-  Log& WithDevice(Int device = -1);
+  Log &WithDevice(Int device = -1);
   ErrorCodeE ActiveDevice(Int device = -1, Bool status = True);
   ErrorCodeE CloseDevice(Int device);
 
-  Log& operator<<(Color&& value);
-  Log& operator<<(Color& value);
+  Log &operator<<(Color &&value);
+  Log &operator<<(Color &value);
 
-  Log& operator<<(const String& value) final;
-  Log& operator<<(String&& value) final;
-  Log& operator<<(Int&& value) final;
-  Log& operator<<(UInt&& value) final;
-  Log& operator<<(Float&& value) final;
-  Log& operator<<(Double&& value) final;
+  Log &operator<<(const String &value) final;
+  Log &operator<<(String &&value) final;
+  Log &operator<<(Int &&value) final;
+  Log &operator<<(UInt &&value) final;
+  Log &operator<<(Float &&value) final;
+  Log &operator<<(Double &&value) final;
 
-  Log& operator>>(String& value) final;
-  Log& operator>>(Byte& value) final;
-  Log& operator>>(Int& value) final;
-  Log& operator>>(UInt& value) final;
-  Log& operator>>(Float& value) final;
-  Log& operator>>(Double& value) final;
+  Log &operator>>(String &value) final;
+  Log &operator>>(Byte &value) final;
+  Log &operator>>(Int &value) final;
+  Log &operator>>(UInt &value) final;
+  Log &operator>>(Float &value) final;
+  Log &operator>>(Double &value) final;
 
-  static Log& Redirect(UInt level, Int device = -1, Color color = WHITE);
+  static Log &Redirect(UInt level, Int device = -1, Color color = WHITE);
   static Void Enable(UInt level, Int device);
   static Void Disable(UInt level, Int device);
-  static UInt& Level();
+  static UInt &Level();
 
- protected:
-  virtual ErrorCodeE WriteToDevice(Bytes&& buffer, UInt* size);
+protected:
+  virtual ErrorCodeE WriteToDevice(Bytes &&buffer, UInt *size);
   virtual Bool AllowChangingStatus(Int device, Bool expected);
   virtual Bool AllowChangingStatus(Bool expected);
 
- private:
-  ErrorCodeE WriteToColorConsole(Bytes&& buffer, UInt* size);
+private:
+  ErrorCodeE WriteToColorConsole(Bytes &&buffer, UInt *size);
 
-  Map<Int, Log*> _Loggers;
-  Log* _Previous;
-  Bool _Status, _Lock;;
+  Map<Int, Log *> _Loggers;
+  Log *_Previous;
+  Bool _Status, _Lock;
+  ;
   Color _Color;
   Int _Device;
 };
 
 class Error : public Stream {
- public:
+public:
   explicit Error(ErrorCodeE code = ENoError, String message = "",
                  String function = "", String file = "", Int line = 0,
                  ErrorLevelE level = EError);
   explicit Error(String message);
 
-  Error(Error& error);
-  Error(Error&& error);
+  Error(Error &error);
+  Error(Error &&error);
   ~Error();
 
   /* @NOTE: usually, we will use Print to export manually message from Error */
   void Print(Bool force = False);
-  Error& Info();
-  Error& Warn();
-  Error& Fatal();
+  Error &Info();
+  Error &Warn();
+  Error &Fatal();
 
   /* @NOTE: operator to make reference among Error objects */
-  Error& operator=(Error& error);
-  Error& operator=(Error&& error);
+  Error &operator=(Error &error);
+  Error &operator=(Error &&error);
 
   /* @NOTE: opeartor to update message */
-  Error& operator<<(String message);
-  Error& operator()(String message);
+  Error &operator<<(String message);
+  Error &operator()(String message);
 
   operator bool();
 
@@ -255,7 +253,7 @@ class Error : public Stream {
   Property<ErrorCodeE> code;
   Property<String> message;
 
- private:
+private:
   void _Print();
 
   Bool _IsRef, _IsPrinted;
@@ -268,17 +266,46 @@ class Error : public Stream {
 };
 
 Int PID();
-}  // namespace Base
+} // namespace Base
 #else
-#define Error(code, message)                                        \
+#define Error(code, message)                                                   \
   WriteLog0(code, EError, __FUNCTION__, __FILE__, __LINE__, message)
-#define Warning(code, message)                                      \
+#define Warning(code, message)                                                 \
   WriteLog0(code, EWarning, __FUNCTION__, __FILE__, __LINE__, message)
-#define Info(code, message)                                         \
+#define Info(code, message)                                                    \
   WriteLog0(code, EInfo, __FUNCTION__, __FILE__, __LINE__, message)
 
 Int WriteLog0(enum ErrorCodeE code, enum ErrorLevelE level,
               const CString function, const CString file, Int line,
               const CString message);
 #endif
-#endif  // BASE_LOGCAT_H_
+
+#if __cplusplus
+template <typename... Args> inline void D(String format, Args... args) {
+  VERBOSE << Base::Format{format}.Apply(args...);
+}
+
+template <typename... Args> inline void I(String format, Args... args) {
+  INFO << Base::Format{format}.Apply(args...);
+}
+
+template <typename... Args> inline void E(String format, Args... args) {
+  ERROR << Base::Format{format}.Apply(args...);
+}
+
+template <typename... Args>
+inline void D(String tag, String format, Args... args) {
+  VERBOSE << tag << ": " << Base::Format{format}.Apply(args...);
+}
+
+template <typename... Args>
+inline void I(String tag, String format, Args... args) {
+  INFO << tag << ": " << Base::Format{format}.Apply(args...);
+}
+
+template <typename... Args>
+inline void E(String tag, String format, Args... args) {
+  ERROR << tag << ": " << Base::Format{format}.Apply(args...);
+}
+#endif
+#endif // BASE_LOGCAT_H_
